@@ -9,12 +9,15 @@ import com.xg.business.complaint.dto.SubmitComplaintRequest;
 import com.xg.business.complaint.mapper.ComplaintMapper;
 import com.xg.business.complaint.model.Complaint;
 import com.xg.common.base.PageResult;
+import com.xg.platform.event.StudentEventPublisher;
+import com.xg.platform.event.StudentEventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -22,6 +25,7 @@ import java.time.OffsetDateTime;
 public class ComplaintService {
 
     private final ComplaintMapper complaintMapper;
+    private final StudentEventPublisher studentEventPublisher;
 
     @Transactional
     public Complaint submit(SubmitComplaintRequest req, Long studentId, String studentName) {
@@ -29,11 +33,18 @@ public class ComplaintService {
         complaint.setTitle(req.getTitle());
         complaint.setCategory(req.getCategory());
         complaint.setContent(req.getContent());
-        complaint.setAnonymous(Boolean.TRUE.equals(req.getAnonymous()));
+        boolean anonymous = Boolean.TRUE.equals(req.getAnonymous());
+        complaint.setAnonymous(anonymous);
         complaint.setStatus("pending");
         complaint.setStudentId(studentId);
         complaint.setStudentName(studentName);
         complaintMapper.insert(complaint);
+        studentEventPublisher.publish(studentId, StudentEventType.COMPLAINT_SUBMITTED, "complaint",
+                Map.of(
+                        "complaint_category", req.getCategory() == null ? "" : req.getCategory(),
+                        "is_anonymous", anonymous,
+                        "complaint_id", complaint.getId()
+                ));
         return complaint;
     }
 

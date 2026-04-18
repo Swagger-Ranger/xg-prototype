@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xg.common.base.PageQuery;
 import com.xg.common.base.PageResult;
 import com.xg.common.tenant.TenantContext;
+import com.xg.platform.event.StudentEventPublisher;
+import com.xg.platform.event.StudentEventType;
 import com.xg.platform.notification.mapper.NotificationMapper;
 import com.xg.platform.notification.mapper.NotificationRecipientMapper;
 import com.xg.platform.notification.model.Notification;
@@ -15,9 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -27,6 +31,7 @@ public class NotificationService {
     private final NotificationMapper notificationMapper;
     private final NotificationRecipientMapper recipientMapper;
     private final NotificationDispatchService dispatchService;
+    private final StudentEventPublisher studentEventPublisher;
 
     /**
      * Create a notification and fan-out recipient records, then dispatch asynchronously.
@@ -80,12 +85,36 @@ public class NotificationService {
     }
 
     public void confirm(Long userId, Long notificationId) {
-        recipientMapper.update(null,
+        OffsetDateTime now = OffsetDateTime.now();
+        int updated = recipientMapper.update(null,
                 new LambdaUpdateWrapper<NotificationRecipient>()
                         .eq(NotificationRecipient::getUserId, userId)
                         .eq(NotificationRecipient::getNotificationId, notificationId)
+                        .eq(NotificationRecipient::getConfirmed, false)
                         .set(NotificationRecipient::getConfirmed, true)
-                        .set(NotificationRecipient::getConfirmedAt, OffsetDateTime.now()));
+                        .set(NotificationRecipient::getConfirmedAt, now));
+        if (updated == 0) {
+            return;
+        }
+        String level = "normal";
+        long delayMinutes = 0L;
+        try {
+            Notification notification = notificationMapper.selectById(notificationId);
+            if (notification != null) {
+                if (notification.getLevel() != null) level = notification.getLevel();
+                if (notification.getCreatedAt() != null) {
+                    delayMinutes = Duration.between(notification.getCreatedAt(), now).toMinutes();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("failed to load notification for event enrichment id={}", notificationId, e);
+        }
+        studentEventPublisher.publish(userId, StudentEventType.NOTIFICATION_CONFIRMED, "notification",
+                Map.of(
+                        "notification_id", notificationId,
+                        "level", level,
+                        "delay_minutes", delayMinutes
+                ));
     }
 
     public PageResult<NotificationRecipient> listMyNotifications(Long userId, PageQuery query) {

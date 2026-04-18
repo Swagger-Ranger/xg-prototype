@@ -14,6 +14,9 @@ import com.xg.business.checkin.mapper.CheckinRecordMapper;
 import com.xg.business.checkin.model.CheckinActivity;
 import com.xg.business.checkin.model.CheckinRecord;
 import com.xg.common.base.PageResult;
+import com.xg.common.tenant.TenantContext;
+import com.xg.platform.event.StudentEventPublisher;
+import com.xg.platform.event.StudentEventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +40,7 @@ public class CheckinService {
     private final CheckinActivityMapper checkinActivityMapper;
     private final CheckinRecordMapper checkinRecordMapper;
     private final ObjectMapper objectMapper;
+    private final StudentEventPublisher studentEventPublisher;
 
     @Transactional
     public CheckinActivity createActivity(CreateActivityRequest req, Long creatorId) {
@@ -134,6 +138,7 @@ public class CheckinService {
                 ? "late" : "on_time";
 
         CheckinRecord record = new CheckinRecord();
+        record.setTenantId(TenantContext.getTenantId());
         record.setActivityId(req.getActivityId());
         record.setStudentId(studentId);
         record.setStatus(status);
@@ -143,6 +148,20 @@ public class CheckinService {
         record.setCreatedAt(now);
 
         checkinRecordMapper.insert(record);
+
+        StudentEventType eventType = "late".equals(status)
+                ? StudentEventType.CHECKIN_LATE
+                : StudentEventType.CHECKIN_SUCCESS;
+        long lateMinutes = "late".equals(status)
+                ? java.time.Duration.between(
+                        activity.getStartTime().plusMinutes(activity.getLateThresholdMinutes()),
+                        now).toMinutes()
+                : 0L;
+        studentEventPublisher.publish(studentId, eventType, "checkin", Map.of(
+                "activity_id", activity.getId(),
+                "activity_name", activity.getTitle() == null ? "" : activity.getTitle(),
+                "late_minutes", lateMinutes
+        ));
         return record;
     }
 
@@ -195,6 +214,7 @@ public class CheckinService {
                 checkinRecordMapper.updateById(existing);
             } else {
                 CheckinRecord record = new CheckinRecord();
+                record.setTenantId(TenantContext.getTenantId());
                 record.setActivityId(activityId);
                 record.setStudentId(entry.getStudentId());
                 record.setStatus(entry.getStatus());
@@ -224,6 +244,7 @@ public class CheckinService {
 
         OffsetDateTime now = OffsetDateTime.now();
         CheckinRecord record = new CheckinRecord();
+        record.setTenantId(TenantContext.getTenantId());
         record.setActivityId(activityId);
         record.setStudentId(req.getStudentId());
         record.setStatus("on_time");

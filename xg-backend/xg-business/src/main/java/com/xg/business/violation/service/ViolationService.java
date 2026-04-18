@@ -11,10 +11,14 @@ import com.xg.business.violation.mapper.ViolationRecordMapper;
 import com.xg.business.violation.model.Punishment;
 import com.xg.business.violation.model.ViolationRecord;
 import com.xg.common.base.PageResult;
+import com.xg.platform.event.StudentEventPublisher;
+import com.xg.platform.event.StudentEventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -23,6 +27,7 @@ public class ViolationService {
 
     private final ViolationRecordMapper violationRecordMapper;
     private final PunishmentMapper punishmentMapper;
+    private final StudentEventPublisher studentEventPublisher;
 
     @Transactional
     public ViolationRecord recordViolation(ViolationCreateRequest req, Long recorderId, String recorderName) {
@@ -36,6 +41,11 @@ public class ViolationService {
         record.setRecorderId(recorderId);
         record.setRecorderName(recorderName);
         violationRecordMapper.insert(record);
+        studentEventPublisher.publish(req.getStudentId(), StudentEventType.VIOLATION_RECORDED, "violation",
+                Map.of(
+                        "violation_type", req.getCategory() == null ? "" : req.getCategory(),
+                        "violation_id", record.getId()
+                ));
         return record;
     }
 

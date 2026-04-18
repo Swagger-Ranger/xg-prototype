@@ -14,6 +14,8 @@ import com.xg.business.leave.model.LeaveRequest;
 import com.xg.business.leave.model.LeaveTypeConfig;
 import com.xg.business.student.mapper.StudentProfileMapper;
 import com.xg.common.base.PageResult;
+import com.xg.platform.event.StudentEventPublisher;
+import com.xg.platform.event.StudentEventType;
 import com.xg.platform.workflow.engine.WorkflowEngine;
 import com.xg.platform.workflow.model.WorkflowInstance;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,7 @@ public class LeaveService {
     private final StudentProfileMapper studentProfileMapper;
     private final WorkflowEngine workflowEngine;
     private final ObjectMapper objectMapper;
+    private final StudentEventPublisher studentEventPublisher;
 
     public List<LeaveTypeConfig> listLeaveTypes() {
         return leaveTypeConfigMapper.selectList(
@@ -78,6 +81,12 @@ public class LeaveService {
             @Override
             public void afterCommit() {
                 startWorkflowSafely(leave, studentId);
+                studentEventPublisher.publish(studentId, StudentEventType.LEAVE_SUBMIT, "leave",
+                        Map.of(
+                                "leave_type", leaveType.getCode(),
+                                "duration_days", durationDays,
+                                "leave_request_id", leave.getId()
+                        ));
             }
         });
 
