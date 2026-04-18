@@ -13,6 +13,9 @@ const NotificationManagement = lazy(() => import('./pages/notification'));
 const ComplaintManagement = lazy(() => import('./pages/complaint'));
 const StudentManagement = lazy(() => import('./pages/student'));
 const SystemManagement = lazy(() => import('./pages/system'));
+const WorkLogManagement = lazy(() => import('./pages/workLog'));
+const ViolationManagement = lazy(() => import('./pages/violation'));
+const WorkStudyManagement = lazy(() => import('./pages/workStudy'));
 
 const Loading = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -46,6 +49,9 @@ export default function App() {
           <Route path="notification" element={<NotificationManagement />} />
           <Route path="complaint" element={<ComplaintManagement />} />
           <Route path="student" element={<StudentManagement />} />
+          <Route path="work-log" element={<WorkLogManagement />} />
+          <Route path="violation" element={<ViolationManagement />} />
+          <Route path="work-study" element={<WorkStudyManagement />} />
           <Route path="system/*" element={<SystemManagement />} />
           <Route path="*" element={<Navigate to="/workspace" replace />} />
         </Route>

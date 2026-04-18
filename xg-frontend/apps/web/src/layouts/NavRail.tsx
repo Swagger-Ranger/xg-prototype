@@ -8,6 +8,9 @@ import {
   TeamOutlined,
   SettingOutlined,
   LogoutOutlined,
+  EditOutlined,
+  WarningOutlined,
+  ShopOutlined,
 } from '@ant-design/icons';
 import { Tooltip } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -23,6 +26,9 @@ const navItems = [
   { key: '/notification', icon: <BellOutlined />, label: '通知任务', permission: null },
   { key: '/complaint', icon: <MessageOutlined />, label: '接诉即办', permission: null },
   { key: '/student', icon: <TeamOutlined />, label: '学生信息', permission: 'student:view' },
+  { key: '/work-log', icon: <EditOutlined />, label: '工作日志', permission: 'worklog:manage' },
+  { key: '/violation', icon: <WarningOutlined />, label: '违纪处分', permission: 'discipline:manage' },
+  { key: '/work-study', icon: <ShopOutlined />, label: '勤工助学', permission: null },
 ];
 
 const bottomItems = [
