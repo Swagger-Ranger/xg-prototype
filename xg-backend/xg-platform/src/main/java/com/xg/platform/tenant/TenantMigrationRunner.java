@@ -16,6 +16,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,6 +65,7 @@ public class TenantMigrationRunner implements ApplicationRunner {
         boolean legacy = hasNonFlywayTables(schemaName) && !hasFlywayHistory(schemaName);
         String baseline = legacy ? maxClasspathMigrationVersion() : "0";
 
+        String tenantId = schemaName.startsWith("tenant_") ? schemaName.substring(7) : schemaName;
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource)
                 .schemas(schemaName)
@@ -72,6 +74,7 @@ public class TenantMigrationRunner implements ApplicationRunner {
                 .table(FLYWAY_HISTORY_TABLE)
                 .baselineOnMigrate(true)
                 .baselineVersion(baseline)
+                .placeholders(Map.of("tenant_id", tenantId))
                 .load();
         int applied = flyway.migrate().migrationsExecuted;
         log.info("Tenant migration: schema={} legacy={} baseline={} applied={}",
