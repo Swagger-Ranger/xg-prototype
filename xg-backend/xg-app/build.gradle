@@ -1,0 +1,18 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+// bootJar is enabled by default when Spring Boot plugin is applied
+// plain jar is disabled by default
+jar {
+    enabled = false
+}
+
+dependencies {
+    implementation project(':xg-tool-registry')
+    implementation project(':xg-platform')
+    implementation project(':xg-common')
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    runtimeOnly 'org.postgresql:postgresql'
+}

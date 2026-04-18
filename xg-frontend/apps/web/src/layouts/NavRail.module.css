@@ -1,0 +1,70 @@
+.rail {
+  width: var(--nav-width);
+  height: 100%;
+  background: var(--bg-0);
+  border-right: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.navItems {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bottomItems {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.navItem {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  border: none;
+  background: transparent;
+  color: var(--fg-3);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s var(--ease);
+  position: relative;
+}
+
+.navItem:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.navItem.active {
+  background: var(--ac-bg);
+  color: var(--ac);
+}
+
+.navItem.active::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  background: var(--ac);
+  border-radius: 0 2px 2px 0;
+}
+
+.navItem.logout:hover {
+  color: var(--danger, #dc2626);
+  background: rgba(220,38,38,0.06);
+}

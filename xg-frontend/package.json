@@ -1,0 +1,20 @@
+{
+  "name": "xg1-frontend",
+  "private": true,
+  "scripts": {
+    "dev:web": "turbo run dev --filter=@xg1/web",
+    "dev:mini": "turbo run dev:weapp --filter=@xg1/mini",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "packageManager": "pnpm@9.1.0",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,84 @@
+.page {
+  max-width: 1200px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+
+.segmented {
+  margin-bottom: 16px;
+}
+
+.tableCard {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+
+.statusTag {
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+}
+
+.actionLink {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  color: var(--ac);
+  cursor: pointer;
+  font-size: 13px;
+  transition: color 0.15s;
+}
+
+.actionLink:hover {
+  color: var(--ac-hi);
+}
+
+.actionLink + .actionLink {
+  margin-left: 12px;
+}
+
+.actionLink.danger {
+  color: var(--danger);
+}
+
+.actionLink.danger:hover {
+  color: #b91c1c;
+}
+
+.actionLink.warn {
+  color: var(--warn);
+}
+
+.actionLink.warn:hover {
+  color: #92400e;
+}
+
+.progressCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressText {
+  font-size: 12px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}

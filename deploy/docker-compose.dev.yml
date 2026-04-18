@@ -1,0 +1,54 @@
+# ============================================
+# 开发模式 — 仅启动基础设施，应用本机运行
+# ============================================
+# 启动: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# 内存占用: ~1.2GB (PG 512M + Redis 128M + MinIO 256M + OS开销)
+# ============================================
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+    command: >
+      postgres
+        -c shared_buffers=128MB
+        -c effective_cache_size=256MB
+        -c work_mem=2MB
+        -c maintenance_work_mem=32MB
+        -c max_connections=50
+        -c log_min_duration_statement=500
+        -c log_statement=mod
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 96mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # 开发模式下不启动应用服务
+  xg-java:
+    profiles: ["disabled"]
+  xg-python:
+    profiles: ["disabled"]
+  nginx:
+    profiles: ["disabled"]
+  prometheus:
+    profiles: ["disabled"]
+  grafana:
+    profiles: ["disabled"]

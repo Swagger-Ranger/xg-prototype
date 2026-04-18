@@ -1,0 +1,38 @@
+{
+  "name": "@xg1/mini",
+  "version": "0.1.0",
+  "private": true,
+  "templateInfo": {
+    "name": "default",
+    "typescript": true,
+    "css": "none"
+  },
+  "scripts": {
+    "dev:weapp": "taro build --type weapp --watch",
+    "build:weapp": "taro build --type weapp",
+    "lint": "eslint src --ext ts,tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tarojs/components": "3.6.32",
+    "@tarojs/helper": "3.6.32",
+    "@tarojs/plugin-platform-weapp": "3.6.32",
+    "@tarojs/runtime": "3.6.32",
+    "@tarojs/shared": "3.6.32",
+    "@tarojs/taro": "3.6.32",
+    "@tarojs/plugin-framework-react": "3.6.32",
+    "@xg1/design-tokens": "workspace:*",
+    "@xg1/shared": "workspace:*",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@babel/runtime": "^7.24.0",
+    "@tarojs/cli": "3.6.32",
+    "@tarojs/webpack5-runner": "3.6.32",
+    "@types/react": "^18.3.0",
+    "typescript": "^5.4.0",
+    "webpack": "^5.91.0"
+  }
+}

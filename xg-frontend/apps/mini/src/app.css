@@ -1,0 +1,9 @@
+/* Import mini program design tokens */
+
+/* Base styles */
+page {
+  font-family: 'Geist', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f5f3ff;
+  color: #1e1b4b;
+  -webkit-font-smoothing: antialiased;
+}

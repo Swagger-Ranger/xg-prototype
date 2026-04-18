@@ -1,0 +1,205 @@
+.page {
+  min-height: 100vh;
+  background: #f5f3ff;
+}
+
+/* ======= Gradient Header ======= */
+.header {
+  position: relative;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 40%, #4338ca 100%);
+  padding: 0 0 40px 0;
+  overflow: hidden;
+  border-radius: 0 0 32px 32px;
+}
+
+.headerGrain {
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.headerShimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  animation: shimmerSweep 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.headerContent {
+  position: relative;
+  z-index: 1;
+  padding: 60px 24px 0;
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(255,255,255,0.25);
+}
+
+.avatarText {
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.greeting {
+  display: flex;
+  flex-direction: column;
+}
+
+.greetingName {
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.greetingRole {
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* ======= Briefing Pills ======= */
+.pills {
+  display: flex;
+  gap: 10px;
+}
+
+.pill {
+  flex: 1;
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(8px);
+  border-radius: 14px;
+  padding: 12px 8px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.pillValue {
+  display: block;
+  color: white;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pillLabel {
+  display: block;
+  color: rgba(255,255,255,0.6);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* ======= Cards ======= */
+.cards {
+  padding: 20px 16px;
+  margin-top: -20px;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+  position: relative;
+  border: 1px solid rgba(99,102,241,0.08);
+}
+
+.cardShimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6366f1, #818cf8, #22d3ee, #818cf8, #6366f1);
+  background-size: 300% 100%;
+  animation: cardBarShimmer 3.5s linear infinite;
+}
+
+@keyframes cardBarShimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+.cardHeader {
+  padding: 16px 18px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardIcon {
+  font-size: 18px;
+}
+
+.cardTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e1b4b;
+}
+
+.cardBody {
+  padding: 0 18px 18px;
+}
+
+.cardText {
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+/* Approval card (green gradient header) */
+.approvalCard {
+  border: none;
+}
+
+.approvalHeader {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.approvalBadge {
+  background: rgba(255,255,255,0.25);
+  backdrop-filter: blur(8px);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.approvalBadgeText {
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+}

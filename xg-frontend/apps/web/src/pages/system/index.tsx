@@ -1,0 +1,407 @@
+import { useState } from 'react';
+import { Table, Tag, Select, Button, Input, Modal, Form, message } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { SystemUser, UserQueryParams, CreateUserData, UpdateUserData } from '@/api/system';
+import { getUsers, createUser, updateUser, resetPassword, toggleUserStatus } from '@/api/system';
+import styles from './index.module.css';
+
+const ROLE_LABELS: Record<string, string> = {
+  student: '学生',
+  counselor: '辅导员',
+  dean: '院系领导',
+  school_admin: '管理员',
+};
+
+const STATUS_LABELS: Record<string, string> = { active: '正常', disabled: '禁用' };
+const STATUS_COLORS: Record<string, string> = { active: 'var(--ok)', disabled: 'var(--danger)' };
+
+const ROLE_OPTIONS = [
+  { label: '全部角色', value: '' },
+  { label: '学生', value: 'student' },
+  { label: '辅导员', value: 'counselor' },
+  { label: '院系领导', value: 'dean' },
+  { label: '管理员', value: 'school_admin' },
+];
+
+const STATUS_OPTIONS = [
+  { label: '全部状态', value: '' },
+  { label: '正常', value: 'active' },
+  { label: '禁用', value: 'disabled' },
+];
+
+const ROLE_SELECT_OPTIONS = [
+  { label: '学生', value: 'student' },
+  { label: '辅导员', value: 'counselor' },
+  { label: '院系领导', value: 'dean' },
+  { label: '管理员', value: 'school_admin' },
+];
+
+const PAGE_SIZE = 20;
+
+export default function SystemManagement() {
+  const [page, setPage] = useState(1);
+  const [keyword, setKeyword] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editUser, setEditUser] = useState<SystemUser | null>(null);
+
+  const [createForm] = Form.useForm<CreateUserData>();
+  const [editForm] = Form.useForm<UpdateUserData>();
+
+  const queryClient = useQueryClient();
+
+  const queryParams: UserQueryParams = {
+    page,
+    size: PAGE_SIZE,
+    keyword: keyword || undefined,
+    status: filterStatus || undefined,
+    role_code: filterRole || undefined,
+  };
+
+  const { data, isFetching } = useQuery({
+    queryKey: ['systemUsers', queryParams],
+    queryFn: () => getUsers(queryParams),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createUser,
+    onSuccess: () => {
+      message.success('用户创建成功');
+      queryClient.invalidateQueries({ queryKey: ['systemUsers'] });
+      createForm.resetFields();
+      setCreateOpen(false);
+    },
+    onError: () => {
+      message.error('创建失败，请重试');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateUserData }) => updateUser(id, data),
+    onSuccess: () => {
+      message.success('更新成功');
+      queryClient.invalidateQueries({ queryKey: ['systemUsers'] });
+      editForm.resetFields();
+      setEditUser(null);
+    },
+    onError: () => {
+      message.error('更新失败，请重试');
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: resetPassword,
+    onSuccess: () => {
+      message.success('密码已重置');
+    },
+    onError: () => {
+      message.error('重置密码失败，请重试');
+    },
+  });
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'active' | 'disabled' }) =>
+      toggleUserStatus(id, status),
+    onSuccess: () => {
+      message.success('操作成功');
+      queryClient.invalidateQueries({ queryKey: ['systemUsers'] });
+    },
+    onError: () => {
+      message.error('操作失败，请重试');
+    },
+  });
+
+  const handleCreateSubmit = async () => {
+    const values = await createForm.validateFields();
+    createMutation.mutate(values);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editUser) return;
+    const values = await editForm.validateFields();
+    updateMutation.mutate({ id: editUser.id, data: values });
+  };
+
+  const handleResetPassword = (record: SystemUser) => {
+    Modal.confirm({
+      title: '确认重置密码',
+      content: `确定要重置用户「${record.real_name}」的密码吗？`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: () => resetPasswordMutation.mutate(record.id),
+    });
+  };
+
+  const handleToggleStatus = (record: SystemUser) => {
+    const toStatus = record.status === 'active' ? 'disabled' : 'active';
+    const action = toStatus === 'disabled' ? '禁用' : '启用';
+    Modal.confirm({
+      title: `确认${action}用户`,
+      content: `确定要${action}用户「${record.real_name}」吗？`,
+      okText: '确定',
+      cancelText: '取消',
+      okButtonProps: toStatus === 'disabled' ? { danger: true } : {},
+      onOk: () => toggleStatusMutation.mutate({ id: record.id, status: toStatus }),
+    });
+  };
+
+  const handleOpenEdit = (record: SystemUser) => {
+    setEditUser(record);
+    editForm.setFieldsValue({
+      real_name: record.real_name,
+      phone: record.phone,
+      email: record.email,
+      role_codes: record.role_codes,
+    });
+  };
+
+  const columns: ColumnsType<SystemUser> = [
+    {
+      title: '用户名',
+      dataIndex: 'username',
+      width: 120,
+    },
+    {
+      title: '姓名',
+      dataIndex: 'real_name',
+      width: 100,
+    },
+    {
+      title: '角色',
+      dataIndex: 'role_codes',
+      width: 180,
+      render: (codes: string[]) => (
+        <div className={styles.roleTags}>
+          {codes.map((code) => (
+            <Tag key={code}>{ROLE_LABELS[code] ?? code}</Tag>
+          ))}
+        </div>
+      ),
+    },
+    {
+      title: '手机',
+      dataIndex: 'phone',
+      width: 130,
+      render: (v: string) => v || '-',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 90,
+      render: (status: string) => (
+        <span
+          className={styles.statusTag}
+          style={{
+            backgroundColor: `${STATUS_COLORS[status]}18`,
+            color: STATUS_COLORS[status],
+            border: `1px solid ${STATUS_COLORS[status]}40`,
+          }}
+        >
+          {STATUS_LABELS[status] ?? status}
+        </span>
+      ),
+    },
+    {
+      title: '最后登录',
+      dataIndex: 'last_login_at',
+      width: 160,
+      render: (v: string | null) => {
+        if (!v) return '-';
+        return new Date(v).toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      },
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 200,
+      render: (_, record) => (
+        <span>
+          <button className={styles.actionLink} onClick={() => handleOpenEdit(record)}>
+            编辑
+          </button>
+          <button className={styles.actionLink} onClick={() => handleResetPassword(record)}>
+            重置密码
+          </button>
+          <button
+            className={`${styles.actionLink} ${record.status === 'active' ? styles.danger : ''}`}
+            onClick={() => handleToggleStatus(record)}
+          >
+            {record.status === 'active' ? '禁用' : '启用'}
+          </button>
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <h1 className={styles.title}>系统管理 · 用户管理</h1>
+        <Button type="primary" onClick={() => setCreateOpen(true)}>
+          添加用户
+        </Button>
+      </div>
+
+      <div className={styles.filterBar}>
+        <Input.Search
+          placeholder="搜索用户名或姓名"
+          allowClear
+          style={{ width: 220 }}
+          onSearch={(v) => { setKeyword(v); setPage(1); }}
+          onChange={(e) => { if (!e.target.value) { setKeyword(''); setPage(1); } }}
+        />
+        <Select
+          style={{ width: 130 }}
+          value={filterRole}
+          onChange={(v) => { setFilterRole(v); setPage(1); }}
+          options={ROLE_OPTIONS}
+        />
+        <Select
+          style={{ width: 120 }}
+          value={filterStatus}
+          onChange={(v) => { setFilterStatus(v); setPage(1); }}
+          options={STATUS_OPTIONS}
+        />
+      </div>
+
+      <div className={styles.tableCard}>
+        <Table<SystemUser>
+          rowKey="id"
+          columns={columns}
+          dataSource={data?.data ?? []}
+          loading={isFetching}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: data?.total ?? 0,
+            onChange: setPage,
+            showSizeChanger: false,
+            showTotal: (total) => `共 ${total} 条`,
+            size: 'small',
+          }}
+          size="middle"
+        />
+      </div>
+
+      {/* Create user modal */}
+      <Modal
+        title="添加用户"
+        open={createOpen}
+        onCancel={() => { setCreateOpen(false); createForm.resetFields(); }}
+        footer={[
+          <Button key="cancel" onClick={() => { setCreateOpen(false); createForm.resetFields(); }}>
+            取消
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={createMutation.isPending}
+            onClick={handleCreateSubmit}
+          >
+            创建
+          </Button>,
+        ]}
+        width={520}
+        destroyOnHidden
+      >
+        <Form form={createForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="username"
+            label="用户名"
+            rules={[{ required: true, message: '请输入用户名' }]}
+          >
+            <Input placeholder="请输入用户名" />
+          </Form.Item>
+          <Form.Item
+            name="real_name"
+            label="姓名"
+            rules={[{ required: true, message: '请输入姓名' }]}
+          >
+            <Input placeholder="请输入真实姓名" />
+          </Form.Item>
+          <Form.Item name="phone" label="手机号">
+            <Input placeholder="请输入手机号" />
+          </Form.Item>
+          <Form.Item name="email" label="邮箱">
+            <Input placeholder="请输入邮箱" />
+          </Form.Item>
+          <Form.Item
+            name="role_codes"
+            label="角色"
+            rules={[{ required: true, message: '请选择角色' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="请选择角色"
+              options={ROLE_SELECT_OPTIONS}
+            />
+          </Form.Item>
+          <Form.Item
+            name="password"
+            label="初始密码"
+            rules={[{ required: true, message: '请输入初始密码' }]}
+          >
+            <Input.Password placeholder="请输入初始密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Edit user modal */}
+      <Modal
+        title="编辑用户"
+        open={editUser !== null}
+        onCancel={() => { setEditUser(null); editForm.resetFields(); }}
+        footer={[
+          <Button key="cancel" onClick={() => { setEditUser(null); editForm.resetFields(); }}>
+            取消
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={updateMutation.isPending}
+            onClick={handleEditSubmit}
+          >
+            保存
+          </Button>,
+        ]}
+        width={520}
+        destroyOnHidden
+      >
+        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="real_name"
+            label="姓名"
+            rules={[{ required: true, message: '请输入姓名' }]}
+          >
+            <Input placeholder="请输入真实姓名" />
+          </Form.Item>
+          <Form.Item name="phone" label="手机号">
+            <Input placeholder="请输入手机号" />
+          </Form.Item>
+          <Form.Item name="email" label="邮箱">
+            <Input placeholder="请输入邮箱" />
+          </Form.Item>
+          <Form.Item
+            name="role_codes"
+            label="角色"
+            rules={[{ required: true, message: '请选择角色' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="请选择角色"
+              options={ROLE_SELECT_OPTIONS}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
+}

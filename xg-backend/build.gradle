@@ -1,0 +1,61 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version "${springBootVersion}" apply false
+    id 'io.spring.dependency-management' version "${springDependencyManagementVersion}" apply false
+}
+
+allprojects {
+    group = 'com.xg'
+    version = '0.0.1-SNAPSHOT'
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'io.spring.dependency-management'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs.add('-parameters')
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.boot:spring-boot-dependencies:${springBootVersion}"
+        }
+        dependencies {
+            dependency "com.baomidou:mybatis-plus-spring-boot3-starter:${mybatisPlusVersion}"
+            dependency "com.baomidou:mybatis-plus-annotation:${mybatisPlusVersion}"
+            dependency "cn.dev33:sa-token-spring-boot3-starter:${saTokenVersion}"
+            dependency "cn.dev33:sa-token-redis-jackson:${saTokenVersion}"
+            dependency "org.flywaydb:flyway-core:${flywayVersion}"
+            dependency "org.flywaydb:flyway-database-postgresql:${flywayVersion}"
+            dependency "io.minio:minio:${minioVersion}"
+            dependency "org.apache.poi:poi-ooxml:${poiVersion}"
+            dependency "org.yaml:snakeyaml:${snakeyamlVersion}"
+            dependency "cn.hutool:hutool-all:${hutoolVersion}"
+            dependency "com.alibaba:transmittable-thread-local:${ttlVersion}"
+            dependency "org.postgresql:postgresql:${postgresVersion}"
+            dependency "org.projectlombok:lombok:${lombokVersion}"
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    configurations {
+        compileOnly {
+            extendsFrom annotationProcessor
+        }
+    }
+
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+    }
+
+}

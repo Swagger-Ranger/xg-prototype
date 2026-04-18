@@ -1,0 +1,30 @@
+.drawerBody {
+  padding: 4px 0;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+}
+
+.aiDraftBox {
+  background: var(--ac-bg);
+  border: 1px solid var(--ac-ring);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  margin-top: 8px;
+}
+
+.aiMeta {
+  margin-bottom: 4px;
+}

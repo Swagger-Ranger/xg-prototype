@@ -1,0 +1,165 @@
+.workspace {
+  max-width: 1200px;
+}
+
+.greeting {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 8px;
+}
+
+/* Section label (uppercase mono with gradient trailing line) */
+.sectionLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  margin-top: 8px;
+}
+
+.sectionLabel span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.sectionLine {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--bd-2), transparent);
+}
+
+/* Stat cards grid */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.statCard {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s var(--ease);
+  cursor: pointer;
+}
+
+.statCard:hover {
+  border-color: var(--bd-2);
+  box-shadow: var(--sh-md);
+  transform: translateY(-2px);
+}
+
+.statCard:hover .statAccent {
+  opacity: 0.12;
+}
+
+.statAccent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent);
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.statValue {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--fg-3);
+  font-weight: 500;
+}
+
+/* Todo list */
+.todoList {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  min-height: 200px;
+}
+
+.todoEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--fg-4);
+  font-size: 14px;
+}
+
+/* Content sections grid */
+.contentGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+/* Table rows inside sections */
+.tableRow {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--bd);
+  cursor: pointer;
+  transition: background 0.15s var(--ease);
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.tableRow:hover {
+  background: var(--bg-3);
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: 13px;
+  color: var(--fg);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowSub {
+  font-size: 11px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+.rowMeta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--fg-4);
+  margin-left: 12px;
+}
+
+/* Stat card clickable link style */
+.statCardLink {
+  text-decoration: none;
+  display: block;
+}

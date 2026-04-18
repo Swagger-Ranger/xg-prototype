@@ -1,0 +1,2100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学工管理系统 · AI 工作台</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --ai-width: 408px;
+    --nav-width: 56px;
+
+    /* Surfaces — light */
+    --bg-0:   #eceff4;          /* nav rail */
+    --bg-1:   #f6f7fa;          /* body */
+    --bg-2:   #ffffff;          /* cards */
+    --bg-3:   #f1f3f7;          /* hover */
+    --bg-4:   #e6e9f0;          /* elevated */
+
+    /* Borders */
+    --bd:     rgba(15,23,42,0.06);
+    --bd-2:   rgba(15,23,42,0.09);
+    --bd-3:   rgba(15,23,42,0.14);
+
+    /* Text */
+    --fg:     #0f172a;
+    --fg-2:   #334155;
+    --fg-3:   #64748b;
+    --fg-4:   #94a3b8;
+    --fg-5:   #cbd5e1;
+
+    /* Indigo — primary */
+    --ac:       #6366f1;
+    --ac-hi:    #4f46e5;
+    --ac-lo:    #818cf8;
+    --ac-deep:  #4338ca;
+    --ac-bg:    rgba(99,102,241,0.07);
+    --ac-bg-2:  rgba(99,102,241,0.13);
+    --ac-ring:  rgba(99,102,241,0.28);
+    --ac-glow:  rgba(99,102,241,0.30);
+
+    /* Cyan — secondary */
+    --cy:       #0891b2;
+    --cy-hi:    #0e7490;
+    --cy-bg:    rgba(8,145,178,0.09);
+    --cy-ring:  rgba(8,145,178,0.25);
+
+    /* Status */
+    --ok:       #059669;
+    --ok-bg:    rgba(5,150,105,0.08);
+    --ok-ring:  rgba(5,150,105,0.25);
+    --warn:     #b45309;
+    --warn-bg:  rgba(217,119,6,0.10);
+    --warn-ring: rgba(217,119,6,0.28);
+    --danger:   #dc2626;
+    --danger-bg: rgba(220,38,38,0.08);
+    --danger-ring: rgba(220,38,38,0.25);
+
+    /* Shadows */
+    --sh-xs: 0 1px 0 rgba(15,23,42,0.03);
+    --sh-sm: 0 1px 2px rgba(15,23,42,0.05), 0 1px 0 rgba(15,23,42,0.02);
+    --sh:    0 2px 4px rgba(15,23,42,0.05), 0 1px 2px rgba(15,23,42,0.03);
+    --sh-md: 0 6px 16px -4px rgba(15,23,42,0.08), 0 2px 4px rgba(15,23,42,0.04);
+    --sh-lg: 0 14px 36px -10px rgba(15,23,42,0.14), 0 4px 10px rgba(15,23,42,0.04);
+
+    --r-xs: 3px;
+    --r-sm: 6px;
+    --r:    8px;
+    --r-lg: 10px;
+    --r-xl: 14px;
+
+    --font:      'Geist', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+    --ease:      cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font);
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    font-size: 13px;
+    line-height: 1.55;
+    letter-spacing: -0.005em;
+    color: var(--fg);
+    background: var(--bg-1);
+    display: flex;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 900px 600px at 88% -10%, rgba(99,102,241,0.10), transparent 55%),
+      radial-gradient(ellipse 600px 500px at 8% 110%, rgba(8,145,178,0.08), transparent 55%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: radial-gradient(rgba(15,23,42,0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Grain noise overlay — react-bits premium texture */
+  .grain-overlay {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.032;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 180px 180px;
+  }
+
+  ::selection { background: var(--ac-bg-2); color: var(--ac-hi); }
+
+  /* ============================================================
+     AI PANEL
+     ============================================================ */
+  .ai-panel {
+    width: var(--ai-width);
+    min-width: var(--ai-width);
+    background: var(--bg-2);
+    border-right: 1px solid var(--bd-2);
+    display: flex;
+    flex-direction: column;
+    transition: width .35s var(--ease), min-width .35s var(--ease), opacity .3s;
+    overflow: hidden;
+    position: relative;
+    z-index: 2;
+    box-shadow: 1px 0 0 rgba(255,255,255,0.8) inset, var(--sh-sm);
+  }
+  .ai-panel.collapsed {
+    width: 0; min-width: 0;
+    border-right: none;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .ai-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--bd);
+    flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(99,102,241,0.04), transparent 70%);
+    position: relative;
+  }
+  .ai-header-mark {
+    width: 36px; height: 36px;
+    border-radius: var(--r-lg);
+    background: linear-gradient(180deg, var(--ac-lo) 0%, var(--ac) 45%, var(--ac-hi) 100%);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.3),
+      inset 0 -1px 0 rgba(0,0,0,0.08),
+      0 0 0 1px var(--ac-ring),
+      0 4px 12px -2px var(--ac-glow);
+  }
+  /* 3. AI header mark glow — breathing pulse animation */
+  @keyframes glow-breathe {
+    0%, 100% { opacity: 0.45; transform: scale(1); }
+    50%       { opacity: 0.80; transform: scale(1.18); }
+  }
+  .ai-header-mark::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: calc(var(--r-lg) + 8px);
+    background: radial-gradient(circle, var(--ac-glow), transparent 60%);
+    opacity: .5;
+    z-index: -1;
+    filter: blur(10px);
+    animation: glow-breathe 3s ease-in-out infinite;
+    will-change: opacity, transform;
+  }
+  .ai-header-mark svg { color: #fff; }
+
+  .ai-header-info { flex: 1; min-width: 0; }
+  .ai-header-title-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .ai-header-ver {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    color: var(--ac-hi);
+    padding: 2px 5px;
+    border-radius: var(--r-xs);
+    background: var(--ac-bg);
+    border: 1px solid var(--ac-bg-2);
+    letter-spacing: 0.04em;
+  }
+  .ai-header-status {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ok);
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 5px;
+    letter-spacing: 0.04em;
+  }
+  .ai-header-status::before {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 2px rgba(5,150,105,0.18);
+    animation: pulse 2s ease-in-out infinite;
+    will-change: opacity;
+  }
+
+  .ai-header-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .ai-icon-btn {
+    width: 28px; height: 28px; border-radius: var(--r-sm);
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--fg-3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .ai-icon-btn:hover {
+    background: var(--bg-3);
+    border-color: var(--bd-2);
+    color: var(--fg);
+  }
+  .ai-icon-btn:active { background: var(--bg-4); transform: scale(0.92); }
+
+  .ai-context {
+    padding: 9px 18px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--bd);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--fg-3);
+    display: flex; align-items: center; gap: 8px;
+    flex-shrink: 0;
+    letter-spacing: 0.01em;
+  }
+  .ai-context-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ac);
+    box-shadow: 0 0 0 3px var(--ac-bg);
+    flex-shrink: 0;
+    animation: pulse 2s ease-in-out infinite;
+    will-change: opacity;
+  }
+  .ai-context .path { color: var(--fg-2); font-weight: 500; }
+  .ai-context .slash { color: var(--fg-4); }
+  .ai-context .count {
+    margin-left: auto;
+    color: var(--warn);
+    padding: 1px 6px;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-ring);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .45; }
+  }
+
+  /* Messages */
+  .ai-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 18px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--fg-5) transparent;
+  }
+  /* 9. Refined scrollbar — rounder thumb */
+  .ai-messages::-webkit-scrollbar { width: 4px; }
+  .ai-messages::-webkit-scrollbar-thumb {
+    background: var(--fg-5);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+  .ai-messages::-webkit-scrollbar-track { background: transparent; }
+
+  /* 6. Message blocks — fade-in animation */
+  @keyframes msg-fade-in {
+    from { opacity: 0; transform: translateY(7px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .msg {
+    display: flex; flex-direction: column; gap: 7px; max-width: 100%;
+    animation: msg-fade-in .35s var(--ease) both;
+    will-change: opacity, transform;
+  }
+  .ai-messages .msg:nth-child(1) { animation-delay: .05s; }
+  .ai-messages .msg:nth-child(2) { animation-delay: .13s; }
+  .ai-messages .msg:nth-child(3) { animation-delay: .21s; }
+  .ai-messages .msg:nth-child(4) { animation-delay: .29s; }
+  .ai-messages .msg:nth-child(5) { animation-delay: .37s; }
+  .ai-messages .msg:nth-child(6) { animation-delay: .45s; }
+
+  .msg-byline {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-4);
+    letter-spacing: 0.02em;
+  }
+  .msg-byline .byline-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .msg-ai .byline-dot { background: var(--ac); box-shadow: 0 0 0 2px var(--ac-bg); }
+  .msg-user .byline-dot { background: var(--fg-4); }
+  .msg-byline .byline-name { font-weight: 500; }
+  .msg-ai .byline-name { color: var(--ac-hi); }
+  .msg-user .byline-name { color: var(--fg-3); }
+  .msg-byline .byline-time { color: var(--fg-4); }
+  .msg-user .msg-byline { justify-content: flex-end; }
+
+  .msg-ai .msg-bubble {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--fg);
+    padding-left: 13px;
+    border-left: 1px solid var(--bd-2);
+  }
+  .msg-ai .msg-bubble strong { color: var(--ac-hi); font-weight: 600; }
+  .msg-ai .msg-bubble code,
+  .msg-ai .msg-bubble .kw {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--ac-bg);
+    color: var(--ac-hi);
+    padding: 1px 6px;
+    border: 1px solid var(--ac-bg-2);
+    border-radius: var(--r-xs);
+    font-weight: 500;
+  }
+
+  .msg-user { align-items: flex-end; }
+  .msg-user .msg-bubble {
+    background: var(--bg-3);
+    border: 1px solid var(--bd-2);
+    color: var(--fg);
+    padding: 9px 13px;
+    border-radius: var(--r) var(--r) var(--r-xs) var(--r);
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: 82%;
+    box-shadow: var(--sh-xs);
+  }
+
+  /* 10. Action card — shimmer on top gradient bar */
+  @keyframes card-bar-shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position:  200% center; }
+  }
+  .msg-action-card {
+    margin-top: 10px;
+    margin-left: 13px;
+    background: var(--bg-2);
+    border: 1px solid var(--bd-2);
+    border-radius: var(--r);
+    overflow: hidden;
+    position: relative;
+    box-shadow: var(--sh-sm);
+  }
+  .msg-action-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      var(--ac) 20%,
+      rgba(255,255,255,0.75) 50%,
+      var(--cy) 70%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: card-bar-shimmer 3.5s linear infinite;
+  }
+  .msg-action-card-title {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg);
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--bd);
+    background: linear-gradient(180deg, rgba(99,102,241,0.04), transparent);
+  }
+  .msg-action-card-title svg { color: var(--ac-hi); }
+  .msg-action-card-title .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--warn);
+    box-shadow: 0 0 0 2px var(--warn-bg);
+    margin-left: auto;
+  }
+
+  .msg-action-card-rows { padding: 2px 0; }
+  .msg-action-card-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px;
+    font-size: 12px;
+    gap: 12px;
+  }
+  .msg-action-card-row + .msg-action-card-row { border-top: 1px solid var(--bd); }
+  .msg-action-card-row .label {
+    font-family: var(--font-mono);
+    color: var(--fg-3);
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+  }
+  .msg-action-card-row .value {
+    font-family: var(--font-mono);
+    color: var(--fg);
+    font-weight: 500;
+    font-size: 12px;
+    text-align: right;
+  }
+  .msg-action-card-row .value.danger { color: var(--danger); }
+  .msg-action-card-row .value.warn { color: var(--warn); }
+  .msg-action-card-row .value .num { font-weight: 600; font-size: 13px; color: inherit; }
+
+  .msg-action-btns {
+    display: flex; gap: 6px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--bd);
+    background: var(--bg-1);
+  }
+  .msg-action-btn {
+    flex: 1;
+    padding: 7px 0;
+    border-radius: var(--r-sm);
+    border: 1px solid transparent;
+    font-family: var(--font);
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .18s ease, transform .18s var(--ease), box-shadow .18s ease;
+    letter-spacing: -0.005em;
+  }
+  .msg-action-btn.primary {
+    background: linear-gradient(180deg, var(--ac-lo) 0%, var(--ac) 45%, var(--ac-hi) 100%);
+    color: #fff;
+    border-color: var(--ac-deep);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.28),
+      inset 0 -1px 0 rgba(0,0,0,0.12),
+      0 2px 6px -1px var(--ac-glow);
+  }
+  .msg-action-btn.primary:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.32),
+      inset 0 -1px 0 rgba(0,0,0,0.14),
+      0 4px 12px -2px var(--ac-glow);
+  }
+  .msg-action-btn.primary:active { transform: translateY(0) scale(0.97); }
+  .msg-action-btn.ghost {
+    background: var(--bg-2);
+    color: var(--fg-2);
+    border-color: var(--bd-2);
+  }
+  .msg-action-btn.ghost:hover {
+    background: var(--bg-3);
+    color: var(--fg);
+    border-color: var(--bd-3);
+  }
+  .msg-action-btn.ghost:active { background: var(--bg-4); transform: scale(0.97); }
+
+  .msg-nav-chips {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 8px; margin-left: 13px;
+  }
+  .msg-nav-chip {
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--fg-2);
+    background: var(--bg-2);
+    border: 1px solid var(--bd-2);
+    cursor: pointer;
+    transition: border-color .15s ease, color .15s ease, background .15s ease;
+  }
+  .msg-nav-chip:hover { border-color: var(--ac-ring); color: var(--ac-hi); background: var(--ac-bg); }
+  .msg-nav-chip.active { background: var(--ac-bg-2); color: var(--ac-hi); border-color: var(--ac-ring); }
+
+  .msg-typing .msg-bubble {
+    display: flex; gap: 4px; align-items: center;
+    padding: 6px 0 6px 13px;
+  }
+  /* 4. Typing dots — Apple-like spring timing */
+  .typing-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--ac);
+    animation: typing 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+    box-shadow: 0 0 0 2px var(--ac-bg);
+    will-change: opacity, transform;
+  }
+  .typing-dot:nth-child(2) { animation-delay: .18s; }
+  .typing-dot:nth-child(3) { animation-delay: .36s; }
+  @keyframes typing {
+    0%, 55%, 100% { opacity: .22; transform: translateY(0) scale(0.85); }
+    27%            { opacity: 1;   transform: translateY(-4px) scale(1.1); }
+    45%            { opacity: .55; transform: translateY(-1px) scale(0.95); }
+  }
+
+  .ai-suggestions {
+    padding: 10px 18px;
+    display: flex; gap: 6px; flex-wrap: wrap;
+    border-top: 1px solid var(--bd);
+    flex-shrink: 0;
+    background: var(--bg-1);
+  }
+  .ai-suggestion {
+    padding: 5px 11px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--fg-2);
+    background: var(--bg-2);
+    border: 1px solid var(--bd-2);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: border-color .18s ease, color .15s ease, background .18s ease, transform .18s var(--ease), box-shadow .18s ease;
+    display: inline-flex; align-items: center; gap: 5px;
+    box-shadow: var(--sh-xs);
+  }
+  .ai-suggestion::before {
+    content: '';
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--fg-4);
+    transition: background .15s ease;
+  }
+  .ai-suggestion:hover {
+    border-color: var(--ac-ring);
+    color: var(--ac-hi);
+    background: var(--ac-bg);
+    transform: translateY(-1px);
+    box-shadow: var(--sh-sm);
+  }
+  .ai-suggestion:hover::before { background: var(--ac); }
+  .ai-suggestion:active { transform: translateY(0) scale(0.96); box-shadow: none; }
+
+  .ai-input-area {
+    padding: 12px 16px 14px;
+    border-top: 1px solid var(--bd);
+    flex-shrink: 0;
+    background: var(--bg-2);
+  }
+
+  /* 7. AI input box — shifting gradient border animation on focus */
+  @keyframes gradient-border-shift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .ai-input-box {
+    display: flex; gap: 6px; align-items: center;
+    background: var(--bg-1);
+    border: 1px solid var(--bd-2);
+    border-radius: var(--r);
+    padding: 5px 6px 5px 12px;
+    transition: box-shadow .22s ease, background .2s ease, border-color .2s ease;
+    box-shadow: var(--sh-xs);
+    position: relative;
+  }
+  .ai-input-box::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: calc(var(--r) + 1px);
+    background: linear-gradient(90deg, var(--ac-lo), var(--cy), var(--ac), var(--ac-lo));
+    background-size: 300% 100%;
+    opacity: 0;
+    transition: opacity .25s ease;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .ai-input-box:focus-within {
+    border-color: transparent;
+    background: var(--bg-2);
+    box-shadow: 0 0 0 3px var(--ac-bg-2), var(--sh-sm);
+  }
+  .ai-input-box:focus-within::before {
+    opacity: 1;
+    animation: gradient-border-shift 3s ease infinite;
+    will-change: background-position;
+  }
+  .ai-input-box input {
+    flex: 1;
+    border: none; background: none; outline: none;
+    font-family: var(--font);
+    font-size: 13px;
+    color: var(--fg);
+    padding: 6px 0;
+    letter-spacing: -0.005em;
+  }
+  .ai-input-box input::placeholder { color: var(--fg-4); }
+
+  .ai-voice-btn {
+    width: 28px; height: 28px;
+    border-radius: var(--r-sm);
+    background: transparent;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--fg-3);
+    transition: background .15s ease, color .15s ease;
+    flex-shrink: 0;
+  }
+  .ai-voice-btn:hover { color: var(--ac-hi); background: var(--ac-bg); }
+
+  .ai-send-btn {
+    width: 30px; height: 30px;
+    border-radius: var(--r-sm);
+    background: linear-gradient(180deg, var(--ac-lo) 0%, var(--ac) 45%, var(--ac-hi) 100%);
+    border: 1px solid var(--ac-deep);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    transition: transform .18s var(--ease), box-shadow .22s ease;
+    flex-shrink: 0;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.3),
+      0 2px 8px -1px var(--ac-glow);
+    will-change: transform, box-shadow;
+  }
+  .ai-send-btn:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.34),
+      0 4px 12px -1px var(--ac-glow);
+  }
+  .ai-send-btn:active { transform: translateY(0) scale(0.92); }
+  /* 7. Send button — vibrant glow when input has text */
+  .ai-send-btn.has-text {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.36),
+      0 2px 10px -1px rgba(99,102,241,0.55),
+      0 0 18px -4px rgba(99,102,241,0.45);
+  }
+  .ai-send-btn.has-text:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.38),
+      0 4px 16px -2px rgba(99,102,241,0.65),
+      0 0 24px -4px rgba(99,102,241,0.50);
+  }
+
+  .ai-input-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 8px;
+    padding: 0 2px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-4);
+    letter-spacing: 0.02em;
+  }
+  .ai-input-footer kbd {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    background: var(--bg-2);
+    border: 1px solid var(--bd-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--fg-2);
+    margin: 0 2px;
+    box-shadow: var(--sh-xs);
+  }
+  .ai-input-footer .model { display: inline-flex; align-items: center; gap: 5px; }
+  .ai-input-footer .model::before {
+    content: '';
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--cy);
+    box-shadow: 0 0 0 2px var(--cy-bg);
+  }
+
+  /* ============================================================
+     NAV RAIL
+     ============================================================ */
+  /* 5. Nav rail — inner shadow at right edge */
+  .nav-rail {
+    width: var(--nav-width);
+    background: var(--bg-0);
+    border-right: 1px solid var(--bd);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    flex-shrink: 0;
+    gap: 2px;
+    position: relative;
+    z-index: 2;
+    box-shadow: inset -4px 0 12px -6px rgba(15,23,42,0.10);
+  }
+
+  .nav-item {
+    width: 40px; height: 40px;
+    border-radius: var(--r-sm);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background .18s ease, color .15s ease, box-shadow .18s ease, transform .18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    color: var(--fg-3);
+    position: relative;
+    will-change: transform;
+  }
+  /* 2. Nav hover scale — spring bounce */
+  .nav-item:hover {
+    background: var(--bg-2);
+    color: var(--fg);
+    box-shadow: var(--sh-xs);
+    transform: scale(1.08);
+  }
+  .nav-item:active { transform: scale(0.94); }
+
+  /* 5. Active indicator — more dramatic gradient glow */
+  .nav-item.active {
+    background: linear-gradient(135deg, var(--bg-2), rgba(99,102,241,0.09));
+    color: var(--ac-hi);
+    box-shadow:
+      var(--sh-sm),
+      inset 0 0 0 1px rgba(99,102,241,0.14),
+      0 0 18px -4px rgba(99,102,241,0.22);
+  }
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: -8px; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 20px;
+    background: linear-gradient(180deg, var(--ac-lo), var(--ac), var(--ac-hi));
+    border-radius: 0 3px 3px 0;
+    box-shadow:
+      0 0 10px 2px var(--ac-glow),
+      0 0 22px 4px rgba(99,102,241,0.22),
+      0 0 4px 0 rgba(99,102,241,0.55);
+  }
+
+  .nav-item .tooltip {
+    position: absolute;
+    left: calc(100% + 12px); top: 50%; transform: translateY(-50%);
+    background: var(--fg);
+    color: #fff;
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: var(--r-sm);
+    white-space: nowrap;
+    opacity: 0; pointer-events: none;
+    transition: opacity .15s, transform .15s;
+    z-index: 100;
+    box-shadow: var(--sh-md);
+    letter-spacing: -0.005em;
+  }
+  .nav-item .tooltip .tt-kbd {
+    margin-left: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.14);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .nav-item .tooltip::before {
+    content: '';
+    position: absolute;
+    right: 100%; top: 50%; transform: translateY(-50%);
+    border: 5px solid transparent;
+    border-right-color: var(--fg);
+  }
+  .nav-item:hover .tooltip { opacity: 1; transform: translateY(-50%) translateX(2px); }
+
+  .nav-badge {
+    position: absolute; top: 2px; right: 2px;
+    min-width: 16px; height: 16px; border-radius: 8px; padding: 0 4px;
+    background: var(--danger);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 2px var(--bg-0), var(--sh-sm);
+  }
+
+  .nav-divider { width: 22px; height: 1px; background: var(--bd-2); margin: 8px 0; }
+
+  .nav-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 2px; align-items: center; }
+
+  .nav-ai-toggle {
+    width: 40px; height: 40px;
+    border-radius: var(--r-sm);
+    background: linear-gradient(180deg, var(--ac-lo) 0%, var(--ac) 45%, var(--ac-hi) 100%);
+    border: 1px solid var(--ac-deep);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    cursor: pointer;
+    margin-bottom: 8px;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.32),
+      0 4px 12px -2px var(--ac-glow);
+    transition: transform .2s var(--ease), box-shadow .2s ease;
+    position: relative;
+  }
+  .nav-ai-toggle::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: var(--r-lg);
+    background: radial-gradient(circle, var(--ac-glow), transparent 60%);
+    opacity: .5;
+    z-index: -1;
+    filter: blur(8px);
+  }
+  .nav-ai-toggle:hover { transform: scale(1.08); }
+  .nav-ai-toggle:active { transform: scale(0.94); }
+  .nav-ai-toggle.hidden { display: none; }
+
+  /* ============================================================
+     MAIN AREA
+     ============================================================ */
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+    background: var(--bg-1);
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 1. Topbar — enhanced glass morphism, 1px white highlight, subtle bottom shadow */
+  .topbar {
+    height: 54px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid var(--bd);
+    background: rgba(246,247,250,0.82);
+    backdrop-filter: blur(20px) saturate(1.65);
+    -webkit-backdrop-filter: blur(20px) saturate(1.65);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 5;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.92),
+      0 1px 0 rgba(15,23,42,0.055),
+      0 4px 18px -8px rgba(15,23,42,0.09);
+  }
+
+  .topbar-crumbs {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-4);
+  }
+  .topbar-crumbs a { color: var(--fg-3); text-decoration: none; transition: color .18s ease; cursor: pointer; }
+  .topbar-crumbs a:hover { color: var(--fg-2); }
+  .topbar-crumbs .sep { color: var(--fg-5); }
+  .topbar-crumbs .current { color: var(--fg); font-weight: 500; }
+
+  .topbar-meta {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--fg-3);
+    padding: 2px 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--bd-2);
+    border-radius: 10px;
+    display: inline-flex; align-items: center; gap: 5px;
+    box-shadow: var(--sh-xs);
+  }
+  .topbar-meta::before {
+    content: '';
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--warn);
+    box-shadow: 0 0 0 2px var(--warn-bg);
+  }
+
+  .topbar-spacer { flex: 1; }
+
+  .topbar-search {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--bd-2);
+    border-radius: var(--r);
+    padding: 6px 8px 6px 11px;
+    font-size: 12.5px;
+    color: var(--fg-3);
+    cursor: text;
+    transition: border-color .15s ease, box-shadow .15s ease;
+    width: 280px;
+    letter-spacing: -0.005em;
+    box-shadow: var(--sh-xs);
+  }
+  .topbar-search:hover { border-color: var(--bd-3); }
+  .topbar-search kbd {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-3);
+    background: var(--bg-1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--bd-2);
+  }
+
+  .topbar-icon-btn {
+    width: 32px; height: 32px;
+    border-radius: var(--r-sm);
+    background: transparent;
+    border: 1px solid transparent;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--fg-3);
+    cursor: pointer;
+    position: relative;
+    transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .topbar-icon-btn:hover {
+    background: var(--bg-2);
+    border-color: var(--bd-2);
+    color: var(--fg);
+    box-shadow: var(--sh-xs);
+  }
+  .topbar-icon-btn:active { background: var(--bg-3); transform: scale(0.93); }
+  .topbar-noti-dot {
+    position: absolute; top: 7px; right: 7px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--danger);
+    border: 2px solid var(--bg-1);
+    box-shadow: 0 0 0 1px var(--danger-ring);
+  }
+
+  .topbar-avatar {
+    width: 32px; height: 32px;
+    border-radius: var(--r-sm);
+    background: linear-gradient(180deg, var(--ac-lo), var(--ac) 45%, var(--ac-hi));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.3),
+      0 0 0 1px var(--ac-deep),
+      0 2px 8px -1px var(--ac-glow);
+  }
+  .topbar-avatar::after {
+    content: '';
+    position: absolute;
+    bottom: -2px; right: -2px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--ok);
+    border: 2px solid var(--bg-1);
+    box-shadow: 0 0 0 1px var(--ok-ring);
+  }
+
+  /* Content */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    position: relative;
+    z-index: 1;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bd-3) transparent;
+  }
+  /* 9. Refined scrollbar — rounder thumb */
+  .content::-webkit-scrollbar { width: 6px; }
+  .content::-webkit-scrollbar-thumb {
+    background: var(--bd-3);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  .content::-webkit-scrollbar-thumb:hover { background: var(--fg-4); }
+  .content::-webkit-scrollbar-track { background: transparent; }
+
+  .section-label {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--fg-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .section-label .num {
+    color: var(--ac-hi);
+    font-weight: 600;
+    padding: 1px 6px;
+    background: var(--ac-bg);
+    border: 1px solid var(--ac-bg-2);
+    border-radius: 3px;
+    font-size: 10px;
+  }
+  .section-label .cn {
+    color: var(--fg-2);
+    font-family: var(--font);
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--bd-2), transparent);
+  }
+
+  /* Stat grid */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--bg-2);
+    border: 1px solid var(--bd);
+    border-radius: var(--r);
+    padding: 16px 18px;
+    position: relative;
+    cursor: pointer;
+    transition: border-color .22s ease, transform .22s var(--ease), box-shadow .22s ease;
+    overflow: hidden;
+    box-shadow: var(--sh-xs);
+    will-change: transform, box-shadow;
+  }
+  /* Top accent line */
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 14px; right: 14px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--ac), transparent);
+    opacity: 0;
+    transition: opacity .2s ease;
+    z-index: 1;
+  }
+  /* 3. Inner glow on hover */
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(99,102,241,0.09) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity .3s ease;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  .stat-card:hover {
+    border-color: var(--bd-2);
+    transform: translateY(-2px);
+    box-shadow: var(--sh-md);
+  }
+  .stat-card:hover::before { opacity: 1; }
+  .stat-card:hover::after  { opacity: 1; }
+
+  .stat-card-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .stat-card-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--fg-3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .stat-card-icon {
+    width: 24px; height: 24px;
+    border-radius: var(--r-xs);
+    background: var(--bg-1);
+    border: 1px solid var(--bd-2);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--fg-3);
+    transition: background .2s ease, border-color .2s ease, color .2s ease;
+  }
+  .stat-card:hover .stat-card-icon {
+    background: var(--ac-bg);
+    border-color: var(--ac-ring);
+    color: var(--ac-hi);
+  }
+
+  /* 6. Stat card value — tabular nums for number counter feel */
+  .stat-card-value {
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--fg);
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-feature-settings: 'tnum', 'lnum';
+    font-variant-numeric: tabular-nums;
+    display: flex; align-items: baseline; gap: 3px;
+    transition: color .2s ease;
+  }
+  .stat-card:hover .stat-card-value { color: var(--ac-hi); }
+  .stat-card-value .unit {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--fg-3);
+    margin-left: 3px;
+    letter-spacing: -0.01em;
+  }
+
+  .stat-card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 10px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+  }
+  .stat-card-change {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+  .stat-card-change.up    { color: var(--danger); background: var(--danger-bg); }
+  .stat-card-change.down  { color: var(--ok); background: var(--ok-bg); }
+  .stat-card-change.muted { color: var(--fg-3); }
+
+  /* 6. Spark bars — smooth staggered color transition */
+  .spark { display: flex; align-items: flex-end; gap: 2px; height: 16px; }
+  .spark span {
+    width: 3px;
+    background: var(--fg-5);
+    border-radius: 1px;
+    transition: background .28s ease, height .28s ease, box-shadow .28s ease;
+    will-change: background;
+  }
+  .stat-card:hover .spark span:nth-child(1) { background: rgba(99,102,241,0.35); transition-delay: 0ms; }
+  .stat-card:hover .spark span:nth-child(2) { background: rgba(99,102,241,0.45); transition-delay: 18ms; }
+  .stat-card:hover .spark span:nth-child(3) { background: rgba(99,102,241,0.52); transition-delay: 36ms; }
+  .stat-card:hover .spark span:nth-child(4) { background: rgba(99,102,241,0.62); transition-delay: 54ms; }
+  .stat-card:hover .spark span:nth-child(5) { background: rgba(99,102,241,0.70); transition-delay: 72ms; }
+  .stat-card:hover .spark span:nth-child(6) { background: var(--ac-lo); transition-delay: 90ms; }
+  .stat-card:hover .spark span:nth-child(7) { background: var(--ac); transition-delay: 108ms; }
+  .stat-card:hover .spark span:last-child   { background: var(--ac-hi); box-shadow: 0 0 6px var(--ac-glow); transition-delay: 126ms; }
+
+  /* 4. Insight card — shimmer on top border */
+  @keyframes shimmer-border {
+    0%   { background-position: -200% center; }
+    100% { background-position:  200% center; }
+  }
+  .insight-card {
+    background: var(--bg-2);
+    border: 1px solid var(--bd);
+    border-radius: var(--r);
+    padding: 18px 20px 16px;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--sh-sm);
+  }
+  .insight-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      var(--ac) 20%,
+      var(--cy) 45%,
+      rgba(255,255,255,0.65) 55%,
+      var(--cy) 65%,
+      var(--ac) 80%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-border 4s linear infinite;
+  }
+  .insight-card::after {
+    content: '';
+    position: absolute;
+    top: -80px; left: -60px;
+    width: 300px; height: 280px;
+    background: radial-gradient(ellipse, rgba(99,102,241,0.10), transparent 65%);
+    pointer-events: none;
+  }
+
+  .insight-card-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 12px;
+    position: relative;
+    z-index: 1;
+  }
+  .insight-card-icon {
+    width: 28px; height: 28px;
+    border-radius: var(--r-sm);
+    background: linear-gradient(180deg, var(--ac-lo), var(--ac) 45%, var(--ac-hi));
+    border: 1px solid var(--ac-deep);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.3),
+      0 3px 10px -2px var(--ac-glow);
+  }
+  .insight-card-icon svg { color: #fff; }
+  .insight-card-labels { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .insight-card-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ac-hi);
+    letter-spacing: 0.12em;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .insight-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+  }
+  .insight-card-time {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--fg-4);
+  }
+
+  .insight-card-body {
+    font-size: 13.5px;
+    color: var(--fg-2);
+    line-height: 1.7;
+    position: relative;
+    z-index: 1;
+  }
+  .insight-card-body strong { color: var(--fg); font-weight: 600; }
+  .insight-card-body .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 1px 7px;
+    background: var(--ac-bg);
+    color: var(--ac-hi);
+    border: 1px solid var(--ac-bg-2);
+    border-radius: var(--r-xs);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    margin: 0 1px;
+    vertical-align: baseline;
+  }
+  .insight-card-body .chip.danger {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border-color: var(--danger-ring);
+  }
+
+  .insight-card-actions {
+    display: flex; gap: 8px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--bd);
+    position: relative;
+    z-index: 1;
+  }
+  .insight-btn {
+    padding: 7px 13px;
+    border-radius: var(--r-sm);
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .2s ease, border-color .2s ease, color .15s ease, transform .18s ease, box-shadow .2s ease;
+    border: 1px solid transparent;
+    display: inline-flex; align-items: center; gap: 6px;
+    letter-spacing: -0.005em;
+  }
+  .insight-btn.primary {
+    background: linear-gradient(180deg, var(--ac-lo) 0%, var(--ac) 45%, var(--ac-hi) 100%);
+    color: #fff;
+    border-color: var(--ac-deep);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.28),
+      0 3px 10px -2px var(--ac-glow);
+  }
+  .insight-btn.primary:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.34),
+      0 5px 14px -2px var(--ac-glow);
+  }
+  .insight-btn.primary:active { transform: translateY(0) scale(0.97); }
+  .insight-btn.ghost {
+    background: var(--bg-2);
+    color: var(--fg-2);
+    border-color: var(--bd-2);
+    box-shadow: var(--sh-xs);
+  }
+  .insight-btn.ghost:hover { background: var(--bg-3); color: var(--fg); border-color: var(--bd-3); }
+  .insight-btn.ghost:active { background: var(--bg-4); transform: scale(0.97); }
+
+  /* Table */
+  .table-card {
+    background: var(--bg-2);
+    border: 1px solid var(--bd);
+    border-radius: var(--r);
+    overflow: hidden;
+    position: relative;
+    box-shadow: var(--sh-sm);
+  }
+  .table-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--bd);
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    gap: 12px;
+  }
+  .table-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--fg);
+    display: flex; align-items: center; gap: 8px;
+    letter-spacing: -0.01em;
+  }
+  .table-title .count {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--fg-3);
+    font-weight: 500;
+    padding: 2px 7px;
+    background: var(--bg-2);
+    border: 1px solid var(--bd-2);
+    border-radius: 10px;
+  }
+
+  .table-tabs { display: flex; gap: 4px; margin-left: auto; margin-right: auto; background: var(--bg-1); padding: 3px; border-radius: var(--r-sm); border: 1px solid var(--bd-2); }
+  .table-tab {
+    padding: 4px 11px;
+    border-radius: 4px;
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg-3);
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .table-tab:hover { color: var(--fg); }
+  .table-tab.active { color: var(--fg); background: var(--bg-2); box-shadow: var(--sh-xs); }
+  .table-tab .badge-count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-3);
+    padding: 1px 5px;
+    background: var(--bg-2);
+    border: 1px solid var(--bd-2);
+    border-radius: 8px;
+  }
+  .table-tab.active .badge-count { color: var(--ac-hi); background: var(--ac-bg); border-color: var(--ac-bg-2); }
+
+  .table-actions { display: flex; gap: 8px; align-items: center; }
+  .table-actions-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--fg-3);
+    padding: 3px 8px;
+    border: 1px dashed var(--bd-3);
+    border-radius: 4px;
+  }
+  .table-actions-count strong { color: var(--ac-hi); font-weight: 600; }
+
+  .table-action-btn {
+    padding: 6px 12px;
+    border-radius: var(--r-sm);
+    font-family: var(--font);
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .18s ease, color .15s ease, border-color .18s ease, box-shadow .15s ease;
+    display: inline-flex; align-items: center; gap: 5px;
+    border: 1px solid transparent;
+    letter-spacing: -0.005em;
+  }
+  .table-action-btn.approve { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-ring); }
+  .table-action-btn.approve:hover { background: rgba(5,150,105,0.18); border-color: var(--ok); }
+  .table-action-btn.approve:active { transform: scale(0.96); background: rgba(5,150,105,0.24); }
+  .table-action-btn.reject { background: var(--bg-2); color: var(--fg-2); border-color: var(--bd-2); }
+  .table-action-btn.reject:hover { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-ring); }
+  .table-action-btn.reject:active { transform: scale(0.96); }
+
+  /* 8. Table header — glass morphism */
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    padding: 9px 18px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--fg-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: rgba(241,243,247,0.88);
+    backdrop-filter: blur(8px) saturate(1.3);
+    -webkit-backdrop-filter: blur(8px) saturate(1.3);
+    border-bottom: 1px solid var(--bd-2);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+  }
+  td {
+    padding: 11px 18px;
+    font-size: 12.5px;
+    color: var(--fg-2);
+    border-bottom: 1px solid var(--bd);
+    vertical-align: middle;
+    transition: background .18s ease;
+  }
+  tr:last-child td { border-bottom: none; }
+
+  /* 5. Zebra striping — barely-there alternating rows */
+  tbody tr:nth-child(even) td { background: rgba(15,23,42,0.014); }
+
+  /* 2. Table rows — sliding left-border accent on hover */
+  tr { position: relative; }
+  tr::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, var(--ac-lo), var(--ac-hi));
+    border-radius: 0 2px 2px 0;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .22s var(--ease);
+    pointer-events: none;
+    will-change: transform;
+  }
+  tr:hover::after { transform: scaleX(1); }
+  tr:hover td { background: rgba(99,102,241,0.03) !important; }
+
+  td.col-name {
+    color: var(--fg);
+    font-weight: 500;
+    display: flex; align-items: center; gap: 8px;
+  }
+  td.col-name .avatar {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--bg-3), var(--bg-4));
+    border: 1px solid var(--bd-2);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--fg-2);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  td .date-col {
+    font-family: var(--font-mono);
+    color: var(--fg-2);
+    font-size: 11.5px;
+    letter-spacing: 0.01em;
+  }
+
+  .checkbox {
+    width: 16px; height: 16px;
+    border: 1px solid var(--bd-3);
+    border-radius: 3px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+    vertical-align: middle;
+    background: var(--bg-2);
+  }
+  .checkbox:hover { border-color: var(--ac); }
+  .checkbox.checked {
+    background: var(--ac);
+    border-color: var(--ac-hi);
+    box-shadow: 0 0 0 3px var(--ac-bg);
+  }
+  .checkbox.checked::after {
+    content: '';
+    width: 8px; height: 5px;
+    border: 1.5px solid #fff;
+    border-top: none; border-right: none;
+    transform: rotate(-45deg) translate(0.5px, -1px);
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    border: 1px solid;
+  }
+  .badge::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent);
+  }
+  .badge-pending { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-ring); }
+  .badge-warning { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-ring); }
+  .badge-ok      { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-ring); }
+
+  .ai-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px;
+    border-radius: var(--r-xs);
+    font-size: 11.5px;
+    font-weight: 500;
+    background: var(--ac-bg);
+    color: var(--ac-hi);
+    border: 1px solid var(--ac-bg-2);
+    letter-spacing: -0.005em;
+  }
+  .ai-tag::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--ac);
+  }
+  .ai-tag.warning { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-ring); }
+  .ai-tag.warning::before { background: var(--danger); }
+
+  /* Stat card active press state */
+  .stat-card:active { transform: translateY(0) scale(0.98); box-shadow: var(--sh-xs); }
+
+  /* Responsive */
+  @media (max-width: 1280px) {
+    :root { --ai-width: 368px; }
+    .stat-card-value { font-size: 26px; }
+  }
+  @media (max-width: 1080px) {
+    :root { --ai-width: 340px; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    .grain-overlay { display: none; }
+    .ai-header-mark::after { animation: none; }
+    .typing-dot { animation: none; opacity: 1; transform: none; }
+    .ai-input-box:focus-within::before { animation: none; }
+    .msg-action-card::before { animation: none; }
+    .insight-card::before { animation: none; }
+    .ai-header-status::before { animation: none; }
+    .ai-context-dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Grain noise overlay for premium texture -->
+<div class="grain-overlay" aria-hidden="true"></div>
+
+<!-- ========== LEFT · AI CHAT ========== -->
+<aside class="ai-panel" id="aiPanel">
+
+  <div class="ai-header">
+    <div class="ai-header-mark">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="6" y="14" width="12" height="8" rx="2"/><path d="M12 10v4"/><line x1="6" y1="18" x2="6.01" y2="18"/><line x1="10" y1="18" x2="10.01" y2="18"/></svg>
+    </div>
+    <div class="ai-header-info">
+      <div class="ai-header-title-row">
+        学小工
+      </div>
+      <div class="ai-header-status">在线 · 响应 &lt; 200ms</div>
+    </div>
+    <div class="ai-header-actions">
+      <button class="ai-icon-btn" title="新会话">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <button class="ai-icon-btn" onclick="toggleAI()" title="收起">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="ai-context">
+    <div class="ai-context-dot"></div>
+    <span class="path">工作区</span>
+    <span class="slash">/</span>
+    <span class="path">审批</span>
+    <span class="slash">/</span>
+    <span style="color:var(--fg);font-weight:500;">待处理</span>
+    <span class="count">12 条 · 1 条需关注</span>
+  </div>
+
+  <div class="ai-messages">
+
+    <div class="msg msg-ai">
+      <div class="msg-byline">
+        <span class="byline-dot"></span>
+        <span class="byline-name">学小工</span>
+        <span class="byline-time">· 10:24</span>
+      </div>
+      <div class="msg-bubble">
+        王老师，审批队列有 <strong>12 条</strong>待处理，其中 <span class="kw">1 项</span>被系统标记为需要关注。
+        <br>要按优先级过一遍吗？
+      </div>
+      <div class="msg-nav-chips">
+        <div class="msg-nav-chip active">审批概览</div>
+        <div class="msg-nav-chip">查看异常</div>
+        <div class="msg-nav-chip">批量建议</div>
+      </div>
+    </div>
+
+    <div class="msg msg-user">
+      <div class="msg-byline">
+        <span class="byline-time">10:25 ·</span>
+        <span class="byline-name">王老师</span>
+        <span class="byline-dot"></span>
+      </div>
+      <div class="msg-bubble">帮我看看王芳的请假有什么异常</div>
+    </div>
+
+    <div class="msg msg-ai">
+      <div class="msg-byline">
+        <span class="byline-dot"></span>
+        <span class="byline-name">学小工</span>
+        <span class="byline-time">· 10:25</span>
+      </div>
+      <div class="msg-bubble">
+        调取 <span class="kw">@王芳</span> 的记录，检测到 <strong>3 项</strong>异常指标：
+      </div>
+
+      <div class="msg-action-card">
+        <div class="msg-action-card-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          王芳 · 请假异常分析
+          <span class="dot"></span>
+        </div>
+        <div class="msg-action-card-rows">
+          <div class="msg-action-card-row">
+            <span class="label">本次申请</span>
+            <span class="value">病假 <span class="num">1</span>d · 04/16</span>
+          </div>
+          <div class="msg-action-card-row">
+            <span class="label">本月累计</span>
+            <span class="value danger">第 <span class="num">4</span> 次 · 超阈值</span>
+          </div>
+          <div class="msg-action-card-row">
+            <span class="label">本学期</span>
+            <span class="value"><span class="num">7</span>d · Top 5%</span>
+          </div>
+          <div class="msg-action-card-row">
+            <span class="label">请假模式</span>
+            <span class="value warn">周一 / 周五 集中</span>
+          </div>
+          <div class="msg-action-card-row">
+            <span class="label">成绩变化</span>
+            <span class="value danger">↓ <span class="num">12</span>%</span>
+          </div>
+        </div>
+        <div class="msg-action-btns">
+          <button class="msg-action-btn primary">审批并约谈</button>
+          <button class="msg-action-btn ghost">查看详情</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="msg msg-user">
+      <div class="msg-byline">
+        <span class="byline-time">10:27 ·</span>
+        <span class="byline-name">王老师</span>
+        <span class="byline-dot"></span>
+      </div>
+      <div class="msg-bubble">切到数据报表，看本月出勤趋势</div>
+    </div>
+
+    <div class="msg msg-ai">
+      <div class="msg-byline">
+        <span class="byline-dot"></span>
+        <span class="byline-name">学小工</span>
+        <span class="byline-time">· 10:27</span>
+      </div>
+      <div class="msg-bubble">
+        已切换到 <span class="kw">/report</span>，正在生成本月出勤趋势…
+      </div>
+    </div>
+
+    <div class="msg msg-ai msg-typing">
+      <div class="msg-bubble">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="ai-suggestions">
+    <div class="ai-suggestion">本周请假统计</div>
+    <div class="ai-suggestion">异常学生名单</div>
+    <div class="ai-suggestion">批量通过低风险</div>
+  </div>
+
+  <div class="ai-input-area">
+    <div class="ai-input-box">
+      <button class="ai-voice-btn" title="语音">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <input placeholder="向学小工提问… 使用 @ 可引用学生" />
+      <button class="ai-send-btn" title="发送">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+    <div class="ai-input-footer">
+      <span>发送 <kbd>↵</kbd> · 换行 <kbd>⇧↵</kbd> · 命令 <kbd>/</kbd></span>
+      <span class="model">GPT-4o · mini</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ========== MIDDLE · NAV RAIL ========== -->
+<nav class="nav-rail">
+  <div class="nav-ai-toggle hidden" id="aiToggle" onclick="toggleAI()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="6" y="14" width="12" height="8" rx="2"/><path d="M12 10v4"/></svg>
+  </div>
+
+  <div class="nav-item" onclick="switchPage(event)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    <span class="tooltip">仪表盘<span class="tt-kbd">G D</span></span>
+  </div>
+  <div class="nav-item active" onclick="switchPage(event)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <span class="tooltip">审批中心<span class="tt-kbd">G A</span></span>
+    <span class="nav-badge">12</span>
+  </div>
+  <div class="nav-item" onclick="switchPage(event)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+    <span class="tooltip">请假管理<span class="tt-kbd">G L</span></span>
+  </div>
+  <div class="nav-item" onclick="switchPage(event)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="7"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/></svg>
+    <span class="tooltip">奖助学金<span class="tt-kbd">G W</span></span>
+  </div>
+  <div class="nav-item" onclick="switchPage(event)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>
+    <span class="tooltip">宿舍管理<span class="tt-kbd">G H</span></span>
+  </div>
+  <div class="nav-item" onclick="switchPage(event)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    <span class="tooltip">社团活动<span class="tt-kbd">G C</span></span>
+  </div>
+  <div class="nav-item" onclick="switchPage(event)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+    <span class="tooltip">通知公告<span class="tt-kbd">G N</span></span>
+  </div>
+  <div class="nav-item" onclick="switchPage(event)">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    <span class="tooltip">数据报表<span class="tt-kbd">G R</span></span>
+  </div>
+
+  <div class="nav-divider"></div>
+
+  <div class="nav-bottom">
+    <div class="nav-item" onclick="switchPage(event)">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span class="tooltip">系统设置<span class="tt-kbd">⌘,</span></span>
+    </div>
+  </div>
+</nav>
+
+<!-- ========== RIGHT · MAIN ========== -->
+<main class="main-area">
+
+  <header class="topbar">
+    <div class="topbar-crumbs">
+      <a>学生工作</a>
+      <span class="sep">/</span>
+      <a>事务处理</a>
+      <span class="sep">/</span>
+      <span class="current">审批中心</span>
+    </div>
+    <span class="topbar-meta" style="margin-left:8px;">12 待处理</span>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      搜索学生 · 申请编号…
+      <kbd>⌘K</kbd>
+    </div>
+    <button class="topbar-icon-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <div class="topbar-noti-dot"></div>
+    </button>
+    <button class="topbar-icon-btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </button>
+    <div class="topbar-avatar">王</div>
+  </header>
+
+  <div class="content">
+
+    <div class="section-label">
+      <span class="num">01</span>
+      <span class="cn">今日概览</span>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-card-head">
+          <span class="stat-card-label">待审批</span>
+          <div class="stat-card-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+        </div>
+        <div class="stat-card-value">12<span class="unit">件</span></div>
+        <div class="stat-card-footer">
+          <span class="stat-card-change up">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+            +3
+          </span>
+          <div class="spark">
+            <span style="height:30%"></span><span style="height:45%"></span><span style="height:38%"></span>
+            <span style="height:60%"></span><span style="height:52%"></span><span style="height:75%"></span>
+            <span style="height:68%"></span><span style="height:90%"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-head">
+          <span class="stat-card-label">本周请假</span>
+          <div class="stat-card-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          </div>
+        </div>
+        <div class="stat-card-value">47<span class="unit">人次</span></div>
+        <div class="stat-card-footer">
+          <span class="stat-card-change down">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+            −8
+          </span>
+          <div class="spark">
+            <span style="height:80%"></span><span style="height:70%"></span><span style="height:85%"></span>
+            <span style="height:60%"></span><span style="height:55%"></span><span style="height:48%"></span>
+            <span style="height:40%"></span><span style="height:35%"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-head">
+          <span class="stat-card-label">未处理报修</span>
+          <div class="stat-card-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+        </div>
+        <div class="stat-card-value">5<span class="unit">条</span></div>
+        <div class="stat-card-footer">
+          <span class="stat-card-change up">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+            2 超 48h
+          </span>
+          <div class="spark">
+            <span style="height:45%"></span><span style="height:30%"></span><span style="height:55%"></span>
+            <span style="height:40%"></span><span style="height:65%"></span><span style="height:50%"></span>
+            <span style="height:70%"></span><span style="height:80%"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-head">
+          <span class="stat-card-label">在管学生</span>
+          <div class="stat-card-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+        </div>
+        <div class="stat-card-value">326<span class="unit">人</span></div>
+        <div class="stat-card-footer">
+          <span class="stat-card-change muted">计科 · 2023 级</span>
+          <div class="spark">
+            <span style="height:60%"></span><span style="height:62%"></span><span style="height:61%"></span>
+            <span style="height:63%"></span><span style="height:62%"></span><span style="height:64%"></span>
+            <span style="height:63%"></span><span style="height:65%"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">
+      <span class="num">02</span>
+      <span class="cn">AI 洞察</span>
+    </div>
+
+    <div class="insight-card">
+      <div class="insight-card-header">
+        <div class="insight-card-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="6" y="14" width="12" height="8" rx="2"/><path d="M12 10v4"/></svg>
+        </div>
+        <div class="insight-card-labels">
+          <span class="insight-card-label">AI · 异常检测</span>
+          <span class="insight-card-title">本周旷课异常模式检测</span>
+        </div>
+        <span class="insight-card-time">生成于 10:24 · 置信度 94%</span>
+      </div>
+      <div class="insight-card-body">
+        检测到 <strong>3 名学生</strong>本周连续旷课超过 3 天 —
+        <span class="chip">张明 3d</span>
+        <span class="chip">李华 4d</span>
+        <span class="chip danger">王芳 3d</span>
+        。其中李华上月另有 <strong>2 次</strong>旷课记录，与其宿舍异常进出时间高度相关，<strong>建议优先介入</strong>。
+      </div>
+      <div class="insight-card-actions">
+        <button class="insight-btn primary">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 3h6v6M14 10l7-7M9 21H3v-6M10 14l-7 7"/></svg>
+          查看学生详情
+        </button>
+        <button class="insight-btn ghost">发起约谈</button>
+        <button class="insight-btn ghost">标记已知晓</button>
+      </div>
+    </div>
+
+    <div class="section-label">
+      <span class="num">03</span>
+      <span class="cn">待审批列表</span>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header">
+        <div class="table-title">
+          待审批
+          <span class="count">7 / 12</span>
+        </div>
+        <div class="table-tabs">
+          <div class="table-tab active">全部 <span class="badge-count">12</span></div>
+          <div class="table-tab">请假 <span class="badge-count">8</span></div>
+          <div class="table-tab">报修 <span class="badge-count">2</span></div>
+          <div class="table-tab">其他 <span class="badge-count">2</span></div>
+        </div>
+        <div class="table-actions">
+          <span class="table-actions-count">已选 <strong>2</strong></span>
+          <button class="table-action-btn approve">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            批量通过
+          </button>
+          <button class="table-action-btn reject">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            驳回
+          </button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;"></th>
+            <th>学生</th>
+            <th>类型</th>
+            <th>详情</th>
+            <th>AI 摘要</th>
+            <th style="width:110px;">状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="checkbox checked"></span></td>
+            <td class="col-name"><span class="avatar">张</span>张明</td>
+            <td>病假</td>
+            <td><span class="date-col">04/16 · 1d</span></td>
+            <td><span class="ai-tag">本月第 2 次 · 累计 3 天</span></td>
+            <td><span class="badge badge-pending">待审批</span></td>
+          </tr>
+          <tr>
+            <td><span class="checkbox checked"></span></td>
+            <td class="col-name"><span class="avatar">李</span>李华</td>
+            <td>事假</td>
+            <td><span class="date-col">04/17–18 · 2d</span></td>
+            <td><span class="ai-tag">首次请假 · 出勤正常</span></td>
+            <td><span class="badge badge-pending">待审批</span></td>
+          </tr>
+          <tr>
+            <td><span class="checkbox"></span></td>
+            <td class="col-name"><span class="avatar">王</span>王芳</td>
+            <td>病假</td>
+            <td><span class="date-col">04/16 · 1d</span></td>
+            <td><span class="ai-tag warning">本月第 4 次 · 建议关注</span></td>
+            <td><span class="badge badge-warning">需关注</span></td>
+          </tr>
+          <tr>
+            <td><span class="checkbox"></span></td>
+            <td class="col-name"><span class="avatar">赵</span>赵强</td>
+            <td>宿舍调换</td>
+            <td><span class="date-col">A305 → B201</span></td>
+            <td><span class="ai-tag">目标宿舍有空床位</span></td>
+            <td><span class="badge badge-pending">待审批</span></td>
+          </tr>
+          <tr>
+            <td><span class="checkbox"></span></td>
+            <td class="col-name"><span class="avatar">孙</span>孙丽</td>
+            <td>奖学金</td>
+            <td><span class="date-col">国家励志</span></td>
+            <td><span class="ai-tag">GPA 3.7 · 排名 12 / 326</span></td>
+            <td><span class="badge badge-pending">待审批</span></td>
+          </tr>
+          <tr>
+            <td><span class="checkbox"></span></td>
+            <td class="col-name"><span class="avatar">周</span>周磊</td>
+            <td>病假</td>
+            <td><span class="date-col">04/16 · 0.5d</span></td>
+            <td><span class="ai-tag">本学期首次请假</span></td>
+            <td><span class="badge badge-ok">低风险</span></td>
+          </tr>
+          <tr>
+            <td><span class="checkbox"></span></td>
+            <td class="col-name"><span class="avatar">吴</span>吴敏</td>
+            <td>事假</td>
+            <td><span class="date-col">04/18 · 1d</span></td>
+            <td><span class="ai-tag">家庭原因 · 辅导员已知晓</span></td>
+            <td><span class="badge badge-ok">低风险</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</main>
+
+<script>
+  function toggleAI() {
+    const panel  = document.getElementById('aiPanel');
+    const toggle = document.getElementById('aiToggle');
+    panel.classList.toggle('collapsed');
+    toggle.classList.toggle('hidden');
+  }
+
+  function switchPage(e) {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    e.currentTarget.classList.add('active');
+  }
+
+  document.querySelectorAll('.checkbox').forEach(cb => {
+    cb.addEventListener('click', e => {
+      e.stopPropagation();
+      cb.classList.toggle('checked');
+    });
+  });
+
+  document.querySelectorAll('.ai-suggestion').forEach(s => {
+    s.addEventListener('click', () => {
+      const input = document.querySelector('.ai-input-box input');
+      input.value = s.textContent.trim();
+      input.focus();
+    });
+  });
+
+  document.querySelectorAll('.msg-nav-chip').forEach(c => {
+    c.addEventListener('click', e => {
+      e.currentTarget.parentNode.querySelectorAll('.msg-nav-chip').forEach(x => x.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+    });
+  });
+
+  /* 7. Send button — vibrant glow micro-interaction when input has text */
+  (function() {
+    const input   = document.querySelector('.ai-input-box input');
+    const sendBtn = document.querySelector('.ai-send-btn');
+    if (!input || !sendBtn) return;
+    const update = () => {
+      sendBtn.classList.toggle('has-text', input.value.trim().length > 0);
+    };
+    input.addEventListener('input', update);
+    input.addEventListener('change', update);
+    update();
+  })();
+
+  document.querySelectorAll('.table-tab').forEach(t => {
+    t.addEventListener('click', e => {
+      e.currentTarget.parentNode.querySelectorAll('.table-tab').forEach(x => x.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>

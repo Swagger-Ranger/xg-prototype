@@ -1,0 +1,4 @@
+dependencies {
+    api project(':xg-platform')
+    api 'org.apache.poi:poi-ooxml'
+}

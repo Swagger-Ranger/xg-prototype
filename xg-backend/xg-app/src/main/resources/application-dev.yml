@@ -1,0 +1,7 @@
+spring:
+  flyway:
+    clean-disabled: false
+logging:
+  level:
+    com.xg: DEBUG
+    org.springframework.web: DEBUG

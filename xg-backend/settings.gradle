@@ -1,0 +1,7 @@
+rootProject.name = 'xg-backend'
+
+include 'xg-common'
+include 'xg-platform'
+include 'xg-business'
+include 'xg-tool-registry'
+include 'xg-app'

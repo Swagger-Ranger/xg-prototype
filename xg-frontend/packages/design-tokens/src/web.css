@@ -1,0 +1,72 @@
+:root {
+  /* AI Panel */
+  --ai-width: 408px;
+  --nav-width: 56px;
+
+  /* Surfaces */
+  --bg-0: #eceff4;
+  --bg-1: #f6f7fa;
+  --bg-2: #ffffff;
+  --bg-3: #f1f3f7;
+  --bg-4: #e6e9f0;
+
+  /* Borders */
+  --bd: rgba(15,23,42,0.06);
+  --bd-2: rgba(15,23,42,0.09);
+  --bd-3: rgba(15,23,42,0.14);
+
+  /* Text */
+  --fg: #0f172a;
+  --fg-2: #334155;
+  --fg-3: #64748b;
+  --fg-4: #94a3b8;
+  --fg-5: #cbd5e1;
+
+  /* Indigo — primary */
+  --ac: #6366f1;
+  --ac-hi: #4f46e5;
+  --ac-lo: #818cf8;
+  --ac-deep: #4338ca;
+  --ac-bg: rgba(99,102,241,0.07);
+  --ac-bg-2: rgba(99,102,241,0.13);
+  --ac-ring: rgba(99,102,241,0.28);
+  --ac-glow: rgba(99,102,241,0.30);
+
+  /* Cyan — secondary */
+  --cy: #0891b2;
+  --cy-hi: #0e7490;
+  --cy-bg: rgba(8,145,178,0.09);
+  --cy-ring: rgba(8,145,178,0.25);
+
+  /* Status */
+  --ok: #059669;
+  --ok-bg: rgba(5,150,105,0.08);
+  --ok-ring: rgba(5,150,105,0.25);
+  --warn: #b45309;
+  --warn-bg: rgba(217,119,6,0.10);
+  --warn-ring: rgba(217,119,6,0.28);
+  --danger: #dc2626;
+  --danger-bg: rgba(220,38,38,0.08);
+  --danger-ring: rgba(220,38,38,0.25);
+
+  /* Shadows */
+  --sh-xs: 0 1px 0 rgba(15,23,42,0.03);
+  --sh-sm: 0 1px 2px rgba(15,23,42,0.05), 0 1px 0 rgba(15,23,42,0.02);
+  --sh: 0 2px 4px rgba(15,23,42,0.05), 0 1px 2px rgba(15,23,42,0.03);
+  --sh-md: 0 6px 16px -4px rgba(15,23,42,0.08), 0 2px 4px rgba(15,23,42,0.04);
+  --sh-lg: 0 14px 36px -10px rgba(15,23,42,0.14), 0 4px 10px rgba(15,23,42,0.04);
+
+  /* Radii */
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r: 8px;
+  --r-lg: 10px;
+  --r-xl: 14px;
+
+  /* Typography */
+  --font: 'Geist', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Easing */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}

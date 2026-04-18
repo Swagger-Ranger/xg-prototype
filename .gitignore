@@ -1,0 +1,61 @@
+# Java
+build/
+.gradle/
+*.class
+*.jar
+*.war
+*.ear
+out/
+target/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Frontend
+node_modules/
+dist/
+.taro/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Deploy secrets
+deploy/.env
+deploy/env/
+xg-ai/.env
+
+# Logs
+*.log
+logs/

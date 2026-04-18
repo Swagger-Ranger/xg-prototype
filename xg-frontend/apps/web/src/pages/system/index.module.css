@@ -1,0 +1,67 @@
+.page {
+  max-width: 1200px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+
+.filterBar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tableCard {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+
+.statusTag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.actionLink {
+  background: none;
+  border: none;
+  color: var(--ac);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  transition: color 0.15s var(--ease);
+}
+
+.actionLink:hover {
+  color: var(--ac-hi, var(--ac));
+}
+
+.actionLink + .actionLink {
+  margin-left: 12px;
+}
+
+.actionLink.danger {
+  color: var(--danger);
+}
+
+.roleTags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}

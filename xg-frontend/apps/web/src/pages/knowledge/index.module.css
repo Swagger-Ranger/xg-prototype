@@ -1,0 +1,29 @@
+.page { max-width: 800px; }
+.header { margin-bottom: 24px; }
+.title { font-size: 18px; font-weight: 600; color: var(--fg); letter-spacing: -0.02em; }
+
+.searchArea { display: flex; gap: 8px; margin-bottom: 24px; }
+
+.answerCard { background: var(--bg-2); border: 1px solid var(--bd); border-radius: var(--r-lg); box-shadow: var(--sh-sm); padding: 20px 24px; margin-bottom: 24px; }
+.answerQuestion { font-size: 15px; font-weight: 600; color: var(--fg); margin-bottom: 12px; }
+.answerContent { font-size: 14px; color: var(--fg-2); line-height: 1.7; white-space: pre-wrap; }
+.answerMeta { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--bd); }
+.sources { font-size: 12px; color: var(--fg-3); }
+.sourceTag { font-size: 12px; }
+.feedback { display: flex; gap: 8px; }
+.feedbackBtn { background: none; border: 1px solid var(--bd); border-radius: var(--r); padding: 4px 12px; cursor: pointer; font-size: 13px; color: var(--fg-3); transition: all 0.15s var(--ease); display: flex; align-items: center; gap: 4px; }
+.feedbackBtn:hover { border-color: var(--ac); color: var(--ac); }
+.feedbackBtn.active { border-color: var(--ac); color: var(--ac); background: var(--ac-bg); }
+
+.emptyAnswer { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px; background: var(--bg-2); border: 1px solid var(--bd); border-radius: var(--r-lg); margin-bottom: 24px; color: var(--fg-3); }
+.emptyIcon { font-size: 36px; color: var(--fg-4); margin-bottom: 12px; }
+
+.historyTitle { font-size: 14px; font-weight: 600; color: var(--fg-2); margin-bottom: 12px; }
+.historyList { display: flex; flex-direction: column; gap: 8px; }
+.historyItem { background: var(--bg-2); border: 1px solid var(--bd); border-radius: var(--r); padding: 12px 16px; cursor: pointer; transition: border-color 0.15s var(--ease); }
+.historyItem:hover { border-color: var(--ac); }
+.historyQuestion { font-size: 13px; font-weight: 500; color: var(--fg); margin-bottom: 4px; }
+.historyAnswer { font-size: 12px; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.historyTime { font-size: 11px; color: var(--fg-4); margin-top: 4px; }
+
+.loadingArea { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px; background: var(--bg-2); border: 1px solid var(--bd); border-radius: var(--r-lg); margin-bottom: 24px; }

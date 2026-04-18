@@ -1,0 +1,10 @@
+dependencies {
+    api project(':xg-common')
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+    api 'cn.dev33:sa-token-spring-boot3-starter'
+    api 'cn.dev33:sa-token-redis-jackson'
+    api 'org.flywaydb:flyway-core'
+    api 'org.flywaydb:flyway-database-postgresql'
+    api 'org.postgresql:postgresql'
+    api 'io.minio:minio'
+}
