@@ -42,7 +42,7 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
 
 const LEVEL_OPTIONS = [
   { label: '警告', value: 'warning', color: '#faad14' },
-  { label: '严重警告', value: 'severe_warning', color: '#fa8c16' },
+  { label: '严重警告', value: 'serious_warning', color: '#fa8c16' },
   { label: '记过', value: 'demerit', color: '#ff7a45' },
   { label: '留校察看', value: 'probation', color: '#ff4d4f' },
   { label: '开除学籍', value: 'expulsion', color: '#cf1322' },
@@ -52,9 +52,10 @@ const LEVEL_MAP: Record<string, { label: string; color: string }> = Object.fromE
 );
 
 const STATUS_LABELS: Record<string, string> = {
-  active: '生效中',
-  expired: '已解除',
-  revoked: '已撤销',
+  effective: '生效中',
+  lifted: '已解除',
+  rejected: '已撤销',
+  pending: '待下达',
 };
 
 const PAGE_SIZE = 20;

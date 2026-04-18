@@ -47,13 +47,13 @@ const POSITION_STATUS_COLORS: Record<string, string> = {
 };
 
 const APP_STATUS_LABELS: Record<string, string> = {
-  submitted: '已提交',
+  pending: '已提交',
   recommended: '已推荐',
   hired: '已录用',
   rejected: '未通过',
 };
 const APP_STATUS_COLORS: Record<string, string> = {
-  submitted: '#1677ff',
+  pending: '#1677ff',
   recommended: '#faad14',
   hired: '#52c41a',
   rejected: '#ff4d4f',
@@ -327,7 +327,7 @@ export default function WorkStudyManagement() {
       key: 'actions',
       width: 100,
       render: (_, r) =>
-        !isStudent && (r.status === 'submitted' || r.status === 'recommended') ? (
+        !isStudent && (r.status === 'pending' || r.status === 'recommended') ? (
           <button
             className={styles.actionLink}
             onClick={() => {
