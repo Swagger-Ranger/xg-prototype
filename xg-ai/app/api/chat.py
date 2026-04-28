@@ -14,13 +14,51 @@ logger = logging.getLogger(__name__)
 
 llm = DeepSeekProvider()
 
-SYSTEM_PROMPT = (
+
+# Confirmation-word gate for open_leave_form. The LLM's prompt says it must
+# only fire the tool *after* the user has replied a 肯定词, but in practice
+# it sometimes does both in one turn (confirms + submits). This regex
+# whitelists the brief "yes-class" replies; anything else falls back to the
+# "produce a confirmation summary, wait for next turn" path.
+import re as _re_chat  # noqa: E402
+_CONFIRMATION_RE = _re_chat.compile(
+    r"^[\s]*"
+    r"(是|是的|对|对的|好|好的|嗯|嗯嗯|可以|确认|提交|没问题|没问题的|"
+    r"ok|okay|yes|yep|sure|go|确认提交|确定|行|行的)"
+    r"[\s。.，,！!？?]*$",
+    flags=_re_chat.IGNORECASE,
+)
+
+
+def _is_confirmation_msg(text: str | None) -> bool:
+    """Whether the user's current turn looks like a brief 'yes' to a prior
+    confirmation prompt. Length cap of 12 chars to avoid matching things
+    like "可以的话…我下周二想…" which contain a confirmation token but are
+    actually new requests."""
+    if not text:
+        return False
+    s = text.strip()
+    if len(s) > 12:
+        return False
+    return bool(_CONFIRMATION_RE.match(s))
+
+_SYSTEM_PROMPT_ZH = (
     "你是学工管理系统的 AI 助手。今天是 {today}。\n"
     "你的风格简洁友好，每次回复尽量1-2句话。\n\n"
+    "## 数据查询铁律（最高优先级，违反即严重错误）\n"
+    "任何涉及数据（有多少条、列表、统计、是否存在、未读数等）的问题，**本轮必须先调用对应 query_* 工具**，再基于工具返回结果作答。\n"
+    "- 未调用工具前，严禁输出任何具体数字、条数、名单、人名。\n"
+    "- 若用户只是询问（如\"有哪些待审批的请假？\"\"有几条未读？\"），本轮直接调工具，不要先问\"需要查看吗？\"。\n"
+    "- 若工具返回 0 条/空列表，就如实说\"暂无\"，不要编造数据。\n"
+    "- 跨轮一致性：上一轮工具已返回的真实数据优先于你之前任何回复中出现的数字。如果你发现自己之前说的数字与工具结果不符，以工具结果为准并承认之前说错了。\n\n"
     "## 核心原则：先对话收集，信息齐全后再操作\n\n"
     "### 请假流程（严格三步）\n"
     "请假需要4个要素：假别、开始日期、结束日期、事由。\n"
-    "收集：评估用户已给的信息。缺少哪些要素就追问哪些，一次最多问2个。日期要转换为具体日期（\"明天\"→具体日期）。\n"
+    "收集：评估用户已给的信息。缺少哪些要素就追问哪些，一次最多问2个。\n"
+    "日期处理铁律：**用户给的任何相对日期表达式（今天/明天/后天/N天后/下周一/月底/5月1日 等），"
+    "本轮必须先调用 resolve_date 拿到 YYYY-MM-DD，禁止自己心算**。"
+    "「请 3 天」之类的天数描述，要先用 resolve_date 解出开始日期，再算结束日期 = 开始 + 天数 − 1（含起止当天）。"
+    "已经是 YYYY-MM-DD 的可以不调。\n"
     "确认：当4个要素全部明确后（可能用户第一句就给齐了），回复确认摘要，格式例如：\"事假，4月18日一天，事由：家里有事，确认提交吗？\"。这一步只发纯文字，不调用任何工具。不要在回复前加\"确认：\"之类的前缀。\n"
     "执行：用户回复肯定词（好/对/嗯/可以/是/提交/确认/没问题）后，这一轮才调用 open_leave_form 并填入所有参数。\n"
     "关键：确认和执行必须在不同轮次。同一轮不能既确认又调用工具。\n\n"
@@ -28,18 +66,94 @@ SYSTEM_PROMPT = (
     "签到需要：活动标题、时长。缺少时追问，齐全后确认再调用 open_checkin_form。\n\n"
     "### 信息收集流程\n"
     "收集需要：标题。缺少时追问，齐全后确认再调用 open_collection_form。\n\n"
-    "### 投诉/诉求流程（严格三步）\n"
-    "用户说\"投诉/诉求/反映问题/提意见\"时，走和请假一样的收集→确认→执行流程。\n"
-    "投诉需要3个要素：标题（简短）、类别（教学管理/后勤服务/校园安全/其他）、内容。\n"
-    "收集：评估用户已给的信息。缺少哪些要素就追问哪些，一次最多问2个。能从用户描述中提炼出标题和类别时就直接用，不必追问。\n"
-    "确认：3个要素齐全后，回复确认摘要，例如：\"诉求：教学楼空调坏了（后勤服务），内容：北404教室空调不制冷。确认提交吗？\"。这一步只发纯文字，不调用工具。\n"
-    "执行：用户确认后再调用 open_complaint_form。类别参数必须是枚举值 teaching/logistics/safety/other。\n\n"
     "### 导航\n"
     "用户明确说去某个页面时，直接调用 navigate，无需确认。\n\n"
+    "### 学生信息库 过滤（只在 current_page=student 时触发）\n"
+    "当用户在 学生信息库 页面说「过滤 / 筛选 / 找 …级 …学院 …专业 …班 / 在读/休学/毕业/退学」"
+    "或给出学号/姓名要搜，本轮直接调 filter_students 工具，把识别到的条件作为参数传入。\n"
+    "- 只填用户明确说的字段，没说的不要填；填了 null 等同于「清掉这一项」。\n"
+    "- 「人工智能专业」→ major=人工智能；「计算机学院」→ college=计算机学院；「2024级」→ grade=2024级（带「级」）。\n"
+    "- 状态映射：在读→active，休学→suspended，毕业→graduated，退学→withdrawn。\n"
+    "- 不要为了过滤先 query_students；这是 UI 操作，工具会让前端直接套筛选。\n\n"
     "### 其他\n"
     "与系统功能无关的问题，正常用简洁中文回答。\n"
-    "不要编造系统没有的功能。可用功能：请销假、签到、信息收集、通知任务、接诉即办、学生信息、知识问答。"
+    "不要编造系统没有的功能。可用功能：请销假、签到、信息收集、通知任务、学生信息、知识问答。"
 )
+
+_SYSTEM_PROMPT_EN = (
+    "You are the AI assistant of a university student-affairs system. Today is {today}.\n"
+    "Be concise and friendly — keep replies to 1-2 sentences when possible.\n\n"
+    "## Data-query rule (HIGHEST priority — violation is a serious error)\n"
+    "Any question that touches data (counts, lists, statistics, existence checks, unread counts) **MUST call the matching query_* tool first this turn**, then answer based on the tool's result.\n"
+    "- Until a tool has run, NEVER output any concrete number, count, list, or person's name.\n"
+    "- If the user merely asks (e.g. 'what leaves are pending?', 'how many unread?'), call the tool directly this turn — do NOT first ask 'should I look it up?'.\n"
+    "- If a tool returns 0 rows or an empty list, just say 'none' — do not fabricate data.\n"
+    "- Cross-turn consistency: real data from a previous tool call always overrides any number you said earlier. If you notice a previous claim conflicts with tool output, defer to the tool result and acknowledge the earlier mistake.\n\n"
+    "## Core principle: gather via dialog, only act when info is complete\n\n"
+    "### Leave flow (strict three steps)\n"
+    "A leave needs 4 fields: leave type, start date, end date, reason.\n"
+    "Gather: evaluate what the user already provided; ask for missing fields, at most 2 questions per turn.\n"
+    "Date-handling rule: **for any relative date the user gives (today / tomorrow / day after / in N days / next Monday / end of month / May 1 etc.), "
+    "this turn you MUST call resolve_date to get YYYY-MM-DD — never compute it yourself**. "
+    "For durations like 'take 3 days off', call resolve_date for the start date first, then end_date = start + days − 1 (inclusive). "
+    "Values that are already YYYY-MM-DD don't need resolve_date.\n"
+    "Confirm: once all 4 fields are clear (the user may have given them all in one go), reply with a confirmation summary, e.g. 'Personal leave, April 18, one day, reason: family matter — submit?'. This step is plain text only, no tool call. Don't prefix with 'Confirm:'.\n"
+    "Execute: only after the user replies with a 'yes / ok / confirm / submit / right' do you call open_leave_form with all parameters this next turn.\n"
+    "Key: confirm and execute MUST be in different turns. Never both confirm AND call the tool in the same turn.\n\n"
+    "### Check-in flow\n"
+    "Check-in needs: activity title, duration. Ask for missing info, confirm, then call open_checkin_form.\n\n"
+    "### Information-collection flow\n"
+    "Collection needs: title. Ask for missing info, confirm, then call open_collection_form.\n\n"
+    "### Navigation\n"
+    "When the user explicitly says to go to a page, call navigate immediately — no confirmation needed.\n\n"
+    "### Student-directory filter (only when current_page=student)\n"
+    "When the user is on the student page and says 'filter / find ... grade ... college ... major ... class / active / suspended / graduated / withdrawn' or gives a student-id / name, call filter_students this turn with the parsed conditions.\n"
+    "- Only fill fields the user explicitly mentioned; don't fill fields they didn't say (filling null clears that filter).\n"
+    "- 'AI major' → major=人工智能 (keep Chinese for backend match); 'CS College' → college=计算机学院; 'class of 2024' → grade=2024级 (keep '级' suffix).\n"
+    "- Status mapping: active→active, suspended→suspended, graduated→graduated, withdrawn→withdrawn.\n"
+    "- Don't call query_students first to filter — this is a UI op; the tool just hands the conditions to the frontend.\n\n"
+    "### Other\n"
+    "For questions unrelated to system features, answer concisely in English.\n"
+    "Do not invent features the system doesn't have. Available features: leave/return-from-leave, check-in, info collection, notification tasks, student info, knowledge Q&A."
+)
+
+
+def _pick(zh: str, en: str, lang: str) -> str:
+    """Choose zh or en string based on lang flag (default zh fallback)."""
+    return en if lang == "en" else zh
+
+
+_ROLE_LABELS_ZH = {
+    "student": "学生",
+    "counselor": "辅导员",
+    "college_admin": "院系管理员",
+    "dean": "院系领导",
+    "student_affairs_officer": "学工处人员",
+    "school_admin": "校级管理员",
+    "super_admin": "超级管理员",
+    "employer": "用工单位主管",
+}
+_ROLE_LABELS_EN = {
+    "student": "student",
+    "counselor": "counselor",
+    "college_admin": "college admin",
+    "dean": "dean",
+    "student_affairs_officer": "student-affairs officer",
+    "school_admin": "school admin",
+    "super_admin": "super admin",
+    "employer": "employer supervisor",
+}
+
+_PAGE_LABELS_ZH = {
+    "workspace": "工作台", "leave": "请销假", "collection": "信息收集",
+    "checkin": "签到", "notification": "通知任务",
+    "student": "学生信息", "knowledge": "知识问答",
+}
+_PAGE_LABELS_EN = {
+    "workspace": "Workspace", "leave": "Leave", "collection": "Info Collection",
+    "checkin": "Check-in", "notification": "Notifications",
+    "student": "Students", "knowledge": "Knowledge",
+}
 
 # UI-side tools: the LLM emits one, chat.py emits action, frontend opens a modal.
 # Query tools live in query_tools.TOOLS (role-filtered at request time).
@@ -52,7 +166,7 @@ UI_TOOLS = [
             "properties": {
                 "page": {
                     "type": "string",
-                    "enum": ["workspace", "leave", "collection", "checkin", "notification", "complaint", "student", "knowledge"],
+                    "enum": ["workspace", "leave", "collection", "checkin", "notification", "student", "knowledge"],
                     "description": "目标页面",
                 }
             },
@@ -74,6 +188,16 @@ UI_TOOLS = [
                 "reason": {"type": "string", "description": "请假原因"},
                 "start_date": {"type": "string", "description": "开始日期 YYYY-MM-DD"},
                 "end_date": {"type": "string", "description": "结束日期 YYYY-MM-DD"},
+                "destination": {
+                    "type": "string",
+                    "description": (
+                        "目的地（地级市，仅一个）。"
+                        "用户口述「我去南京」「去北京老家」这类提到地名时填，"
+                        "标准化为地级市，例如：南京市 / 北京市 / 上海市 / 苏州市。"
+                        "不要包含区县或详细地址；填了无法匹配的地名前端会保留为文本。"
+                        "用户没明确提地名时不要瞎猜，留空即可。"
+                    ),
+                },
             },
         },
         "allowed_roles": None,
@@ -102,33 +226,92 @@ UI_TOOLS = [
         "allowed_roles": {"counselor", "dean", "school_admin"},
     },
     {
-        "name": "open_complaint_form",
-        "description": "打开接诉即办/诉求提交表单，可预填标题、类别、内容。当用户说要投诉、反映问题、提诉求时，收集齐要素并确认后调用。",
+        "name": "open_violation_form",
+        "description": "打开登记违纪的表单，可预填信息。当用户说要登记违纪、录违纪、记录违纪行为时调用。",
         "input_schema": {
             "type": "object",
             "properties": {
-                "title": {"type": "string", "description": "诉求标题（简短）"},
+                "student_id": {"type": "string", "description": "学生 ID"},
+                "student_name": {"type": "string", "description": "学生姓名"},
                 "category": {
                     "type": "string",
-                    "enum": ["teaching", "logistics", "safety", "other"],
-                    "description": "类别：teaching=教学管理, logistics=后勤服务, safety=校园安全, other=其他",
+                    "enum": ["exam", "academic", "dorm", "fight", "cyber", "other"],
+                    "description": "类别: exam=考试违纪, academic=学术不端, dorm=宿舍违规, fight=打架斗殴, cyber=网络违规, other=其他",
                 },
-                "content": {"type": "string", "description": "诉求详细内容"},
-                "anonymous": {"type": "boolean", "description": "是否匿名提交，默认 false"},
+                "description": {"type": "string", "description": "违纪行为描述"},
             },
         },
-        "allowed_roles": None,
+        "allowed_roles": {"counselor", "dean", "school_admin"},
+    },
+    {
+        "name": "filter_students",
+        "description": (
+            "在 学生信息库 页面按用户给的条件筛选学生列表。"
+            "当用户在 current_page=student 的语境下明确说"
+            "「过滤/筛选/找/查 …级 / …学院 / …专业 / …班 / 在读/休学/毕业/退学 / 学号/姓名」时调用。"
+            "只填用户明确给出的字段，未提到的字段不要填（这些字段会原样替换页面当前过滤值）。"
+            "本工具不查询任何数据，只是把过滤条件交给前端。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keyword": {"type": "string", "description": "学号或姓名模糊匹配；只在用户给出具体学号/姓名时填。"},
+                "grade": {"type": "string", "description": "年级，例如 2024级、2023级；带「级」字。"},
+                "college": {"type": "string", "description": "学院全称，例如 计算机学院、人文学院。"},
+                "major": {"type": "string", "description": "专业全称，例如 人工智能、软件工程。"},
+                "class_name": {"type": "string", "description": "班级，例如 软件2301班。"},
+                "status": {
+                    "type": "string",
+                    "enum": ["active", "suspended", "graduated", "withdrawn"],
+                    "description": "在读=active，休学=suspended，毕业=graduated，退学=withdrawn。",
+                },
+            },
+        },
+        "allowed_roles": {"counselor", "dean", "school_admin", "student_affairs_officer"},
+    },
+    {
+        "name": "open_appeal_form",
+        "description": "打开违纪申诉表单。当学生说要对某条违纪申诉、不服违纪处分时调用，必须传入违纪记录 ID。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "violation_record_id": {"type": "string", "description": "违纪记录 ID，必填"},
+                "reason": {"type": "string", "description": "申诉理由（可选预填）"},
+            },
+            "required": ["violation_record_id"],
+        },
+        "allowed_roles": {"student"},
     },
 ]
 
 
-def _build_tools(role: str) -> list[dict]:
-    """Merge UI tools (role-filtered) with query tools (role-filtered per registry)."""
-    ui = [
-        {k: v for k, v in t.items() if k != "allowed_roles"}
-        for t in UI_TOOLS
-        if t["allowed_roles"] is None or role in t["allowed_roles"]
-    ]
+async def _build_tools(role: str) -> list[dict]:
+    """Merge UI tools (role-filtered) with query tools (role-filtered per
+    registry). The leave_type enum on open_leave_form is patched at request
+    time from the live LeaveTypeConfig table so admins adding new leave types
+    don't need a sidecar redeploy."""
+    import copy
+
+    leave_types = await query_tools.fetch_leave_types()
+    leave_type_codes = [t["code"] for t in leave_types]
+    leave_type_desc = "假别 code，从下列可用值中选择：" + ", ".join(
+        f"{t['code']}={t['name']}" for t in leave_types
+    )
+
+    ui: list[dict] = []
+    for t in UI_TOOLS:
+        if t["allowed_roles"] is not None and role not in t["allowed_roles"]:
+            continue
+        cleaned = {k: v for k, v in t.items() if k != "allowed_roles"}
+        if cleaned.get("name") == "open_leave_form":
+            cleaned = copy.deepcopy(cleaned)
+            props = cleaned.get("input_schema", {}).get("properties", {})
+            lt = props.get("leave_type")
+            if isinstance(lt, dict):
+                lt["enum"] = leave_type_codes
+                lt["description"] = leave_type_desc
+        ui.append(cleaned)
+
     return ui + query_tools.tools_for_role(role)
 
 
@@ -140,6 +323,10 @@ class ChatRequest(BaseModel):
     current_modal: str | None = None
     user_role: str | None = None
     user_name: str | None = None
+    # Locale for tool output ('zh' or 'en'); falls back to X-User-Lang header.
+    user_lang: str | None = None
+    # Objects the user pinned from the right panel. Each: {type, id, label, detail?}.
+    refs: list[dict] | None = None
 
 
 class ActionPayload(BaseModel):
@@ -152,11 +339,18 @@ class Citation(BaseModel):
     title: str
 
 
+class Highlight(BaseModel):
+    type: str
+    id: str
+
+
 class ChatResponse(BaseModel):
     reply: str
     conversation_id: str
     action: ActionPayload | None = None
     citations: list[Citation] | None = None
+    # Entities the frontend should visually highlight (e.g. pulse the matching row).
+    highlights: list[Highlight] | None = None
 
 
 @router.post("/chat")
@@ -164,44 +358,124 @@ async def global_chat(
     req: ChatRequest,
     x_user_id: str = Header(default=""),
     x_tenant_id: str = Header(default=""),
+    x_user_lang: str = Header(default="zh"),
 ) -> ChatResponse:
     conv_id = req.conversation_id or uuid.uuid4().hex
+    lang = (req.user_lang or x_user_lang or "zh").lower()
+    if lang not in ("zh", "en"):
+        lang = "zh"
 
-    system_prompt = SYSTEM_PROMPT.format(today=date.today().isoformat())
+    base = _pick(_SYSTEM_PROMPT_ZH, _SYSTEM_PROMPT_EN, lang)
+    system_prompt = base.format(today=date.today().isoformat())
 
-    role_labels = {
-        "student": "学生",
-        "counselor": "辅导员",
-        "dean": "院系领导",
-        "school_admin": "校级管理员",
-    }
-    role_label = role_labels.get(req.user_role or "student", "用户")
-    user_display = f"{req.user_name}（{role_label}）" if req.user_name else role_label
-    system_prompt += f"\n\n## 当前用户\n你正在与{user_display}对话。请根据其角色提供对应的服务。\n"
+    role_labels = _pick(_ROLE_LABELS_ZH, _ROLE_LABELS_EN, lang)
+    fallback_role = _pick("用户", "user", lang)
+    role_label = role_labels.get(req.user_role or "student", fallback_role)
+    user_display = (
+        _pick(f"{req.user_name}（{role_label}）", f"{req.user_name} ({role_label})", lang)
+        if req.user_name else role_label
+    )
+    system_prompt += _pick(
+        f"\n\n## 当前用户\n你正在与{user_display}对话。请根据其角色提供对应的服务。\n",
+        f"\n\n## Current user\nYou are speaking with {user_display}. Tailor your help to this role.\n",
+        lang,
+    )
     if req.user_role == "student":
-        system_prompt += "- 学生用户：请假是为自己请假，可以查询自己的请假记录、通知等。\n"
-        system_prompt += "- 不要提供管理功能（审批、统计、签到管理等）。\n"
-    elif req.user_role in ("counselor", "dean", "school_admin"):
-        system_prompt += "- 教师/管理员用户：请假相关操作是代学生请假。需要先问清楚为哪位同学请假。\n"
-        system_prompt += "- 可以使用所有管理功能：审批、签到、信息收集、通知等。\n"
+        system_prompt += _pick(
+            "- 学生用户：请假是为自己请假，可以查询自己的请假记录、通知等。\n"
+            "- 不要提供管理功能（审批、统计、签到管理等）。\n",
+            "- Student: leave requests are for themselves; they can query their own leave records, notifications, etc.\n"
+            "- Do not offer management features (approvals, statistics, check-in admin, etc.).\n",
+            lang,
+        )
+    elif req.user_role == "employer":
+        system_prompt += _pick(
+            "- 用工单位主管：仅服务于勤工助学相关场景——岗位发布、岗位申请审批、薪酬流程。\n"
+            "- 不要提供请销假、签到、信息收集、通知、学生信息库等任何与用工单位无关的功能。\n"
+            "- 用户问到非本职业务时，礼貌说明只能协助勤工助学相关问题。\n",
+            "- Employer supervisor: only assist with work-study scenarios — position posting, application review, salary flow.\n"
+            "- Do not offer leave, check-in, info collection, notifications, student directory or anything unrelated to work-study.\n"
+            "- If the user asks about non-work-study tasks, politely explain you can only help with work-study.\n",
+            lang,
+        )
+    elif req.user_role in ("counselor", "dean", "college_admin", "student_affairs_officer", "school_admin", "super_admin"):
+        system_prompt += _pick(
+            "- 教师/管理员用户：请假相关操作是代学生请假。需要先问清楚为哪位同学请假。\n"
+            "- 可以使用所有管理功能：审批、签到、信息收集、通知等。\n",
+            "- Staff/admin: leave operations are filed on behalf of a student — first ask which student.\n"
+            "- All management features are available: approvals, check-in, info collection, notifications, etc.\n",
+            lang,
+        )
 
-    page_labels = {
-        "workspace": "工作台", "leave": "请销假", "collection": "信息收集",
-        "checkin": "签到", "notification": "通知任务", "complaint": "接诉即办",
-        "student": "学生信息", "knowledge": "知识问答",
-    }
+    page_labels = _pick(_PAGE_LABELS_ZH, _PAGE_LABELS_EN, lang)
     if req.current_page:
         page_label = page_labels.get(req.current_page, req.current_page)
-        system_prompt += f"\n## 当前页面\n用户正在「{page_label}」页面"
-        if req.current_modal:
-            system_prompt += f"，打开的弹窗：{req.current_modal}"
-        system_prompt += "。\n- 若用户要执行的操作正是当前页面的功能，直接调用对应表单工具（如 open_*_form），不用再 navigate。\n- 若用户明显在换话题，按正常流程处理。\n"
+        if lang == "en":
+            system_prompt += f"\n## Current page\nThe user is on the «{page_label}» page"
+            if req.current_modal:
+                system_prompt += f", with modal open: {req.current_modal}"
+            system_prompt += (
+                ".\n- If the user's intended action matches this page's feature, call the matching open_*_form tool directly — no navigate.\n"
+                "- If the user clearly switches topic, follow the normal flow.\n"
+            )
+        else:
+            system_prompt += f"\n## 当前页面\n用户正在「{page_label}」页面"
+            if req.current_modal:
+                system_prompt += f"，打开的弹窗：{req.current_modal}"
+            system_prompt += "。\n- 若用户要执行的操作正是当前页面的功能，直接调用对应表单工具（如 open_*_form），不用再 navigate。\n- 若用户明显在换话题，按正常流程处理。\n"
+
+    # Pinned refs — objects the user explicitly marked as the target of this turn.
+    # When the user says 「这个学生 / 这条洞察 / 那条请假」, treat those as references
+    # to the items listed here (in the order pinned).
+    if req.refs:
+        system_prompt += _pick(
+            "\n## 用户指代的对象（来自右侧面板）\n",
+            "\n## Objects the user is referring to (from the right panel)\n",
+            lang,
+        )
+        for i, r in enumerate(req.refs, start=1):
+            rtype = str(r.get("type", "object"))
+            label = str(r.get("label", ""))
+            rid = str(r.get("id", ""))
+            detail = str(r.get("detail", "")).strip()
+            line = f"{i}. [{rtype}] {label}"
+            if rid:
+                line += _pick(f"(id={rid})", f"(id={rid})", lang)
+            if detail:
+                line += f" — {detail}"
+            system_prompt += line + "\n"
+        system_prompt += _pick(
+            "- 用户消息中的「这个/这条/他/她/该学生/此处」默认指上述对象。\n"
+            "- **指代消歧优先级**：用户若限定了修饰词（「高风险」「中风险」「这条」等），"
+            "请在上述对象列表中只挑 label 包含该关键词的子集；不要把未命中修饰词的对象混进来。"
+            "例如用户问「此处高风险人员」，仅考虑 label 含「高风险」的 student 对象。\n"
+            "- 当用户问「这些学生/他们最近表现怎么样」「有没有缺课」「有什么异常」"
+            "且上述对象里有 student 类型时，**本轮直接调用 query_student_events**，"
+            "把命中修饰词的 student 对象的 {id, name} 作为 students 参数传入，不要先问是否查询。\n"
+            "- **请假查询路由**：当用户问某位学生「请假情况/请假记录/近 N 个月请假」"
+            "且 refs 有 student 对象时，**必须用 query_leaves(scope=student, student_id=..., months=...)** "
+            "而不是 scope=class 再人工挑。多个学生时分别调用。\n"
+            "- 如果用户针对某条对象问操作类动作（如「约谈这个学生」「跟进这条诉求」），"
+            "你应当按该对象的 type 决定合适的应答：student 对象优先考虑打开学生档案或记录一次谈话建议；"
+            "insight 对象优先拆解建议条目的下一步；leave 对象可提示审批细节。\n"
+            "- 涉及真实查询时，仍然必须先调 query_* 工具，不要凭对象上的 label 编造数据。\n",
+            "- Pronouns in the user's message (this / that / he / she / this student / here) default to the objects above.\n"
+            "- **Disambiguation priority**: if the user adds a qualifier ('high risk', 'medium risk', 'this one' etc.), pick only the subset of objects whose label contains that keyword — do not mix in non-matching objects. "
+            "E.g. when the user asks 'high-risk people here', consider only student objects whose label contains 'high-risk'.\n"
+            "- When the user asks 'how are these students recently?' / 'any absences?' / 'any anomalies?' and there are student objects above, **call query_student_events directly this turn**, "
+            "passing those students' {id, name} as the `students` argument — do not first ask whether to query.\n"
+            "- **Leave-query routing**: when the user asks 'this student's leave situation / leave records / leave in the last N months' and a student object is in refs, "
+            "**you MUST use query_leaves(scope=student, student_id=..., months=...)** instead of scope=class. Call once per student if there are multiple.\n"
+            "- For action-style requests on a specific object ('have a chat with this student', 'follow up on this complaint'), choose your reply by the object's type: student → suggest opening the profile or logging a chat note; insight → break down the next step; leave → mention approval details.\n"
+            "- For real data lookups you still must call a query_* tool first — never fabricate from an object's label.\n",
+            lang,
+        )
 
     rag_articles = await retrieve_semantic(req.message)
     if rag_articles:
         system_prompt += format_context(rag_articles)
 
-    tools = _build_tools(req.user_role or "student")
+    tools = await _build_tools(req.user_role or "student")
 
     convo: list[dict] = [{"role": "system", "content": system_prompt}]
     if req.history:
@@ -225,8 +499,44 @@ async def global_chat(
                 None,
             )
             if ui_tool:
-                action = ActionPayload(type=ui_tool.name, data=ui_tool.input)
-                reply = turn.text
+                # 防 LLM 跳步：open_leave_form 必须在用户**当前轮**回复确认词
+                # 时才能触发；否则视为"确认+提交同轮"误用，拦截并把 LLM 文本
+                # 当作确认摘要返回，让用户在下一轮显式确认。仅对 leave 强制，
+                # 其它表单（签到、收集）暂不施加同款门控。
+                if ui_tool.name == "open_leave_form" and not _is_confirmation_msg(req.message):
+                    logger.info(
+                        "open_leave_form gated: user msg=%r is not a confirmation; "
+                        "stripping tool call and returning summary text only",
+                        req.message[:80],
+                    )
+                    action = None
+                    summary = (turn.text or "").strip()
+                    if not summary:
+                        # LLM 没给文本就直接 emit 工具——给个兜底确认提示
+                        summary = '已收集请假信息。请回复「是」或「提交」以确认，或继续告诉我需要修改的字段。'
+                    elif not summary.endswith(("?", "？")):
+                        summary += "（请回复「是」或「提交」以确认）"
+                    reply = summary
+                else:
+                    # For open_leave_form, attach the user's last actual
+                    # request as _raw_input so the frontend can persist it
+                    # alongside the AI prediction snapshot for later analysis.
+                    payload = dict(ui_tool.input)
+                    if ui_tool.name == "open_leave_form":
+                        # Walk back from the confirmation turn to find the
+                        # user's most recent non-confirmation message — that's
+                        # the actual leave request text the AI parsed.
+                        last_meaningful = None
+                        if req.history:
+                            for h in reversed(req.history):
+                                if h.get("role") == "user":
+                                    content = (h.get("content") or "").strip()
+                                    if content and not _is_confirmation_msg(content):
+                                        last_meaningful = content
+                                        break
+                        payload["_raw_input"] = last_meaningful or req.message
+                    action = ActionPayload(type=ui_tool.name, data=payload)
+                    reply = turn.text
                 break
 
             # No tool calls — plain text answer, done.
@@ -242,6 +552,7 @@ async def global_chat(
                     tc.name, tc.input,
                     user_id=x_user_id, tenant_id=x_tenant_id,
                     user_role=req.user_role or "student",
+                    user_lang=lang,
                 )
                 convo.append({
                     "role": "tool",
@@ -251,13 +562,21 @@ async def global_chat(
         else:
             # Loop exited by exhausting MAX_ITERS without a text answer.
             if not reply:
-                reply = "查询过程过长，已中止。请换一种提问方式。"
+                reply = _pick(
+                    "查询过程过长，已中止。请换一种提问方式。",
+                    "The query took too long and was aborted. Please rephrase.",
+                    lang,
+                )
 
         if not (reply or "").strip() and action:
-            reply = _action_reply(action)
+            reply = _action_reply(action, lang)
 
+        # Citations only make sense when this turn was a knowledge-style answer.
+        # Suppress them when the turn produced an action (filter_students /
+        # open_*_form / navigate) or ran a query tool — the user isn't asking
+        # for reference material, just executing.
         citations: list[Citation] | None = None
-        if rag_articles and not tool_ran:
+        if rag_articles and not tool_ran and action is None:
             seen: set[str] = set()
             citations = []
             for a in rag_articles:
@@ -266,29 +585,97 @@ async def global_chat(
                 seen.add(a.doc_id)
                 citations.append(Citation(doc_id=a.doc_id, title=a.doc_title))
             citations = citations or None
-        return ChatResponse(reply=reply, conversation_id=conv_id, action=action, citations=citations)
+
+        # Echo pinned refs as highlights when this turn produced a text reply
+        # (i.e., the AI actually spoke about them rather than just opening a form).
+        # This lets the right panel visually pulse the rows the user is discussing.
+        highlights: list[Highlight] | None = None
+        if req.refs and reply and action is None:
+            hl: list[Highlight] = []
+            for r in req.refs:
+                rtype = str(r.get("type", "")).strip()
+                rid = str(r.get("id", "")).strip()
+                if rtype and rid:
+                    hl.append(Highlight(type=rtype, id=rid))
+            highlights = hl or None
+
+        return ChatResponse(
+            reply=reply, conversation_id=conv_id,
+            action=action, citations=citations, highlights=highlights,
+        )
     except Exception:
         logger.exception("LLM call failed")
-        return ChatResponse(reply="AI 服务暂时不可用，请稍后重试。", conversation_id=conv_id)
+        return ChatResponse(
+            reply=_pick(
+                "AI 服务暂时不可用，请稍后重试。",
+                "The AI service is temporarily unavailable. Please retry shortly.",
+                lang,
+            ),
+            conversation_id=conv_id,
+        )
 
 
-def _action_reply(action: ActionPayload) -> str:
+def _action_reply(action: ActionPayload, lang: str = "zh") -> str:
     """Generate a user-friendly reply for an action."""
     t = action.type
     d = action.data or {}
     if t == "navigate":
-        labels = {
-            "workspace": "工作台", "leave": "请销假", "collection": "信息收集",
-            "checkin": "签到", "notification": "通知任务", "complaint": "接诉即办",
-            "student": "学生信息", "knowledge": "知识问答",
-        }
-        return f"好的，已为您跳转到「{labels.get(d.get('page', ''), d.get('page', ''))}」页面。"
+        labels = _pick(_PAGE_LABELS_ZH, _PAGE_LABELS_EN, lang)
+        page = d.get("page", "")
+        page_label = labels.get(page, page)
+        return _pick(
+            f"好的，已为您跳转到「{page_label}」页面。",
+            f"OK, navigating you to the «{page_label}» page.",
+            lang,
+        )
     elif t == "open_leave_form":
-        return "好的，已为您打开请假申请表单" + (f"，已预填事由：{d['reason']}" if d.get("reason") else "") + "。"
+        if lang == "en":
+            tail = f", reason pre-filled: {d['reason']}" if d.get("reason") else ""
+            return f"OK, leave-request form opened{tail}."
+        tail = f"，已预填事由：{d['reason']}" if d.get("reason") else ""
+        return f"好的，已为您打开请假申请表单{tail}。"
     elif t == "open_checkin_form":
-        return "好的，已为您打开创建签到活动表单。"
+        return _pick(
+            "好的，已为您打开创建签到活动表单。",
+            "OK, the create-check-in form is open.",
+            lang,
+        )
     elif t == "open_collection_form":
-        return "好的，已为您打开创建信息收集单表单。"
-    elif t == "open_complaint_form":
-        return "好的，已为您打开诉求提交表单" + (f"：{d['title']}" if d.get("title") else "") + "。"
-    return "操作已执行。"
+        return _pick(
+            "好的，已为您打开创建信息收集单表单。",
+            "OK, the create-collection form is open.",
+            lang,
+        )
+    elif t == "open_violation_form":
+        if lang == "en":
+            tail = f", student: {d['student_name']}" if d.get("student_name") else ""
+            return f"OK, violation-record form opened{tail}."
+        tail = f"，学生：{d['student_name']}" if d.get("student_name") else ""
+        return f"好的，已为您打开登记违纪表单{tail}。"
+    elif t == "open_appeal_form":
+        if lang == "en":
+            tail = f", violation-record id: {d['violation_record_id']}" if d.get("violation_record_id") else ""
+            return f"OK, appeal form opened{tail}."
+        tail = f"，违纪记录 ID：{d['violation_record_id']}" if d.get("violation_record_id") else ""
+        return f"好的，已为您打开违纪申诉表单{tail}。"
+    elif t == "filter_students":
+        bits: list[str] = []
+        if d.get("grade"): bits.append(d["grade"])
+        if d.get("college"): bits.append(d["college"])
+        if d.get("major"):
+            bits.append(_pick(f"{d['major']}专业", f"{d['major']} major", lang))
+        if d.get("class_name"): bits.append(d["class_name"])
+        status_label = _pick(
+            {"active": "在读", "suspended": "休学", "graduated": "毕业", "withdrawn": "退学"},
+            {"active": "active", "suspended": "suspended", "graduated": "graduated", "withdrawn": "withdrawn"},
+            lang,
+        ).get(d.get("status") or "")
+        if status_label: bits.append(status_label)
+        if d.get("keyword"):
+            bits.append(_pick(f"关键字「{d['keyword']}」", f"keyword «{d['keyword']}»", lang))
+        if lang == "en":
+            body = ", ".join(bits) if bits else "(filters cleared)"
+            return f"Filtered: {body}."
+        body = "、".join(bits) if bits else "（清空过滤）"
+        return f"已为您过滤：{body}。"
+    return _pick("操作已执行。", "Action executed.", lang)
