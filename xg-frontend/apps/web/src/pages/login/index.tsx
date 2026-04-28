@@ -1,6 +1,7 @@
 import { Card, message, Spin } from 'antd';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import type { RoleCode } from '@xg1/shared';
 import { login as loginApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth.store';
@@ -27,10 +28,12 @@ const QUICK_ACCOUNTS: QuickAccount[] = [
   { username: 'college_admin1', display: '钱院管', roleLabel: '院系管理', role: 'college_admin',           color: '#13c2c2' },
   { username: 'dean1',          display: '赵院长', roleLabel: '院系领导', role: 'dean',                    color: '#fa8c16' },
   { username: 'officer1',       display: '周学工', roleLabel: '学工处',   role: 'student_affairs_officer', color: '#eb2f96' },
+  { username: 'employer1',      display: '吴主管', roleLabel: '用工单位', role: 'employer',                color: '#a0522d' },
   { username: 'admin1',         display: '王管理', roleLabel: '校管理员', role: 'school_admin',            color: '#722ed1' },
 ];
 
 export default function Login() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [pendingUser, setPendingUser] = useState<string | null>(null);
@@ -45,10 +48,11 @@ export default function Login() {
         tenant_id: 'default',
       });
       setAuth(token, user);
-      message.success(`已登录为 ${acc.display}（${acc.roleLabel}）`);
-      navigate('/workspace');
+      message.success(t('login.successAs', { name: acc.display, role: acc.roleLabel }));
+      // employer 没有工作台权限，登陆后直接跳到唯一开放的勤工助学。
+      navigate(acc.role === 'employer' ? '/work-study' : '/workspace');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '登录失败';
+      const msg = err instanceof Error ? err.message : t('login.failureFallback');
       message.error(msg);
     } finally {
       setPendingUser(null);
@@ -59,10 +63,10 @@ export default function Login() {
     <div className={styles.container}>
       <Card className={styles.card}>
         <div className={styles.logo}>
-          <h1>学工管理系统</h1>
-          <p>AI 原生学生工作服务平台</p>
+          <h1>{t('app.name')}</h1>
+          <p>{t('app.tagline')}</p>
         </div>
-        <div className={styles.roleHint}>选择账号快速登录（密码均为 {DEFAULT_PASSWORD}）</div>
+        <div className={styles.roleHint}>{t('login.quickLoginHint', { password: DEFAULT_PASSWORD })}</div>
         <div className={styles.roleGrid}>
           {QUICK_ACCOUNTS.map((acc) => (
             <button
