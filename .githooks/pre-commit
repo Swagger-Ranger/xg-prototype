@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Auto-refresh docs/release.md VERSION-SNAPSHOT block when a version-relevant
+# file is staged. The block is auto-generated, so we fold the refresh into
+# the commit instead of bouncing the user.
+#
+# Activate once per clone:  bash scripts/install-hooks.sh
+# Or directly:              git config core.hooksPath .githooks
+
+set -euo pipefail
+
+# Files whose change invalidates the snapshot.
+TRIGGER_PATTERN='^(xg-backend/build\.gradle|xg-backend/gradle/wrapper/gradle-wrapper\.properties|xg-ai/pyproject\.toml|xg-frontend/apps/(web|mini)/package\.json|xg-backend/xg-app/src/main/resources/db/migration/tenant/V[0-9]+__.+\.sql)$'
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR || true)
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+if ! printf '%s\n' "$staged" | grep -Eq "$TRIGGER_PATTERN"; then
+  exit 0
+fi
+
+echo "[pre-commit] version-relevant file staged → refreshing docs/release.md snapshot"
+
+ROOT=$(git rev-parse --show-toplevel)
+if ! bash "$ROOT/scripts/sync-release-snapshot.sh" >/dev/null; then
+  echo "[pre-commit] sync-release-snapshot.sh failed — fix the script or skip with 'git commit --no-verify'." >&2
+  exit 1
+fi
+
+# If the script changed docs/release.md, re-stage it so the commit is consistent.
+if ! git diff --quiet -- docs/release.md 2>/dev/null; then
+  git add docs/release.md
+  echo "[pre-commit] docs/release.md re-staged."
+fi
