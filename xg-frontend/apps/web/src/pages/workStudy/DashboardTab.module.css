@@ -1,5 +1,8 @@
+/* Sits inside the parent .tableCard (--bg-2, white). The cards below use
+   --bg-1 (~#f6f7fa) so they have visible contrast against the white parent
+   without losing the design-token alignment. */
 .page {
-  padding: 16px 4px 24px;
+  padding: 18px 18px 22px;
   max-width: 1280px;
 }
 
@@ -63,8 +66,8 @@
 }
 
 .statCard {
-  background: var(--bg-2);
-  border: 1px solid var(--bd);
+  background: var(--bg-1);
+  border: 1px solid var(--bd-2);
   border-radius: var(--r);
   padding: 16px 18px 14px;
   position: relative;
@@ -73,7 +76,8 @@
   transition:
     border-color 0.22s ease,
     transform 0.22s var(--ease),
-    box-shadow 0.22s ease;
+    box-shadow 0.22s ease,
+    background 0.22s ease;
 }
 
 .statCard::before {
@@ -100,7 +104,8 @@
 }
 
 .statCard:hover {
-  border-color: var(--bd-2);
+  background: var(--bg-2);
+  border-color: var(--bd-3);
   transform: translateY(-2px);
   box-shadow: var(--sh-md);
 }
@@ -179,16 +184,17 @@
 }
 
 .chartCard {
-  background: var(--bg-2);
-  border: 1px solid var(--bd);
+  background: var(--bg-1);
+  border: 1px solid var(--bd-2);
   border-radius: var(--r);
   padding: 18px 18px 12px;
   box-shadow: var(--sh-xs);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .chartCard:hover {
-  border-color: var(--bd-2);
+  background: var(--bg-2);
+  border-color: var(--bd-3);
   box-shadow: var(--sh-sm);
 }
 
@@ -231,8 +237,8 @@
 
 .tipCard {
   margin-top: 16px;
-  background: var(--bg-2);
-  border: 1px solid var(--bd);
+  background: var(--bg-1);
+  border: 1px solid var(--bd-2);
   border-radius: var(--r);
   padding: 18px 20px;
   box-shadow: var(--sh-xs);
