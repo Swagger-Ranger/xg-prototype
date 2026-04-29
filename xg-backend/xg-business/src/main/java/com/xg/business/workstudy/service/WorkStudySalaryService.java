@@ -126,8 +126,14 @@ public class WorkStudySalaryService {
             TaskInstance task = findPendingTask(salary.getWorkflowInstanceId());
             workflowEngine.handleApproval(task.getId(), req.getAction(), req.getNote(), reviewerId);
             if ("approve".equals(req.getAction())) {
-                salary.setConfirmedBy(reviewerId);
-                salaryMapper.updateById(salary);
+                // The WorkStudyWorkflowListener flips status='confirmed' synchronously
+                // when handleApproval fires the END node. Reload before stamping
+                // confirmedBy so we don't overwrite that with the stale snapshot.
+                WorkStudySalary fresh = salaryMapper.selectById(salaryId);
+                if (fresh != null) {
+                    fresh.setConfirmedBy(reviewerId);
+                    salaryMapper.updateById(fresh);
+                }
             }
         } else {
             salary.setStatus("approve".equals(req.getAction()) ? "confirmed" : "rejected");
