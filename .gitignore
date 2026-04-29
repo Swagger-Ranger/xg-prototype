@@ -29,6 +29,7 @@ dist/
 .taro/
 .cache/
 .parcel-cache/
+.swc/
 *.tsbuildinfo
 
 # IDE

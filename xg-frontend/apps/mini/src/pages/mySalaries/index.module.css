@@ -1,0 +1,115 @@
+.page {
+  background: #f7f7fa;
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+
+.summaryCard {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  margin: 16rpx;
+  border-radius: 16rpx;
+  padding: 32rpx;
+  color: #ffffff;
+}
+
+.summaryLabel {
+  font-size: 24rpx;
+  opacity: 0.9;
+  display: block;
+  margin-bottom: 8rpx;
+}
+
+.summaryValue {
+  font-size: 56rpx;
+  font-weight: 700;
+  display: block;
+}
+
+.summaryMeta {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  opacity: 0.85;
+}
+
+.list {
+  padding: 0 16rpx 16rpx;
+}
+
+.monthGroup {
+  margin-top: 16rpx;
+}
+
+.monthHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8rpx 8rpx;
+  font-size: 24rpx;
+  color: #6b7280;
+}
+
+.monthTotal {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 14rpx;
+  padding: 24rpx;
+  margin-bottom: 12rpx;
+  box-shadow: 0 1rpx 2rpx rgba(0, 0, 0, 0.04);
+}
+
+.cardRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.amount {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #ea580c;
+}
+
+.amountLabel {
+  font-size: 22rpx;
+  color: #9ca3af;
+}
+
+.statusTag {
+  font-size: 22rpx;
+  padding: 4rpx 14rpx;
+  border-radius: 99rpx;
+  font-weight: 500;
+}
+
+.statusDraft     { background: #f3f4f6; color: #6b7280; }
+.statusPending   { background: #dbeafe; color: #1d4ed8; }
+.statusConfirmed { background: #dcfce7; color: #15803d; }
+.statusRejected  { background: #fee2e2; color: #b91c1c; }
+.statusPaid      { background: #ede9fe; color: #6d28d9; }
+
+.detail {
+  font-size: 22rpx;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.empty {
+  text-align: center;
+  padding: 80rpx 32rpx;
+  color: #9ca3af;
+  font-size: 26rpx;
+}
+
+.loading {
+  text-align: center;
+  padding: 32rpx;
+  color: #9ca3af;
+  font-size: 24rpx;
+}

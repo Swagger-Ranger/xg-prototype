@@ -1,0 +1,171 @@
+.page {
+  background: #f5f3ff;
+  min-height: 100vh;
+  padding-bottom: 32rpx;
+}
+
+.section {
+  background: #ffffff;
+  margin: 16rpx 16rpx 0;
+  padding: 28rpx 24rpx;
+  border-radius: 16rpx;
+  box-shadow: 0 1rpx 3rpx rgba(0, 0, 0, 0.04);
+}
+
+.sectionTitle {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 16rpx;
+}
+
+.sectionHint {
+  display: block;
+  font-size: 22rpx;
+  color: #9ca3af;
+  margin-bottom: 16rpx;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.rowLabel {
+  width: 100rpx;
+  font-size: 26rpx;
+  color: #4b5563;
+  line-height: 56rpx;
+}
+
+.chip {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 26rpx;
+  line-height: 32rpx;
+  border: 1rpx solid transparent;
+}
+
+.chipActive {
+  background: #ede9fe;
+  color: #6366f1;
+  border-color: #6366f1;
+  font-weight: 600;
+}
+
+.bandBlock {
+  margin-bottom: 20rpx;
+}
+
+.bandLabel {
+  font-size: 26rpx;
+  color: #1f2937;
+  font-weight: 500;
+  margin-bottom: 10rpx;
+}
+
+.bandRow {
+  display: flex;
+  gap: 10rpx;
+}
+
+.dayCell {
+  flex: 1;
+  text-align: center;
+  padding: 14rpx 0;
+  border-radius: 12rpx;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 24rpx;
+  border: 1rpx solid transparent;
+}
+
+.dayCellActive {
+  background: #6366f1;
+  color: #ffffff;
+  border-color: #4f46e5;
+}
+
+.kwInput {
+  width: 100%;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: #f9fafb;
+  border: 1rpx solid #e5e7eb;
+  font-size: 26rpx;
+  color: #1f2937;
+}
+
+.actions {
+  display: flex;
+  gap: 12rpx;
+  margin: 24rpx 16rpx 0;
+}
+
+.actionBtn {
+  flex: 1;
+  padding: 24rpx 0;
+  border-radius: 12rpx;
+  background: #6366f1;
+  color: #ffffff;
+  font-size: 28rpx;
+  text-align: center;
+  font-weight: 600;
+  border: none;
+}
+
+.actionBtnSecondary {
+  background: #ffffff;
+  color: #6366f1;
+  border: 1rpx solid #6366f1;
+}
+
+.actionBtnDisabled {
+  background: #d1d5db;
+  color: #f3f4f6;
+}
+
+.resultSection {
+  margin: 16rpx 16rpx 0;
+  background: #ffffff;
+  border-radius: 16rpx;
+  padding: 28rpx 24rpx;
+  box-shadow: 0 1rpx 3rpx rgba(0, 0, 0, 0.04);
+}
+
+.resultText {
+  font-size: 26rpx;
+  color: #1f2937;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.resultLine {
+  display: block;
+  padding: 8rpx 0;
+  font-size: 26rpx;
+  color: #1f2937;
+  line-height: 1.5;
+}
+
+.resultLineLink {
+  color: #4f46e5;
+}
+
+.loading {
+  text-align: center;
+  font-size: 26rpx;
+  color: #6b7280;
+  padding: 32rpx 0;
+}
+
+.emptyTip {
+  text-align: center;
+  font-size: 24rpx;
+  color: #9ca3af;
+  padding: 24rpx 0;
+}

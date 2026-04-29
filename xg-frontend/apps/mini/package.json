@@ -13,6 +13,9 @@
     "lint": "eslint src --ext ts,tsx",
     "typecheck": "tsc --noEmit"
   },
+  "engines": {
+    "node": ">=18.0.0 <23.0.0"
+  },
   "dependencies": {
     "@tarojs/components": "3.6.32",
     "@tarojs/helper": "3.6.32",
