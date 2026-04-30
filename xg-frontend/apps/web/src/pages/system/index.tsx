@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Table, Tag, Select, Button, Input, Modal, Form, message } from 'antd';
+import { Table, Tag, Select, Button, Input, Modal, Form, Tabs, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SystemUser, UserQueryParams, CreateUserData, UpdateUserData } from '@/api/system';
 import { getUsers, createUser, updateUser, resetPassword, toggleUserStatus } from '@/api/system';
 import styles from './index.module.css';
+import { describeApiError } from '@/utils/api-error';
+import AiMetricsPanel from './AiMetricsPanel';
+import KnowledgePanel from './KnowledgePanel';
 
 const ROLE_LABELS: Record<string, string> = {
   student: '学生',
@@ -57,7 +60,7 @@ export default function SystemManagement() {
     size: PAGE_SIZE,
     keyword: keyword || undefined,
     status: filterStatus || undefined,
-    role_code: filterRole || undefined,
+    roleCode: filterRole || undefined,
   };
 
   const { data, isFetching } = useQuery({
@@ -73,9 +76,7 @@ export default function SystemManagement() {
       createForm.resetFields();
       setCreateOpen(false);
     },
-    onError: () => {
-      message.error('创建失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '创建失败，请重试')),
   });
 
   const updateMutation = useMutation({
@@ -86,9 +87,7 @@ export default function SystemManagement() {
       editForm.resetFields();
       setEditUser(null);
     },
-    onError: () => {
-      message.error('更新失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '更新失败，请重试')),
   });
 
   const resetPasswordMutation = useMutation({
@@ -96,9 +95,7 @@ export default function SystemManagement() {
     onSuccess: () => {
       message.success('密码已重置');
     },
-    onError: () => {
-      message.error('重置密码失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '重置密码失败，请重试')),
   });
 
   const toggleStatusMutation = useMutation({
@@ -108,9 +105,7 @@ export default function SystemManagement() {
       message.success('操作成功');
       queryClient.invalidateQueries({ queryKey: ['systemUsers'] });
     },
-    onError: () => {
-      message.error('操作失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '操作失败，请重试')),
   });
 
   const handleCreateSubmit = async () => {
@@ -241,10 +236,10 @@ export default function SystemManagement() {
     },
   ];
 
-  return (
-    <div className={styles.page}>
+  const userManagement = (
+    <>
       <div className={styles.header}>
-        <h1 className={styles.title}>系统管理 · 用户管理</h1>
+        <h1 className={styles.title} style={{ marginTop: 0 }}>用户管理</h1>
         <Button type="primary" onClick={() => setCreateOpen(true)}>
           添加用户
         </Button>
@@ -402,6 +397,20 @@ export default function SystemManagement() {
           </Form.Item>
         </Form>
       </Modal>
+    </>
+  );
+
+  return (
+    <div className={styles.page}>
+      <Tabs
+        defaultActiveKey="users"
+        size="middle"
+        items={[
+          { key: 'users', label: '用户管理', children: userManagement },
+          { key: 'ai', label: 'AI 表现', children: <AiMetricsPanel /> },
+          { key: 'kb', label: '知识库', children: <KnowledgePanel /> },
+        ]}
+      />
     </div>
   );
 }
