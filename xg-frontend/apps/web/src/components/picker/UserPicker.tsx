@@ -15,10 +15,19 @@ const ROLE_LABEL: Record<string, string> = {
   aid_center_officer: '资助中心',
 };
 
+export type PickedUser = Pick<SystemUser, 'id' | 'username' | 'real_name' | 'phone' | 'email' | 'role_codes'>;
+
 export interface UserPickerProps {
   /** Single-mode: a user id string. Multi-mode: an array of ids. */
   value?: string | string[];
   onChange?: (v: string | string[] | undefined) => void;
+  /**
+   * Single-mode only: fires when the user picks an option. Receives the full
+   * user record (so the caller can autofill related fields like phone/email)
+   * or null when the value is cleared. Not invoked for programmatic
+   * setFieldsValue — only on actual selection events.
+   */
+  onUserSelect?: (user: PickedUser | null) => void;
   /** Multi-select. Default false. */
   multiple?: boolean;
   /**
@@ -35,7 +44,7 @@ export interface UserPickerProps {
    * the user objects it already has loaded (e.g. the Employer's leader plus
    * known operators).
    */
-  seedUsers?: Pick<SystemUser, 'id' | 'username' | 'real_name' | 'role_codes'>[];
+  seedUsers?: PickedUser[];
   style?: React.CSSProperties;
 }
 
@@ -47,7 +56,7 @@ function userLabel(u: Pick<SystemUser, 'username' | 'real_name' | 'role_codes'>)
 }
 
 export default function UserPicker({
-  value, onChange, multiple = false, roleCodes,
+  value, onChange, onUserSelect, multiple = false, roleCodes,
   placeholder, disabled, seedUsers = [], style,
 }: UserPickerProps) {
   const [keyword, setKeyword] = useState('');
@@ -89,7 +98,7 @@ export default function UserPicker({
   // Merge seed users (carries name for the initial value in edit mode) with
   // search results, dedup by id, with seeds first so they appear at top.
   const merged = useMemo(() => {
-    const map = new Map<string, Pick<SystemUser, 'id' | 'username' | 'real_name' | 'role_codes'>>();
+    const map = new Map<string, PickedUser>();
     for (const u of seedUsers) map.set(u.id, u);
     for (const u of (queries.data ?? [])) map.set(u.id, u);
     return Array.from(map.values());
@@ -104,7 +113,17 @@ export default function UserPicker({
     <Select
       mode={multiple ? 'multiple' : undefined}
       value={value as never}
-      onChange={(v) => onChange?.(v as string | string[] | undefined)}
+      onChange={(v) => {
+        const next = v as string | string[] | undefined;
+        onChange?.(next);
+        if (!multiple && onUserSelect) {
+          if (typeof next === 'string' && next) {
+            onUserSelect(merged.find((u) => u.id === next) ?? null);
+          } else {
+            onUserSelect(null);
+          }
+        }
+      }}
       placeholder={placeholder ?? (multiple ? '搜姓名 / 账号，可选多个' : '搜姓名 / 账号')}
       showSearch
       filterOption={false}

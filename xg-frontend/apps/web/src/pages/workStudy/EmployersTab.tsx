@@ -207,9 +207,23 @@ export default function EmployersTab() {
             label="负责人"
             name="leader_user_id"
             rules={[{ required: true, message: '请选择负责人' }]}
-            tooltip='搜姓名/账号选择。该用户作为本单位的"用人单位领导"参与岗位审批'
+            tooltip='搜姓名/账号选择。该用户作为本单位的"用人单位领导"参与岗位审批；选完会自动把联系人/电话/邮箱填上空字段'
           >
-            <UserPicker roleCodes={LEADER_ROLE_CODES} placeholder="搜姓名 / 账号 选负责人" />
+            <UserPicker
+              roleCodes={LEADER_ROLE_CODES}
+              placeholder="搜姓名 / 账号 选负责人"
+              onUserSelect={(u) => {
+                if (!u) return;
+                // Fill empty contact fields from the picked user; keep anything
+                // already typed by the operator.
+                const cur = form.getFieldsValue(['contact_name', 'contact_phone', 'email']);
+                form.setFieldsValue({
+                  contact_name: cur.contact_name || u.real_name || undefined,
+                  contact_phone: cur.contact_phone || u.phone || undefined,
+                  email: cur.email || u.email || undefined,
+                });
+              }}
+            />
           </Form.Item>
           <Form.Item
             label="操作员"
