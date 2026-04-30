@@ -1,0 +1,127 @@
+.nav {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  padding: 6px;
+  margin-bottom: 18px;
+  box-shadow: var(--sh-xs);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav::-webkit-scrollbar { display: none; }
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: var(--r);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s var(--ease);
+  text-align: left;
+}
+
+.step:hover {
+  background: var(--bg-1);
+}
+
+.step.active {
+  background: var(--ac-bg);
+  border-color: var(--ac-ring);
+}
+
+.step.active:hover {
+  background: var(--ac-bg-2);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--bg-3);
+  color: var(--fg-3);
+  border: 1px solid var(--bd-2);
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.step.active .dot {
+  background: var(--ac);
+  color: #fff;
+  border-color: var(--ac-deep);
+  box-shadow: 0 0 0 4px var(--ac-bg);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-2);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.18s ease, font-weight 0.18s ease;
+}
+
+.step.active .title {
+  font-weight: 600;
+  color: var(--ac-deep);
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--fg-4);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.18s ease;
+}
+
+.step.active .hint {
+  color: var(--ac);
+}
+
+/* Chevron between steps. Hidden after the last step + on hover of either side
+   so it doesn't visually collide with the active highlight. */
+.sep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--fg-5);
+  padding: 0 2px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+@media (max-width: 960px) {
+  /* On narrow screens hide the hint line to keep the strip compact. */
+  .hint { display: none; }
+  .step { padding: 8px 12px; }
+}
