@@ -440,7 +440,7 @@ function SystemTabs({ userManagement }: { userManagement: React.ReactNode }) {
         { key: 'users', label: '用户管理', children: userManagement },
         { key: 'org', label: '组织派班', children: <OrgAssignmentPanel /> },
         { key: 'settings', label: '基础设置', children: <SettingsPanel /> },
-        { key: 'notif', label: '通知', children: <NotificationCenterPanel /> },
+        { key: 'notif', label: '通知管理', children: <NotificationCenterPanel /> },
         { key: 'ai', label: 'AI 表现', children: <AiMetricsPanel /> },
         { key: 'kb', label: '知识库', children: <KnowledgePanel /> },
       ]}

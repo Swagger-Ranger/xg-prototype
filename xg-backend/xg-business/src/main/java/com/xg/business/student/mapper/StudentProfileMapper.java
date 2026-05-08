@@ -44,6 +44,20 @@ public interface StudentProfileMapper extends BaseMapper<StudentProfile> {
     List<Long> findStudentUserIdsByDean(@Param("deanId") Long deanId);
 
     /**
+     * Resolve sys_user.id of all students in the class led by the given class master.
+     * Class master ↔ class is recorded via org_unit.leader_id (V085 contract:
+     * 班主任唯一,挂 org_unit.leader_id;class_monitor 可多人,挂 sys_user_role.org_id).
+     */
+    @Select({
+            "SELECT DISTINCT sp.user_id",
+            "FROM student_profile sp",
+            "JOIN org_unit ou ON ou.id = sp.class_id",
+            "WHERE ou.leader_id = #{classMasterId}",
+            "  AND sp.deleted_at IS NULL"
+    })
+    List<Long> findStudentUserIdsByClassMaster(@Param("classMasterId") Long classMasterId);
+
+    /**
      * Full roster (one row per student) for the given counselor. Drives the
      * workspace's cross-class view — one source of truth so class badges on
      * leave/alert/violation rows don't each need a denormalised class_name.

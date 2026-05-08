@@ -599,7 +599,14 @@ export default function AIPanel() {
         if (data.action) {
           const { type, data: actionData } = data.action;
           if (type === 'navigate') {
-            navigate(`/${actionData.page}`);
+            // notification-center 是「通知管理」配置页 — 实际路由是 /system?tab=notif,
+            // 跟其他 enum(同名 URL)的简单拼接处理不一样,在这里做特例映射。
+            const page = String(actionData.page);
+            if (page === 'notification-center') {
+              navigate('/system?tab=notif');
+            } else {
+              navigate(`/${page}`);
+            }
           } else if (type === 'filter_students') {
             // Filter intent on the student page. Navigate there if the user
             // isn't already, then dispatch so the page applies the filters.

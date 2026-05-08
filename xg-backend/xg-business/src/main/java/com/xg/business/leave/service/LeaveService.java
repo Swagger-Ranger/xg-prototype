@@ -276,11 +276,13 @@ public class LeaveService {
 
     public PageResult<LeaveRequest> classLeaves(Long approverId, LeaveQueryRequest query) {
         // Caller may be a counselor (sees their class students), a dean (sees
-        // all students in their college), or both — union the two so role
-        // assignments combine cleanly without service-layer role-sniffing.
+        // all students in their college), a class master (sees their class via
+        // org_unit.leader_id), or any combination — union all so role assignments
+        // combine cleanly without service-layer role-sniffing.
         Set<Long> studentIdSet = new HashSet<>();
         studentIdSet.addAll(studentProfileMapper.findStudentUserIdsByCounselor(approverId));
         studentIdSet.addAll(studentProfileMapper.findStudentUserIdsByDean(approverId));
+        studentIdSet.addAll(studentProfileMapper.findStudentUserIdsByClassMaster(approverId));
         List<Long> studentIds = List.copyOf(studentIdSet);
         Page<LeaveRequest> page = query.toPage();
         if (studentIds.isEmpty()) {

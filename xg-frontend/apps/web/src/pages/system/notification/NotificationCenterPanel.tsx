@@ -47,12 +47,19 @@ export default function NotificationCenterPanel() {
     queryFn: () => listPreferences('role'),
   });
 
-  const business = useMemo(
-    () => templates.filter((t) => t.category === 'business'),
+  // 按 biz_module 分组:_common(跨业务通用)置顶,然后按业务模块。
+  // 抽象出来的 WORKFLOW_TASK_ARRIVED / WORKFLOW_APPROVED / WORKFLOW_REJECTED
+  // 改一份全系统所有审批流程都生效。
+  const common = useMemo(
+    () => templates.filter((t) => t.biz_module === '_common'),
     [templates],
   );
-  const care = useMemo(
-    () => templates.filter((t) => t.category === 'care'),
+  const leaveBusiness = useMemo(
+    () => templates.filter((t) => t.biz_module === 'leave' && t.category === 'business'),
+    [templates],
+  );
+  const leaveCare = useMemo(
+    () => templates.filter((t) => t.biz_module === 'leave' && t.category === 'care'),
     [templates],
   );
 
@@ -79,27 +86,32 @@ export default function NotificationCenterPanel() {
         style={{ marginBottom: 16 }}
       />
 
-      <Card title="请假流程通知" size="small" style={{ marginBottom: 16 }}>
-        {business.length === 0
+      <Card
+        title="公共通知配置(跨业务通用)"
+        size="small"
+        style={{ marginBottom: 16 }}
+        extra={<span style={{ color: 'var(--fg-3)', fontSize: 12 }}>改一份所有审批流程都生效</span>}
+      >
+        {common.length === 0
           ? <span style={{ color: 'var(--fg-3)' }}>暂无</span>
-          : business.map((t) => (
-              <NotificationRow
-                key={t.code}
-                tmpl={t}
-                preferences={preferences}
-              />
+          : common.map((t) => (
+              <NotificationRow key={t.code} tmpl={t} preferences={preferences} />
             ))}
       </Card>
 
-      <Card title="关怀提醒" size="small" style={{ marginBottom: 16 }}>
-        {care.length === 0
+      <Card title="请假相关通知" size="small" style={{ marginBottom: 16 }}>
+        {leaveBusiness.length === 0
           ? <span style={{ color: 'var(--fg-3)' }}>暂无</span>
-          : care.map((t) => (
-              <NotificationRow
-                key={t.code}
-                tmpl={t}
-                preferences={preferences}
-              />
+          : leaveBusiness.map((t) => (
+              <NotificationRow key={t.code} tmpl={t} preferences={preferences} />
+            ))}
+      </Card>
+
+      <Card title="关怀提醒(请假)" size="small" style={{ marginBottom: 16 }}>
+        {leaveCare.length === 0
+          ? <span style={{ color: 'var(--fg-3)' }}>暂无</span>
+          : leaveCare.map((t) => (
+              <NotificationRow key={t.code} tmpl={t} preferences={preferences} />
             ))}
       </Card>
 
@@ -134,13 +146,13 @@ function NotificationRow({
         <span style={{ fontWeight: 500 }}>{sceneTitle}</span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--fg-3)', paddingLeft: 6 }}>
-        通过{' '}
+        渠道:
         {tmpl.default_channels.length === 0
-          ? <Tag color="default" style={{ fontSize: 11 }}>未配置渠道</Tag>
+          ? <Tag color="default" style={{ fontSize: 11 }}>未配置</Tag>
           : tmpl.default_channels.map((c) => (
               <Tag key={c} style={{ fontSize: 11 }}>{CHANNEL_LABELS[c]}</Tag>
             ))}
-        发送 · 级别{' '}
+        · 级别:
         <Tag color={LEVEL_COLORS[tmpl.default_level]} style={{ fontSize: 11 }}>
           {LEVEL_LABELS[tmpl.default_level]}
         </Tag>

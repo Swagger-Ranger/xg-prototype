@@ -111,11 +111,15 @@ public class LeaveWorkflowListener {
 
     private void notifyLeaveDecision(LeaveRequest leave, String mapped, Long instanceId) {
         if (leave.getStudentId() == null) return;
-        String templateCode = "approved".equals(mapped) ? "LEAVE_APPROVED" : "LEAVE_REJECTED";
+        // 通用模板:WORKFLOW_APPROVED / WORKFLOW_REJECTED 适用于任何工作流。
+        // 业务侧负责拼 biz_label + summary,把具体业务上下文塞进通用文案。
+        String templateCode = "approved".equals(mapped) ? "WORKFLOW_APPROVED" : "WORKFLOW_REJECTED";
+        String typeName = leave.getLeaveTypeName() != null ? leave.getLeaveTypeName() : "请假";
+        String summary = String.format("%s 至 %s 的%s",
+                formatDate(leave.getStartTime()), formatDate(leave.getEndTime()), typeName);
         Map<String, Object> vars = new HashMap<>();
-        vars.put("leave_type_name", leave.getLeaveTypeName() != null ? leave.getLeaveTypeName() : "请假");
-        vars.put("start_date", formatDate(leave.getStartTime()));
-        vars.put("end_date", formatDate(leave.getEndTime()));
+        vars.put("biz_label", "请假");
+        vars.put("summary", summary);
         if (!"approved".equals(mapped)) {
             String reason = lastDecisionComment(instanceId);
             vars.put("reject_reason", reason != null && !reason.isBlank() ? reason : "未填写原因");

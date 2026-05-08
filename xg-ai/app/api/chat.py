@@ -190,6 +190,8 @@ UI_TOOLS = [
         "description": (
             "导航到系统的指定功能页面。当用户明确说要去某页面时调用。"
             "leave=请销假申请页;leave-config=请销假配置(老师管理规则);"
+            "notification=通知收件箱(用户看自己收到的通知);"
+            "notification-center=通知管理(管理员配通知规则,在系统管理下);"
             "其他业务页同名。"
         ),
         "input_schema": {
@@ -199,7 +201,8 @@ UI_TOOLS = [
                     "type": "string",
                     "enum": [
                         "workspace", "leave", "leave-config", "collection",
-                        "checkin", "notification", "student", "knowledge",
+                        "checkin", "notification", "notification-center",
+                        "student", "knowledge",
                         "workflows", "work-study", "alerts",
                     ],
                     "description": "目标页面",
