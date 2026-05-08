@@ -112,7 +112,7 @@ export default function NotificationPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>
-          通知
+          {canSend ? '通知任务' : '我的通知'}
           {unreadCount > 0 && (
             <Badge count={unreadCount} className={styles.badge} />
           )}

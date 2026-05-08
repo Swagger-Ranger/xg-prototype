@@ -190,7 +190,7 @@ UI_TOOLS = [
         "description": (
             "导航到系统的指定功能页面。当用户明确说要去某页面时调用。"
             "leave=请销假申请页;leave-config=请销假配置(老师管理规则);"
-            "notification=通知收件箱(用户看自己收到的通知);"
+            "notification=通知任务(辅导员/管理员给学生发通知的工具);"
             "notification-center=通知管理(管理员配通知规则,在系统管理下);"
             "其他业务页同名。"
         ),
