@@ -4,11 +4,13 @@ import com.xg.platform.workflow.engine.AssigneeResolver;
 import com.xg.platform.workflow.engine.ExecutionResult;
 import com.xg.platform.workflow.engine.NodeExecutor;
 import com.xg.platform.workflow.engine.NodeType;
+import com.xg.platform.workflow.event.TaskAssignedEvent;
 import com.xg.platform.workflow.mapper.TaskInstanceMapper;
 import com.xg.platform.workflow.model.TaskInstance;
 import com.xg.platform.workflow.model.WorkflowInstance;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
@@ -22,6 +24,7 @@ public class ApprovalExecutor implements NodeExecutor {
 
     private final TaskInstanceMapper taskMapper;
     private final AssigneeResolver assigneeResolver;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public NodeType getType() {
@@ -61,6 +64,17 @@ public class ApprovalExecutor implements NodeExecutor {
             task.setAssignedAt(OffsetDateTime.now());
             task.setTenantId(instance.getTenantId());
             taskMapper.insert(task);
+        }
+
+        // Fire one event per node (not per assignee) so the listener can fan out
+        // a single Orchestrator call with the full recipient list.
+        if (!assigneeIds.isEmpty()) {
+            try {
+                eventPublisher.publishEvent(new TaskAssignedEvent(instance, nodeId, nodeName, assigneeIds));
+            } catch (Exception e) {
+                log.warn("publish TaskAssignedEvent failed for instance {} node {}: {}",
+                        instance.getId(), nodeId, e.getMessage());
+            }
         }
 
         return ExecutionResult.suspend();
