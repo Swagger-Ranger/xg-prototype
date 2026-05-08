@@ -29,6 +29,8 @@ export const antdTheme: ThemeConfig = {
     Table: {
       headerBg: '#f6f7fa',
       rowHoverBg: '#f1f3f7',
+      cellPaddingBlockMD: 14,
+      cellPaddingInlineMD: 16,
     },
     Card: {
       borderRadiusLG: 10,

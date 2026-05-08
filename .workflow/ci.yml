@@ -1,0 +1,73 @@
+# Gitee Go workflow — runs on every push and pull request to main.
+# Mirrors .github/workflows/ci.yml; switch to whichever CI you have configured.
+#
+# How to enable on Gitee:
+#   1. 仓库 → 流水线 → 新建流水线 → 选择"使用项目内 YAML 文件" → 路径填 `.workflow/ci.yml`
+#   2. 触发条件勾选 push/pr to main（与本文件 trigger 一致）
+#   3. 首次运行需要购买/绑定 Gitee Go 计算资源（个人版有免费额度）
+#   4. Java/Python 环境若 default agent 不带，需要在 step 内手动安装（见 stages 里的 shell 脚本）
+#
+# YAML schema reference: https://help.gitee.com/help-center/devops/pipeline/yaml/
+version: '1.0'
+name: ci
+displayName: 'CI: Java + Python + Web/Mini typecheck'
+trigger:
+  push:
+    branches:
+      include:
+        - main
+  pr:
+    target:
+      branches:
+        include:
+          - main
+
+stages:
+  - stage:
+      name: java-tests
+      displayName: 'Java unit tests'
+      strategy: naturally
+      jobs:
+        - job:
+            name: gradle-test
+            steps:
+              - step: bash@agent
+                name: gradle-test
+                inputs:
+                  shell: |
+                    cd xg-backend
+                    ./gradlew :xg-business:test --no-daemon
+
+  - stage:
+      name: python-tests
+      displayName: 'Python (xg-ai) tests'
+      strategy: naturally
+      jobs:
+        - job:
+            name: pytest
+            steps:
+              - step: bash@agent
+                name: pytest
+                inputs:
+                  shell: |
+                    cd xg-ai
+                    pip install pytest pytest-asyncio httpx pydantic pydantic-settings fastapi
+                    python -m pytest tests/ -v
+
+  - stage:
+      name: frontend-typecheck
+      displayName: 'Web + Mini tsc'
+      strategy: naturally
+      jobs:
+        - job:
+            name: tsc
+            steps:
+              - step: bash@agent
+                name: tsc
+                inputs:
+                  shell: |
+                    npm install -g pnpm@9
+                    cd xg-frontend
+                    pnpm install --frozen-lockfile
+                    cd apps/web && pnpm exec tsc --noEmit
+                    cd ../mini && pnpm exec tsc --noEmit

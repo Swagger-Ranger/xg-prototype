@@ -123,7 +123,7 @@ export default function WorkStudyDetail() {
           className={styles.aiBtn}
           onClick={() => !drafting && handleAiDraft()}
         >
-          {drafting ? '起草中…' : '🤖 让 AI 帮我写'}
+          {drafting ? '起草中…' : 'AI 帮我写'}
         </View>
         <View
           className={`${styles.applyBtn} ${!canApply ? styles.applyBtnDisabled : ''}`}

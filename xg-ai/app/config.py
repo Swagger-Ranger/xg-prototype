@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     anthropic_base_url: str = "https://zenmux.ai/api/anthropic"
     anthropic_model: str = "deepseek/deepseek-v3.2"
 
+    # 讯飞开放平台（语音听写 / 录音文件转写）
+    xfyun_app_id: str = ""
+    xfyun_api_key: str = ""
+    xfyun_api_secret: str = ""
+
     # RAG
     embedding_model: str = "BAAI/bge-small-zh-v1.5"
     embedding_dim: int = 512
@@ -42,6 +47,8 @@ class Settings(BaseSettings):
 
     # App
     debug: bool = False
+    host: str = "0.0.0.0"
+    port: int = 8001
 
     model_config = {
         "env_prefix": "",

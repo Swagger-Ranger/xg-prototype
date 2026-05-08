@@ -1,16 +1,13 @@
-"""pgvector-backed store for institutional knowledge articles.
+"""pgvector-backed store for the legacy `knowledge_chunk` table.
 
-Schema lives on `public` — knowledge is cross-tenant and read-only for
-sidecar. Each article is a row keyed by `article_id`; `embedding` is
-written once by the ingest CLI and queried via cosine distance.
-
-`fetch_similar()` is the one call path reached by `chat.py`; a failure
-there logs and returns [] so the caller can fall back to keyword.
+Retained for the `app.rag.ingest` CLI (writes ALL_ARTICLES → DB) and to
+expose `get_pool` to `app.rag.kb.dao`. Runtime retrieval no longer
+reads from this table — it goes through `app.rag.kb` against the new
+`kb_chunk` schema.
 """
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 
 import asyncpg
 from pgvector.asyncpg import register_vector
@@ -32,16 +29,6 @@ CREATE TABLE IF NOT EXISTS knowledge_chunk (
 CREATE INDEX IF NOT EXISTS knowledge_chunk_embedding_idx
     ON knowledge_chunk USING hnsw (embedding vector_cosine_ops);
 """
-
-
-@dataclass
-class RetrievedChunk:
-    article_id: str
-    doc_id: str
-    doc_title: str
-    heading: str
-    body: str
-    distance: float  # cosine distance; 0 = identical, 2 = opposite
 
 
 _pool: asyncpg.Pool | None = None
@@ -113,37 +100,6 @@ async def upsert_chunks(rows: list[dict]) -> int:
             ],
         )
     return len(rows)
-
-
-async def fetch_similar(query_vec, k: int = 5) -> list[RetrievedChunk]:
-    """Return top-k chunks by cosine distance. `query_vec` is np.ndarray."""
-    try:
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            records = await conn.fetch(
-                """
-                SELECT article_id, doc_id, doc_title, heading, body,
-                       embedding <=> $1 AS distance
-                FROM knowledge_chunk
-                ORDER BY embedding <=> $1
-                LIMIT $2
-                """,
-                query_vec, k,
-            )
-    except Exception:
-        logger.exception("pgvector fetch_similar failed")
-        return []
-    return [
-        RetrievedChunk(
-            article_id=r["article_id"],
-            doc_id=r["doc_id"],
-            doc_title=r["doc_title"],
-            heading=r["heading"],
-            body=r["body"],
-            distance=float(r["distance"]),
-        )
-        for r in records
-    ]
 
 
 async def count_chunks() -> int:

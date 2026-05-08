@@ -10,4 +10,7 @@ public class StudentQueryRequest extends PageQuery {
     private String keyword;
     private String grade;
     private String status;
+    private String college;
+    private String major;
+    private String className;
 }

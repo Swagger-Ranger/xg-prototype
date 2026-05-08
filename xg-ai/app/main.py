@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from app.config import settings
-from app.api import health, chat
+from app.api import health, chat, insight, task_recommendation, agent, tools, kb, polish, asr, workflow_config, notification_config
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +13,18 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
     logger.info("XG AI Sidecar starting...")
-    # TODO: Initialize DB connection pool, Redis, LLM clients
+    try:
+        from app.rag.kb.legacy_seed import seed_legacy_docs_if_empty
+        await seed_legacy_docs_if_empty()
+    except Exception:
+        logger.exception("legacy KB seed failed; continuing without")
+    try:
+        from app.rag.kb.eval_seed import seed_default_eval_cases_if_empty
+        await seed_default_eval_cases_if_empty()
+    except Exception:
+        logger.exception("default eval seed failed; continuing without")
     yield
     logger.info("XG AI Sidecar shutting down...")
-    # TODO: Close connections
 
 
 app = FastAPI(
@@ -36,6 +44,15 @@ app.add_middleware(
 # Register routers
 app.include_router(health.router)
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(insight.router, prefix="/api/v1")
+app.include_router(task_recommendation.router, prefix="/api/v1")
+app.include_router(agent.router, prefix="/api/v1")
+app.include_router(tools.router, prefix="/api/v1")
+app.include_router(kb.router, prefix="/api/v1")
+app.include_router(polish.router, prefix="/api/v1")
+app.include_router(asr.router, prefix="/api/v1")
+app.include_router(workflow_config.router, prefix="/api/v1")
+app.include_router(notification_config.router, prefix="/api/v1")
 
 # Logging setup
 logging.basicConfig(

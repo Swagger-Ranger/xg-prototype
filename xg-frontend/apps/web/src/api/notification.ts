@@ -6,9 +6,13 @@ export interface Notification {
   notification_id: string;
   title: string;
   content: string;
-  type: 'system' | 'workflow' | 'reminder';
-  priority: 'normal' | 'urgent';
-  sender_name: string;
+  /** normal / important / urgent */
+  level: 'normal' | 'important' | 'urgent';
+  /** Drives deeplink routing: leave / leave_return / workstudy_position /
+   *  workstudy_application / workstudy_salary / workflow / system / ... */
+  source_type: string | null;
+  source_id: string | null;
+  require_confirm: boolean;
   read: boolean;
   read_at: string | null;
   confirmed: boolean;

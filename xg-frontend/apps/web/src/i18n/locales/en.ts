@@ -2,20 +2,15 @@ import type { LocaleResource } from './zh';
 
 const en: LocaleResource = {
   app: {
-    name: 'Student Affairs',
+    // Brand name stays Chinese-only by product decision; English locale just
+    // mirrors it so the chrome doesn't fall back to the i18n key.
+    name: '朝夕',
     tagline: 'AI-native student-affairs platform',
   },
   topbar: {
-    homeCrumb: 'Student Affairs',
-    searchPlaceholder: 'Search students, leaves, notifications…',
     unreadSuffix: 'unread',
     profile: 'Profile',
     logout: 'Sign out',
-    profileSoon: 'Profile settings — coming soon',
-    searchSoon: 'Global search — coming soon',
-    languageZh: '中文',
-    languageEn: 'English',
-    languageToggleAria: 'Switch language',
   },
   routes: {
     workspace: 'Workspace',

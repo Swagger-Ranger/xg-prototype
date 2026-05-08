@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkflowDsl",
+  "type": "object",
+  "required": ["code", "name", "start", "nodes"],
+  "properties": {
+    "code":   { "type": "string", "minLength": 1 },
+    "name":   { "type": "string", "minLength": 1 },
+    "module": { "type": "string" },
+    "start":  { "type": "string", "minLength": 1 },
+    "form":   {},
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/node" }
+    }
+  },
+  "definitions": {
+    "node": {
+      "oneOf": [
+        { "$ref": "#/definitions/formSubmit" },
+        { "$ref": "#/definitions/approval" },
+        { "$ref": "#/definitions/condition" },
+        { "$ref": "#/definitions/publicity" },
+        { "$ref": "#/definitions/notification" },
+        { "$ref": "#/definitions/end" }
+      ]
+    },
+    "formSubmit": {
+      "type": "object",
+      "required": ["id", "type", "next"],
+      "properties": {
+        "id":   { "type": "string" },
+        "type": { "const": "form_submit" },
+        "name": { "type": "string" },
+        "next": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "approval": {
+      "type": "object",
+      "required": ["id", "type", "assignee", "next"],
+      "properties": {
+        "id":   { "type": "string" },
+        "type": { "const": "approval" },
+        "name": { "type": "string" },
+        "assignee": {
+          "type": "object",
+          "required": ["role", "scope"],
+          "properties": {
+            "role":  { "type": "string", "minLength": 1 },
+            "scope": { "enum": ["same_class", "same_college", "global"] }
+          },
+          "additionalProperties": false
+        },
+        "timeout": {
+          "type": "object",
+          "required": ["duration"],
+          "properties": { "duration": { "type": "string", "pattern": "^[0-9]+[hdm]$" } },
+          "additionalProperties": false
+        },
+        "next": { "type": "string", "minLength": 1 },
+        "rejected_next": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "condition": {
+      "type": "object",
+      "required": ["id", "type", "branches"],
+      "properties": {
+        "id":   { "type": "string" },
+        "type": { "const": "condition" },
+        "name": { "type": "string" },
+        "branches": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["when", "next"],
+            "properties": {
+              "when": { "type": "string", "minLength": 1 },
+              "next": { "type": "string", "minLength": 1 },
+              "display_label": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "publicity": {
+      "type": "object",
+      "required": ["id", "type", "publicity", "next"],
+      "properties": {
+        "id":   { "type": "string" },
+        "type": { "const": "publicity" },
+        "name": { "type": "string" },
+        "publicity": {
+          "type": "object",
+          "required": ["duration"],
+          "properties": { "duration": { "type": "string", "pattern": "^[0-9]+[hdm]$" } },
+          "additionalProperties": false
+        },
+        "next": { "type": "string", "minLength": 1 },
+        "interrupt_on": {
+          "type": "object",
+          "required": ["event", "next"],
+          "properties": {
+            "event": { "type": "string", "minLength": 1 },
+            "next":  { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "notification": {
+      "type": "object",
+      "required": ["id", "type", "next"],
+      "properties": {
+        "id":   { "type": "string" },
+        "type": { "const": "notification" },
+        "name": { "type": "string" },
+        "next": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "end": {
+      "type": "object",
+      "required": ["id", "type", "status"],
+      "properties": {
+        "id":   { "type": "string" },
+        "type": { "const": "end" },
+        "name": { "type": "string" },
+        "status": { "enum": ["completed", "rejected"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -12,6 +12,12 @@ export interface ViolationRecord {
   recorder_id: string;
   recorder_name: string;
   punishment_id: string | null;
+  approval_status: string;
+  approver_id: string | null;
+  approver_name: string | null;
+  approved_at: string | null;
+  submitted_at: string | null;
+  rejection_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +38,21 @@ export interface Punishment {
   updated_at: string;
 }
 
+export interface ViolationAppeal {
+  id: string;
+  violation_record_id: string;
+  student_id: string;
+  student_name: string;
+  reason: string;
+  status: string;
+  resolver_id: string | null;
+  resolver_name: string | null;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ViolationQueryParams {
   page: number;
   size: number;
@@ -39,6 +60,8 @@ export interface ViolationQueryParams {
   category?: string;
   start_date?: string;
   end_date?: string;
+  approval_status?: string;
+  recorder_id?: string;
 }
 
 export interface PunishmentQueryParams {
@@ -46,6 +69,13 @@ export interface PunishmentQueryParams {
   size: number;
   student_id?: string;
   level?: string;
+  status?: string;
+}
+
+export interface AppealQueryParams {
+  page: number;
+  size: number;
+  student_id?: string;
   status?: string;
 }
 
@@ -68,6 +98,16 @@ export interface CreatePunishmentData {
   expiry_date?: string;
 }
 
+export interface CreateAppealData {
+  violation_record_id: string;
+  reason: string;
+}
+
+export interface ResolveAppealData {
+  outcome: 'upheld' | 'rejected';
+  note?: string;
+}
+
 export function listViolations(params: ViolationQueryParams): Promise<PageResult<ViolationRecord>> {
   return api.get('/violations', { params }).then((res) => res.data);
 }
@@ -80,6 +120,18 @@ export function recordViolation(data: CreateViolationData): Promise<ViolationRec
   return api.post('/violations', data).then((res) => res.data);
 }
 
+export function submitViolation(id: string): Promise<ViolationRecord> {
+  return api.post(`/violations/${id}/submit`).then((res) => res.data);
+}
+
+export function approveViolation(id: string): Promise<ViolationRecord> {
+  return api.post(`/violations/${id}/approve`).then((res) => res.data);
+}
+
+export function rejectViolation(id: string, reason: string): Promise<ViolationRecord> {
+  return api.post(`/violations/${id}/reject`, { reason }).then((res) => res.data);
+}
+
 export function listPunishments(params: PunishmentQueryParams): Promise<PageResult<Punishment>> {
   return api.get('/punishments', { params }).then((res) => res.data);
 }
@@ -90,4 +142,16 @@ export function getPunishment(id: string): Promise<Punishment> {
 
 export function issuePunishment(data: CreatePunishmentData): Promise<Punishment> {
   return api.post('/punishments', data).then((res) => res.data);
+}
+
+export function listAppeals(params: AppealQueryParams): Promise<PageResult<ViolationAppeal>> {
+  return api.get('/violations/appeals', { params }).then((res) => res.data);
+}
+
+export function submitAppeal(data: CreateAppealData): Promise<ViolationAppeal> {
+  return api.post('/violations/appeals', data).then((res) => res.data);
+}
+
+export function resolveAppeal(id: string, data: ResolveAppealData): Promise<ViolationAppeal> {
+  return api.post(`/violations/appeals/${id}/resolve`, data).then((res) => res.data);
 }

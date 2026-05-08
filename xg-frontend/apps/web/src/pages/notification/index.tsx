@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Badge, Button, Form, Input, Modal, Select, Segmented, message, Spin, Empty } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Badge, Button, Form, Input, Modal, Select, Segmented, Spin, Empty } from 'antd';
+import { message } from '@/utils/antdApp';
 import dayjs from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Notification, SendNotificationData } from '@/api/notification';
@@ -10,6 +12,7 @@ import {
   confirmNotification,
   sendNotification,
 } from '@/api/notification';
+import { describeApiError } from '@/utils/api-error';
 import { useAuth } from '@/hooks/useAuth';
 import styles from './index.module.css';
 
@@ -17,7 +20,26 @@ type TabKey = 'all' | 'unread' | 'read';
 
 const PAGE_SIZE = 20;
 
+// Map a notification's (source_type, source_id) to an in-app route. Returns
+// null when the source isn't deeplinkable (system / workflow generic / null
+// source) — the UI then just doesn't render the "查看详情" button.
+function deeplinkTarget(sourceType: string | null, sourceId: string | null): string | null {
+  if (!sourceType || !sourceId) return null;
+  switch (sourceType) {
+    case 'leave':
+    case 'leave_return':
+      return `/leave?id=${sourceId}`;
+    case 'workstudy_position':
+    case 'workstudy_application':
+    case 'workstudy_salary':
+      return `/work-study?id=${sourceId}&kind=${sourceType.replace('workstudy_', '')}`;
+    default:
+      return null;
+  }
+}
+
 export default function NotificationPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>('all');
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -48,9 +70,7 @@ export default function NotificationPage() {
       queryClient.invalidateQueries({ queryKey: ['myNotifications'] });
       queryClient.invalidateQueries({ queryKey: ['notificationUnreadCount'] });
     },
-    onError: () => {
-      message.error('操作失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '操作失败，请重试')),
   });
 
   const confirmMutation = useMutation({
@@ -59,9 +79,7 @@ export default function NotificationPage() {
       message.success('已确认');
       queryClient.invalidateQueries({ queryKey: ['myNotifications'] });
     },
-    onError: () => {
-      message.error('确认失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '确认失败，请重试')),
   });
 
   const sendMutation = useMutation({
@@ -72,9 +90,7 @@ export default function NotificationPage() {
       sendForm.resetFields();
       queryClient.invalidateQueries({ queryKey: ['myNotifications'] });
     },
-    onError: () => {
-      message.error('发送通知失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '发送通知失败，请重试')),
   });
 
   const handleRowClick = (item: Notification) => {
@@ -96,7 +112,7 @@ export default function NotificationPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>
-          {canSend ? '通知任务' : '我的通知'}
+          消息
           {unreadCount > 0 && (
             <Badge count={unreadCount} className={styles.badge} />
           )}
@@ -171,7 +187,13 @@ export default function NotificationPage() {
               <div className={styles.rowMain}>
                 <span
                   className={styles.dot}
-                  style={{ background: item.priority === 'urgent' ? 'var(--danger)' : 'var(--fg-4)' }}
+                  style={{
+                    background: item.level === 'urgent'
+                      ? 'var(--danger)'
+                      : item.level === 'important'
+                        ? 'var(--warn)'
+                        : 'var(--fg-4)',
+                  }}
                 />
                 <div className={styles.rowContent}>
                   <div className={styles.rowTitle}>{item.title}</div>
@@ -185,21 +207,33 @@ export default function NotificationPage() {
                 </div>
               </div>
 
-              {expanded === item.id && !item.confirmed && (
-                <div
-                  className={styles.rowActions}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Button
-                    size="small"
-                    type="primary"
-                    loading={confirmMutation.isPending}
-                    onClick={() => confirmMutation.mutate(item.id)}
+              {expanded === item.id && (() => {
+                const target = deeplinkTarget(item.source_type, item.source_id);
+                const showConfirm = item.require_confirm && !item.confirmed;
+                if (!target && !showConfirm) return null;
+                return (
+                  <div
+                    className={styles.rowActions}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    确认
-                  </Button>
-                </div>
-              )}
+                    {target && (
+                      <Button size="small" onClick={() => navigate(target)}>
+                        查看详情
+                      </Button>
+                    )}
+                    {showConfirm && (
+                      <Button
+                        size="small"
+                        type="primary"
+                        loading={confirmMutation.isPending}
+                        onClick={() => confirmMutation.mutate(item.id)}
+                      >
+                        确认
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ))
         )}

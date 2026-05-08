@@ -1,0 +1,138 @@
+/* 应用 launcher — Apple 玻璃感。 */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 240rpx;
+}
+
+.hero {
+  padding: 56rpx 32rpx 24rpx;
+}
+
+.heroTitle {
+  display: block;
+  font-size: 64rpx;
+  color: var(--fg);
+}
+
+.heroSubtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+  margin-top: 12rpx;
+  line-height: 1.5;
+}
+
+/* ── Bento grid (玻璃版) ──────────────────────────────── */
+
+.grid {
+  margin: 16rpx 24rpx 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(180rpx, auto);
+  gap: 16rpx;
+}
+
+.cell {
+  position: relative;
+  border-radius: var(--r-lg);
+  padding: 32rpx 28rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.12s ease, filter 0.12s ease;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  box-shadow:
+    0 8rpx 24rpx rgba(15,20,33,0.07);
+}
+
+.cell:active {
+  transform: scale(0.98);
+  filter: brightness(0.98);
+}
+
+.cellLarge {
+  grid-column: span 1;
+  grid-row: span 2;
+}
+
+.cellSmall {
+  grid-column: span 1;
+  grid-row: span 1;
+  padding: 24rpx;
+}
+
+/* ── Tints ──────────────────────────────────────────────── */
+
+.tone_peach {
+  background: var(--ac-bg-2);
+  border-color: var(--bd);
+}
+
+.tone_cream,
+.tone_blue {
+  background: var(--ac-bg);
+  border-color: var(--bd);
+}
+
+.tone_warn {
+  background: var(--warn-bg);
+  border-color: var(--bd);
+}
+
+/* ── 卡内 ───────────────────────────────────────────────── */
+
+.iconWrap {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24rpx;
+  color: var(--ac);
+}
+
+.cellSmall .iconWrap {
+  width: 64rpx;
+  height: 64rpx;
+  margin-bottom: 16rpx;
+}
+
+.tone_warn .iconWrap {
+  color: var(--warn);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+
+.cellSmall .title {
+  font-size: 30rpx;
+}
+
+.hint {
+  font-size: 24rpx;
+  margin-top: 6rpx;
+  color: var(--fg-3);
+  line-height: 1.4;
+}
+
+.cellSmall .hint {
+  font-size: 22rpx;
+}

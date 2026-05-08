@@ -1,0 +1,112 @@
+/* Welcome strip — top of the student campus dashboard. Phase-tinted gradient
+   carries the brand's "朝夕" theme into the page; phase classes pick the
+   palette so the strip subtly recolors morning vs evening vs exam week. */
+.strip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--bd);
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.10) 0%, rgba(167, 139, 250, 0.08) 100%);
+  box-shadow: var(--sh-sm);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.strip.day {
+  background: linear-gradient(135deg, rgba(253, 224, 71, 0.18) 0%, rgba(251, 146, 60, 0.10) 100%);
+}
+
+.strip.dusk {
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.14) 0%, rgba(167, 139, 250, 0.14) 100%);
+}
+
+.strip.night {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.14) 0%, rgba(76, 29, 149, 0.10) 100%);
+}
+
+/* Subtle dot pattern for texture */
+.strip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+}
+
+.persona {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.greeting {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--fg-3);
+  flex-wrap: wrap;
+}
+
+.metaSep {
+  color: var(--fg-5);
+}
+
+.metaItem em {
+  font-style: normal;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.phaseTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: var(--bg-2);
+  border: 1px solid var(--bd-2);
+  color: var(--fg-2);
+}
+
+.phaseTag.exam {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.18);
+  color: var(--danger);
+}
+
+.phaseTag.holiday {
+  background: rgba(5, 150, 105, 0.08);
+  border-color: rgba(5, 150, 105, 0.18);
+  color: var(--ok);
+}
+
+.weather {
+  font-size: 12.5px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}

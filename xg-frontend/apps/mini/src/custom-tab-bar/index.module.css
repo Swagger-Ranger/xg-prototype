@@ -1,0 +1,187 @@
+/* Dock — 输入框 + 4 tab，视觉连一片白卡 */
+
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  background: #ffffff;
+  border-top-left-radius: 32rpx;
+  border-top-right-radius: 32rpx;
+  border-top: 1rpx solid var(--bd);
+  box-shadow: 0 -8rpx 28rpx -8rpx rgba(15, 23, 42, 0.10);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* ===== AI 输入条 ===== */
+.aiInputBar {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 18rpx 24rpx;
+}
+
+/* 输入药丸 — 浅灰底，圆角；左侧带 "AI 助手" 标识 chip */
+.inputPill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 76rpx;
+  padding: 0 24rpx 0 14rpx;
+  background: var(--bg-1);
+  border: 1rpx solid var(--bd);
+  border-radius: 38rpx;
+  min-width: 0;
+  gap: 12rpx;
+}
+
+/* 左侧 AI 标识 chip — 蓝 sparkles + 标签，区别于普通搜索框 */
+.inputLeadChip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  padding: 0 4rpx 0 4rpx;
+}
+
+.inputLeadLabel {
+  font-size: 22rpx;
+  font-weight: 600;
+  color: var(--ac);
+  letter-spacing: -0.005em;
+}
+
+/* 与输入区的细灰分隔 */
+.inputLeadSep {
+  flex-shrink: 0;
+  width: 1rpx;
+  height: 32rpx;
+  background: var(--bd);
+}
+
+.input {
+  flex: 1;
+  height: 76rpx;
+  font-size: 26rpx;
+  color: var(--fg);
+  min-width: 0;
+}
+
+/* 单一动作按钮：空时是 mic（灰），有文字时是 send（紫渐变） */
+.actionBtn {
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 50%;
+  background: var(--bg-1);
+  border: 1rpx solid var(--bd);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.18s ease;
+}
+
+.actionBtn:active {
+  background: var(--bg-3);
+  transform: scale(0.94);
+}
+
+.actionBtnRec {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.32);
+}
+
+.actionBtnSend {
+  background: linear-gradient(145deg, #818cf8, #4f46e5);
+  border: none;
+  box-shadow: 0 4rpx 12rpx -2rpx rgba(99, 102, 241, 0.5);
+}
+
+/* ===== 分隔线 ===== */
+.divider {
+  height: 1rpx;
+  background: var(--bd);
+  margin: 0 28rpx;
+}
+
+/* ===== 导航 tab ===== */
+.tabRow {
+  display: flex;
+  padding: 12rpx 0 6rpx;
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+  padding: 8rpx 0;
+}
+
+.tab:active {
+  opacity: 0.6;
+}
+
+.tabLabel {
+  font-size: 22rpx;
+  color: var(--fg-3);
+  font-weight: 500;
+  letter-spacing: 0.2rpx;
+}
+
+.tabLabelActive {
+  font-size: 22rpx;
+  color: var(--ac-hi);
+  font-weight: 600;
+  letter-spacing: 0.2rpx;
+}
+
+/* ===== 录音浮层（dock 上方）===== */
+.voiceOverlay {
+  position: fixed;
+  bottom: 280rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17, 24, 39, 0.94);
+  color: #fff;
+  padding: 18rpx 30rpx;
+  border-radius: 24rpx;
+  font-size: 24rpx;
+  z-index: 60;
+  box-shadow: 0 16rpx 32rpx -10rpx rgba(0, 0, 0, 0.4);
+  text-align: center;
+  pointer-events: none;
+  min-width: 320rpx;
+  max-width: calc(100% - 64rpx);
+}
+
+.voiceOverlayDotRow {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  justify-content: center;
+}
+
+.voiceOverlayDot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: #f87171;
+  animation: voiceDotPulse 1.2s ease infinite;
+}
+
+@keyframes voiceDotPulse {
+  0%, 100% { transform: scale(1);   opacity: 1;   }
+  50%      { transform: scale(1.4); opacity: 0.5; }
+}
+
+.voiceOverlayText {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+  word-break: break-word;
+}

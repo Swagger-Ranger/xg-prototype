@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Tag, Button, Segmented, message, Modal } from 'antd';
+import { Table, Tag, Button, Segmented, Modal } from 'antd';
+import { message } from '@/utils/antdApp';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,6 +10,7 @@ import { useAIActionStore } from '@/stores/ai-action.store';
 import CreateFormModal from './CreateFormModal';
 import ProgressDrawer from './ProgressDrawer';
 import styles from './index.module.css';
+import { describeApiError } from '@/utils/api-error';
 
 type TabKey = 'all' | 'published' | 'closed';
 
@@ -60,9 +62,7 @@ export default function CollectionManagement() {
       message.success('发布成功');
       queryClient.invalidateQueries({ queryKey: ['collectionForms'] });
     },
-    onError: () => {
-      message.error('发布失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '发布失败，请重试')),
   });
 
   const closeMutation = useMutation({
@@ -71,9 +71,7 @@ export default function CollectionManagement() {
       message.success('已关闭');
       queryClient.invalidateQueries({ queryKey: ['collectionForms'] });
     },
-    onError: () => {
-      message.error('关闭失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '关闭失败，请重试')),
   });
 
   const handleTabChange = (val: string | number) => {

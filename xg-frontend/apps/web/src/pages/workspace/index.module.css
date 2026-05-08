@@ -1,5 +1,8 @@
 .workspace {
   max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .greeting {
@@ -7,9 +10,9 @@
   font-weight: 600;
   color: var(--fg);
   margin-bottom: 8px;
+  letter-spacing: -0.015em;
 }
 
-/* Section label (uppercase mono with gradient trailing line) */
 .sectionLabel {
   display: flex;
   align-items: center;
@@ -38,62 +41,240 @@
 .statGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 32px;
+  gap: 12px;
 }
 
 .statCard {
   background: var(--bg-2);
   border: 1px solid var(--bd);
-  border-radius: var(--r-lg);
-  padding: 20px;
+  border-radius: var(--r);
+  padding: 16px 18px;
   position: relative;
-  overflow: hidden;
-  transition: all 0.2s var(--ease);
   cursor: pointer;
+  overflow: hidden;
+  box-shadow: var(--sh-xs);
+  will-change: transform, box-shadow;
+  transition:
+    border-color 0.22s ease,
+    transform 0.22s var(--ease),
+    box-shadow 0.22s ease;
+}
+
+.statCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ac), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 1;
+}
+
+.statCard::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(99,102,241,0.09) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  border-radius: inherit;
 }
 
 .statCard:hover {
   border-color: var(--bd-2);
-  box-shadow: var(--sh-md);
   transform: translateY(-2px);
+  box-shadow: var(--sh-md);
 }
 
-.statCard:hover .statAccent {
-  opacity: 0.12;
+.statCard:hover::before,
+.statCard:hover::after {
+  opacity: 1;
 }
 
-.statAccent {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--accent);
-  opacity: 0.6;
-  transition: opacity 0.2s;
+.statCard:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--sh-xs);
 }
 
-.statValue {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--fg);
-  line-height: 1.2;
-  margin-bottom: 4px;
+.statHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
 .statLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.statIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  background: var(--bg-1);
+  border: 1px solid var(--bd-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-3);
+  font-size: 13px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.statCard:hover .statIcon {
+  background: var(--ac-bg);
+  border-color: var(--ac-ring);
+  color: var(--ac-hi);
+}
+
+.statValue {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-feature-settings: 'tnum', 'lnum';
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  transition: color 0.2s ease;
+}
+
+.statCard:hover .statValue {
+  color: var(--ac-hi);
+}
+
+.statValueCritical {
+  color: var(--danger, #dc2626);
+}
+
+.statCard:hover .statValueCritical {
+  color: var(--danger, #dc2626);
+}
+
+.statFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+}
+
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+
+.spark span {
+  width: 3px;
+  background: var(--fg-5);
+  border-radius: 1px;
+  transition: background 0.28s ease, height 0.28s ease, box-shadow 0.28s ease;
+  will-change: background;
+}
+
+.statCard:hover .spark span:nth-child(1) { background: rgba(99,102,241,0.35); transition-delay: 0ms; }
+.statCard:hover .spark span:nth-child(2) { background: rgba(99,102,241,0.45); transition-delay: 18ms; }
+.statCard:hover .spark span:nth-child(3) { background: rgba(99,102,241,0.52); transition-delay: 36ms; }
+.statCard:hover .spark span:nth-child(4) { background: rgba(99,102,241,0.62); transition-delay: 54ms; }
+.statCard:hover .spark span:nth-child(5) { background: rgba(99,102,241,0.70); transition-delay: 72ms; }
+.statCard:hover .spark span:nth-child(6) { background: var(--ac-lo); transition-delay: 90ms; }
+.statCard:hover .spark span:nth-child(7) { background: var(--ac); transition-delay: 108ms; }
+.statCard:hover .spark span:last-child {
+  background: var(--ac-hi);
+  box-shadow: 0 0 6px var(--ac-glow);
+  transition-delay: 126ms;
+}
+
+/* Class breakdown chips */
+.classChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.classChip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  font-size: 12px;
+  color: var(--fg-2);
+  min-width: 200px;
+}
+
+.classChipHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.classChipRecent {
+  font-size: 11px;
+  color: var(--fg-3);
+  line-height: 1.4;
+}
+
+.classChipName {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.classChipStat {
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.classChipStat em {
+  font-style: normal;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.classChipLeave {
+  color: var(--ac-hi);
+  font-size: 11px;
+}
+
+.classBadge {
+  margin-left: 8px;
+  font-size: 10.5px;
+  line-height: 16px;
+  padding: 0 6px;
+}
+
+.listCaption {
   font-size: 12px;
   color: var(--fg-3);
-  font-weight: 500;
+  margin-bottom: 8px;
 }
 
 /* Todo list */
 .todoList {
   background: var(--bg-2);
   border: 1px solid var(--bd);
-  border-radius: var(--r-lg);
+  border-radius: var(--r);
   min-height: 200px;
+  box-shadow: var(--sh-xs);
 }
 
 .todoEmpty {
@@ -102,7 +283,7 @@
   justify-content: center;
   height: 200px;
   color: var(--fg-4);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 /* Content sections grid */
@@ -158,8 +339,141 @@
   margin-left: 12px;
 }
 
-/* Stat card clickable link style */
-.statCardLink {
-  text-decoration: none;
-  display: block;
+/* ── Student dashboard (校园) — feature cards grid ─────────────────── */
+
+/* Cards auto-fit so missing data sources (e.g. 课表 not yet synced) just
+   collapse out without leaving an empty cell. */
+.studentCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.miniCard {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  box-shadow: var(--sh-xs);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 220px;
+}
+
+.miniCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bd);
+}
+
+.miniCardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+.miniCardLink {
+  font-size: 11.5px;
+  color: var(--ac);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.miniCardLink:hover {
+  color: var(--ac-hi);
+}
+
+.miniCardBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.miniCardEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--fg-4);
+  font-size: 12px;
+  padding: 32px 16px;
+}
+
+.miniListRow {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--bd);
+  cursor: pointer;
+  transition: background 0.15s var(--ease);
+}
+
+.miniListRow:last-child {
+  border-bottom: none;
+}
+
+.miniListRow:hover {
+  background: var(--bg-3);
+}
+
+.miniListMain {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Title row pairs the title text with the trailing status tag, so they sit
+   on the same baseline and the tag never wraps below. */
+.miniListTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.miniListTitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.miniListSub {
+  font-size: 11px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+/* Third line under a leave row — current node when pending, rejection
+   reason when rejected. Tone classes recolor it without changing layout. */
+.miniListDetail {
+  font-size: 11px;
+  color: var(--fg-3);
+  margin-top: 3px;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.miniListDetail em {
+  font-style: normal;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.miniListDetail.warn {
+  color: #b45309;
+}
+
+.miniListDetail.warn em {
+  color: #92400e;
+}
+
+.miniListDetail.danger {
+  color: var(--danger);
 }

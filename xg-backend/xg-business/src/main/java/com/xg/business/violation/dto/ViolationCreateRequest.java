@@ -16,10 +16,6 @@ public class ViolationCreateRequest {
     private Long studentId;
 
     @NotBlank
-    @Size(max = 100)
-    private String studentName;
-
-    @NotBlank
     @Size(max = 32)
     private String category;
 

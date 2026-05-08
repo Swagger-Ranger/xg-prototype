@@ -22,4 +22,7 @@ public class SendNotificationRequest {
     private List<Long> recipientUserIds;
     private Boolean requireConfirm;
     private Long senderId;
+
+    /** 触发模板码,Orchestrator 路径必填,YAML 路径留空 */
+    private String templateCode;
 }

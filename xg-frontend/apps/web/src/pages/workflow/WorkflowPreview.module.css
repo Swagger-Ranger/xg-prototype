@@ -1,0 +1,199 @@
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-3);
+  font-size: 13px;
+}
+
+.metaBar {
+  display: flex;
+  gap: 24px;
+  padding: 10px 14px;
+  background: var(--bg-1);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.metaBar > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metaLabel {
+  color: var(--fg-4);
+  letter-spacing: 0.02em;
+}
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.connector {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+  color: var(--fg-4);
+  font-size: 13px;
+}
+
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--bd-2);
+  border-radius: var(--r-lg);
+  padding: 12px 14px;
+  box-shadow: var(--sh-xs);
+  position: relative;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.cardIcon {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--bg-3);
+  color: var(--fg-2);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.cardTitle {
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.cardTypeTag {
+  display: inline-flex;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  color: var(--fg-3);
+  border: 1px solid var(--bd-2);
+  font-weight: 500;
+}
+
+.cardId {
+  margin-left: auto;
+  color: var(--fg-4);
+  font-size: 11px;
+}
+
+.cardId code {
+  font-family: var(--font-mono);
+}
+
+/* Tone variants — apply to icon backdrop and a subtle left strip */
+.tone_indigo .cardIcon { background: var(--ac-bg-2); color: var(--ac-deep); }
+.tone_indigo { border-left: 3px solid var(--ac); }
+
+.tone_amber .cardIcon { background: var(--warn-bg); color: var(--warn); }
+.tone_amber { border-left: 3px solid var(--warn); }
+
+.tone_purple .cardIcon { background: rgba(124, 58, 237, 0.10); color: rgb(91, 33, 182); }
+.tone_purple { border-left: 3px solid rgb(124, 58, 237); }
+
+.tone_cyan .cardIcon { background: var(--cy-bg); color: var(--cy-hi); }
+.tone_cyan { border-left: 3px solid var(--cy); }
+
+.tone_gray .cardIcon { background: var(--bg-3); color: var(--fg-3); }
+.tone_gray { border-left: 3px solid var(--bd-3); }
+
+.body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 36px;
+  font-size: 12.5px;
+}
+
+.kvRow {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.k {
+  color: var(--fg-3);
+  flex-shrink: 0;
+  width: 76px;
+}
+
+.kReject {
+  color: var(--danger);
+}
+
+.v {
+  color: var(--fg);
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.v em {
+  color: var(--fg-4);
+  font-style: normal;
+}
+
+.codeMuted {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-4);
+}
+
+.branchList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.branchRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--bg-1);
+  border: 1px dashed var(--bd-2);
+  border-radius: var(--r-sm);
+}
+
+.branchWhen {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg-2);
+  min-width: 160px;
+}
+
+.branchArrow {
+  color: var(--fg-4);
+  font-size: 11px;
+}
+
+.branchTarget {
+  color: var(--fg);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}

@@ -34,6 +34,9 @@ public class StudentEventLog {
     @TableField(value = "event_data", typeHandler = JsonbMapTypeHandler.class)
     private Map<String, Object> eventData;
 
+    @TableField("severity")
+    private Integer severity;
+
     @TableField("occurred_at")
     private OffsetDateTime occurredAt;
 

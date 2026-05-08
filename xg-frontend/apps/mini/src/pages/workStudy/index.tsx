@@ -37,60 +37,96 @@ export default function WorkStudyList() {
 
   return (
     <View className={styles.page}>
-      <View className={styles.toolbar}>
-        <View>
-          <Text className={styles.toolbarTitle}>在招岗位</Text>
-        </View>
-        <Text className={styles.toolbarSubtitle}>共 {total} 个</Text>
+      {/* ── Hero header ─────────────────────────────────────────
+          serif page title + atmospheric subline. The number is wrapped in
+          .num so it reads as data-not-prose at a glance. */}
+      <View className={styles.hero}>
+        <Text className={`${styles.heroTitle} display`}>勤工助学</Text>
+        <Text className={styles.heroSubtitle}>
+          在招 <Text className="num">{total}</Text> 个岗位 · 等你来挑
+        </Text>
       </View>
 
+      {/* ── Primary CTA ─────────────────────────────────────────
+          The page's single bold accent. Solid --ac fill + serif "AI"
+          mark on the left + arrow on the right. Designed to be the
+          obvious next step on first load. */}
       <View
-        className={styles.aiEntry}
+        className={`${styles.ctaCard} tap-min`}
         onClick={() => Taro.navigateTo({ url: '/pages/workStudyMatch/index' })}
       >
-        <Text className={styles.aiEntryIcon}>🤖</Text>
-        <View className={styles.aiEntryText}>
-          <Text className={styles.aiEntryTitle}>AI 帮我找适合的</Text>
-          <Text className={styles.aiEntryHint}>选时段 + 偏好，自动推荐</Text>
+        <View className={styles.ctaMark}>
+          <Text className={`${styles.ctaMarkText} display`}>AI</Text>
         </View>
-        <Text className={styles.aiEntryArrow}>›</Text>
+        <View className={styles.ctaText}>
+          <Text className={styles.ctaTitle}>帮我找最匹配的岗位</Text>
+          <Text className={styles.ctaHint}>选空闲时段 + 偏好，自动推荐</Text>
+        </View>
+        <View className={styles.ctaArrow}>
+          <Text className={styles.ctaArrowGlyph}>›</Text>
+        </View>
+      </View>
+
+      {/* ── List section ───────────────────────────────────────── */}
+      <View className={styles.sectionHead}>
+        <Text className={styles.sectionLabel}>全部在招</Text>
+        <View className={styles.sectionLine} />
       </View>
 
       {loading ? (
-        <View className={styles.loading}>加载中…</View>
+        <View className={styles.empty}>加载中…</View>
       ) : positions.length === 0 ? (
         <View className={styles.empty}>暂无符合你条件的岗位</View>
       ) : (
         <ScrollView scrollY className={styles.list}>
-          {positions.map((p) => (
-            <View key={p.id} className={styles.card} onClick={() => goDetail(p.id)}>
-              <View className={styles.cardHeader}>
-                <Text className={styles.cardTitle}>{p.title}</Text>
-                <Text
-                  className={`${styles.typeBadge} ${p.position_type === 'temporary' ? styles.tempBadge : ''}`}
-                >
-                  {p.position_type === 'temporary' ? '临时岗' : '固定岗'}
-                </Text>
-              </View>
-              <View className={styles.meta}>
-                {p.department_name && <Text className={styles.metaItem}>📍 {p.department_name}</Text>}
-                {p.campus && <Text className={styles.metaItem}>🏫 {p.campus}</Text>}
-                {p.weekly_hours && (
-                  <Text className={styles.metaItem}>⏱ 周 {p.weekly_hours} 小时</Text>
-                )}
-              </View>
-              <View className={styles.meta}>
-                {(p.salary_amount || p.hourly_rate) && (
-                  <Text className={styles.salary}>
-                    ¥{Number(p.salary_amount || p.hourly_rate).toFixed(2)} / {SALARY_UNIT_LABEL[p.salary_unit || 'hour'] || '时'}
+          {positions.map((p) => {
+            const isTemp = p.position_type === 'temporary';
+            const salaryAmount = p.salary_amount || p.hourly_rate;
+            return (
+              <View key={p.id} className={styles.card} onClick={() => goDetail(p.id)}>
+                <View className={styles.cardHeader}>
+                  <Text className={styles.cardTitle}>{p.title}</Text>
+                  <Text className={`${styles.typeBadge} ${isTemp ? styles.typeBadgeTemp : ''}`}>
+                    {isTemp ? '临时岗' : '固定岗'}
                   </Text>
-                )}
-                <Text className={styles.headcount}>
-                  招 {p.hired_count ?? 0}/{p.headcount ?? '?'}
-                </Text>
+                </View>
+
+                {/* Meta line — neutral gray, dot-separated. Falsy fields
+                    are filtered so we never trail empty separators. */}
+                <View className={styles.meta}>
+                  {[
+                    p.department_name,
+                    p.campus,
+                    p.weekly_hours ? `周 ${p.weekly_hours} 小时` : null,
+                  ]
+                    .filter(Boolean)
+                    .map((label, i, arr) => (
+                      <Text key={i} className={styles.metaItem}>
+                        {label}
+                        {i < arr.length - 1 && <Text className={styles.metaSep}> · </Text>}
+                      </Text>
+                    ))}
+                </View>
+
+                <View className={styles.foot}>
+                  {salaryAmount ? (
+                    <Text className={styles.salary}>
+                      <Text className="num">¥{Number(salaryAmount).toFixed(2)}</Text>
+                      <Text className={styles.salaryUnit}>
+                        /{SALARY_UNIT_LABEL[p.salary_unit || 'hour'] || '时'}
+                      </Text>
+                    </Text>
+                  ) : (
+                    <Text className={styles.salaryEmpty}>面议</Text>
+                  )}
+                  <Text className={styles.headcount}>
+                    招&nbsp;
+                    <Text className="num">{p.hired_count ?? 0}/{p.headcount ?? '?'}</Text>
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </View>

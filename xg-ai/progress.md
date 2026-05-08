@@ -1,5 +1,32 @@
 # Progress Log
 
+## Session 2026-04-20 — Wave C 验证 + Phase 17 审批风险分级+AI 叙事
+
+### Wave C（query_tools 已落地，补端到端验证）
+- query_work_logs / query_violations / query_work_study 三个 tool 在 query_tools.py 已实现（scope 精细化 allowed_roles）
+- 冒烟 4/4（经 `/api/v1/chat` 全链路）：
+  - counselor "最近一周我的工作日志" → query_work_logs → "没有工作日志记录"
+  - counselor "最近班里有哪些学生被登记违纪" → query_violations scope=recent → 王丽华 2026-04-20 考勤违纪
+  - student "有没有在招的勤工助学岗位 优先资助生的" → query_work_study scope=positions prefer_financial_aid=true → 2 个图书馆助理岗
+  - student "我自己申请的勤工助学进度" → query_work_study scope=my_applications → "尚未提交过申请"
+
+### Phase 17 审批风险分级 + AI 叙事（辅导员审批台升级）
+- **Phase A（纯规则）** `PendingTaskEnricher` 批量查 LeaveRequest + SysUser + CheckinRecord/LeaveRequest/Violation/StudentAlert 4 个 mapper 聚合申请人画像；scoreRisk 规则：
+  - high: 未处理违纪>0 OR critical/high alert OR absent30d>0 OR leave>7 天
+  - medium: 30 天请假≥3 OR 4-7 天 OR medium/low alert
+  - low: 其余 "历史记录良好"
+- 新增 `PendingTaskVO`（含 `applicantStats`、`reasons[]`、`leave_*`）+ `GET /workflows/tasks/pending-enriched`
+- 前端 `QuickApprovalList.tsx`：row 头带 risk Tag + reasons 摘要 + 通过/驳回；低风险批量"一键通过"；展开行内判定依据 + 请假信息 + 学生历史 + AI 建议
+- **Phase B（AI 叙事，medium/high 懒加载）** Python sidecar `POST /api/v1/task-recommendation` → DeepSeek 结构化 JSON `{recommendation: approve|caution|reject, headline, rationale, checkpoints[]}`
+- Java 代理 `GET /workflows/tasks/{id}/ai-recommendation` → `AiSidecarClient.taskRecommendation`；LLM 失败返 `error_message` + 空 recommendation，前端降级"AI 建议不可用"
+- 端到端冒烟：张晓明（medium，近30天请假10次 + 1 条低等级预警）→ caution + headline "请假频繁，建议谨慎审批" + 3 条 checkpoint（核实事由/学业进度/预警内容）；low 风险行不触发 LLM（AiRecommendationBlock 仅在 `risk_level !== 'low'` 才 useQuery）
+- 坑：
+  - 前端字段 camel→snake：Jackson 默认把 `leaveCount30d` 序列化成 `leave_count30d`（无首字母隔离时不再下划线），`absent30d` / `violation90d` 保持原样；shared types 与 QuickApprovalList 两处都修
+  - PageResult 没无参构造，必须先 `new Page<PendingTaskVO>` 再 `PageResult.of(page)`
+  - Module 放置：EnrichedTaskController 在 xg-business（依赖 leave/checkin/violation mapper 同时还要 xg-platform workflow mapper，business→platform 的链是通的）
+
+---
+
 ## Session 5 (续): 2026-04-18 — 修 complaints 500，Wave A 闭环
 
 ### 调查

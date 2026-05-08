@@ -3,72 +3,154 @@
   padding: 0 24px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
   border-bottom: 1px solid var(--bd);
-  background: rgba(255,255,255,0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(246,247,250,0.82);
+  backdrop-filter: blur(20px) saturate(1.65);
+  -webkit-backdrop-filter: blur(20px) saturate(1.65);
   flex-shrink: 0;
+  position: relative;
   z-index: 5;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.92),
+    0 1px 0 rgba(15,23,42,0.055),
+    0 4px 18px -8px rgba(15,23,42,0.09);
 }
 
-.left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--fg);
-  letter-spacing: -0.01em;
-}
-
-.right {
+.crumbs {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-4);
+}
+
+.crumbHome {
+  /* Houses the brand mark + 朝夕 wordmark; was originally a plain text crumb,
+     so reset the button chrome to keep the rest of the bar visually unchanged. */
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: var(--fg-3);
+  transition: opacity 0.18s ease;
+  font-family: inherit;
+}
+
+.crumbHome:hover {
+  opacity: 0.82;
+}
+
+.crumbSep {
+  color: var(--fg-5);
+}
+
+.crumbCurrent {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.metaPill {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-3);
+  padding: 2px 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--bd-2);
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: var(--sh-xs);
+  margin-left: 8px;
+}
+
+.metaPill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 0 2px var(--warn-bg);
+}
+
+.spacer {
+  flex: 1;
 }
 
 .iconBtn {
   width: 32px;
   height: 32px;
   border-radius: var(--r-sm);
-  border: none;
   background: transparent;
+  border: 1px solid transparent;
   color: var(--fg-3);
-  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s var(--ease);
+  position: relative;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .iconBtn:hover {
-  background: var(--bg-3);
+  background: var(--bg-2);
+  border-color: var(--bd-2);
   color: var(--fg);
+  box-shadow: var(--sh-xs);
 }
 
-.userBtn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: var(--r);
-  border: none;
+.iconBtn:active {
+  background: var(--bg-3);
+  transform: scale(0.93);
+}
+
+.notiDot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger, #dc2626);
+  border: 2px solid var(--bg-1);
+  box-shadow: 0 0 0 1px var(--danger-ring, rgba(220,38,38,0.25));
+}
+
+.avatar {
+  /* Wrapper for the UserAvatar component — strip its own paint, just hold
+     the click target + the online-status dot. The gradient ring + image
+     live inside <UserAvatar>. */
+  width: 32px;
+  height: 32px;
   background: transparent;
   cursor: pointer;
-  transition: background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border: none;
+  padding: 0;
 }
 
-.userBtn:hover {
-  background: var(--bg-3);
-}
-
-.userName {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--fg-2);
+.avatar::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ok);
+  border: 2px solid var(--bg-1);
+  box-shadow: 0 0 0 1px var(--ok-ring, rgba(5,150,105,0.25));
 }

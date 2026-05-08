@@ -57,6 +57,10 @@ deploy/.env
 deploy/env/
 xg-ai/.env
 
+# Vite local env (per-developer keys, never commit)
+xg-frontend/apps/*/.env.local
+xg-frontend/apps/*/.env.*.local
+
 # Logs
 *.log
 logs/

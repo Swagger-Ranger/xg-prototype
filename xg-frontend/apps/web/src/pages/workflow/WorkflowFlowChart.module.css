@@ -1,0 +1,114 @@
+.wrap {
+  width: 100%;
+  border: 1px solid var(--bd-2);
+  border-radius: var(--r);
+  background: var(--bg-1);
+  overflow: hidden;
+}
+
+/* Make the React Flow background dots subtle so node cards pop on top. */
+.wrap :global(.react-flow__background) {
+  background-color: #f6f7fa;
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--fg-3);
+  font-size: 13px;
+}
+
+/* ---- node card ---- */
+
+.card {
+  width: 220px;
+  min-height: 70px;
+  background: #ffffff;
+  border: 1px solid var(--bd-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 4px 12px rgba(15, 23, 42, 0.06);
+  font-size: 12px;
+  cursor: default;
+  transition: box-shadow 0.15s var(--ease, ease);
+}
+
+.card:hover {
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 8px 20px rgba(15, 23, 42, 0.10);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cardIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+.cardTitle {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardTypeTag {
+  font-size: 10px;
+  color: var(--fg-3);
+  background: var(--bg-3);
+  border-radius: 3px;
+  padding: 1px 6px;
+  flex: 0 0 auto;
+  letter-spacing: 0.02em;
+}
+
+.cardSub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: #94a3b8 !important;
+  border: 1.5px solid #ffffff !important;
+}
+
+/* Edge labels: make them readable with a soft pill behind text. */
+.wrap :global(.react-flow__edge-textbg) {
+  fill: #ffffff;
+}
+.wrap :global(.react-flow__edge-text) {
+  font-weight: 500;
+}
+
+/* tone variants — left accent stripe + matching icon chip */
+.tone_indigo { border-left: 3px solid var(--ac); }
+.tone_indigo .cardIcon { background: var(--ac-bg-2); color: var(--ac-deep); }
+.tone_amber { border-left: 3px solid var(--warn); }
+.tone_amber .cardIcon { background: var(--warn-bg); color: var(--warn); }
+.tone_purple { border-left: 3px solid rgb(124, 58, 237); }
+.tone_purple .cardIcon { background: rgba(124, 58, 237, 0.10); color: rgb(91, 33, 182); }
+.tone_cyan { border-left: 3px solid var(--cy); }
+.tone_cyan .cardIcon { background: var(--cy-bg); color: var(--cy-hi); }
+.tone_gray { border-left: 3px solid var(--bd-3); }
+.tone_gray .cardIcon { background: var(--bg-3); color: var(--fg-3); }

@@ -10,4 +10,11 @@ public class ApplicationQueryRequest extends PageQuery {
     private Long positionId;
     private Long studentId;
     private String status;
+
+    /**
+     * Comma-separated relation keys to expand inline. Currently supports
+     * {@code position} → fills each row's {@code positionSummary} with
+     * (id, title, position_type, department_name, salary_unit, salary_amount).
+     */
+    private String include;
 }

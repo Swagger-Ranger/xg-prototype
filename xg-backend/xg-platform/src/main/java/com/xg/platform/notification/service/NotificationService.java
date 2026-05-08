@@ -12,6 +12,7 @@ import com.xg.platform.notification.mapper.NotificationMapper;
 import com.xg.platform.notification.mapper.NotificationRecipientMapper;
 import com.xg.platform.notification.model.Notification;
 import com.xg.platform.notification.model.NotificationRecipient;
+import com.xg.platform.notification.vo.MyNotificationVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,8 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -49,6 +54,7 @@ public class NotificationService {
         notification.setRequireConfirm(req.getRequireConfirm() != null ? req.getRequireConfirm() : false);
         notification.setSenderId(req.getSenderId());
         notification.setCreatedBy(req.getSenderId());
+        notification.setTemplateCode(req.getTemplateCode());
         notification.setCreatedAt(OffsetDateTime.now());
         notificationMapper.insert(notification);
 
@@ -117,13 +123,67 @@ public class NotificationService {
                 ));
     }
 
-    public PageResult<NotificationRecipient> listMyNotifications(Long userId, PageQuery query) {
+    public PageResult<MyNotificationVO> listMyNotifications(Long userId, PageQuery query) {
+        // Page the recipient table (one row per user × channel × notification),
+        // then batch-fetch the underlying notification records to merge in the
+        // title/content/level/source_* fields the front-end actually needs.
+        // Filter to in_app since this endpoint feeds the in-app notification
+        // center; mini-program / wecom rows have their own delivery paths.
         Page<NotificationRecipient> page = query.toPage();
         recipientMapper.selectPage(page,
                 new LambdaQueryWrapper<NotificationRecipient>()
                         .eq(NotificationRecipient::getUserId, userId)
+                        .eq(NotificationRecipient::getChannel, "in_app")
                         .orderByDesc(NotificationRecipient::getCreatedAt));
-        return PageResult.of(page);
+
+        List<NotificationRecipient> recipients = page.getRecords();
+        Map<Long, Notification> notifMap = batchLoadNotifications(recipients);
+
+        List<MyNotificationVO> vos = new ArrayList<>(recipients.size());
+        for (NotificationRecipient r : recipients) {
+            Notification n = notifMap.get(r.getNotificationId());
+            vos.add(toVO(r, n));
+        }
+
+        Page<MyNotificationVO> voPage = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
+        voPage.setRecords(vos);
+        return PageResult.of(voPage);
+    }
+
+    private Map<Long, Notification> batchLoadNotifications(List<NotificationRecipient> recipients) {
+        if (recipients.isEmpty()) return Collections.emptyMap();
+        Set<Long> ids = recipients.stream()
+                .map(NotificationRecipient::getNotificationId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) return Collections.emptyMap();
+        List<Notification> rows = notificationMapper.selectBatchIds(ids);
+        Map<Long, Notification> map = new HashMap<>(rows.size());
+        for (Notification n : rows) map.put(n.getId(), n);
+        return map;
+    }
+
+    private MyNotificationVO toVO(NotificationRecipient r, Notification n) {
+        MyNotificationVO vo = new MyNotificationVO();
+        vo.setId(r.getId());
+        vo.setNotificationId(r.getNotificationId());
+        vo.setRead(r.getReadAt() != null);
+        vo.setReadAt(r.getReadAt());
+        vo.setConfirmed(r.getConfirmed());
+        vo.setConfirmedAt(r.getConfirmedAt());
+        if (n != null) {
+            vo.setTitle(n.getTitle());
+            vo.setContent(n.getContent());
+            vo.setLevel(n.getLevel());
+            vo.setSourceType(n.getSourceType());
+            vo.setSourceId(n.getSourceId());
+            vo.setRequireConfirm(n.getRequireConfirm());
+            vo.setCreatedAt(n.getCreatedAt());
+        }
+        // Fall back to the recipient's created_at if the notification record
+        // is somehow missing (shouldn't happen with the FK in place).
+        if (vo.getCreatedAt() == null) vo.setCreatedAt(r.getCreatedAt());
+        return vo;
     }
 
     public long countUnread(Long userId) {

@@ -400,7 +400,7 @@ _STRONG_ACTION_PREFIXES = (
 # fall through to RAG while "我想请假" still short-circuits into the flow.
 _WEAK_INTENT_PREFIXES = ("我要", "我想")
 _BOOKING_VERBS = (
-    "请假", "销假", "签到", "投诉", "反映问题", "收集", "打卡",
+    "请假", "销假", "签到", "收集", "打卡",
 )
 
 

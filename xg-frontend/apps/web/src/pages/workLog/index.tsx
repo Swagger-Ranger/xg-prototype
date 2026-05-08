@@ -10,6 +10,7 @@ import {
   Table,
   message,
 } from 'antd';
+import { describeApiError } from '@/utils/api-error';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -71,9 +72,7 @@ export default function WorkLogManagement() {
       form.resetFields();
       queryClient.invalidateQueries({ queryKey: ['workLogs'] });
     },
-    onError: () => {
-      message.error('保存失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '保存失败，请重试')),
   });
 
   const deleteMutation = useMutation({
@@ -82,9 +81,7 @@ export default function WorkLogManagement() {
       message.success('已删除');
       queryClient.invalidateQueries({ queryKey: ['workLogs'] });
     },
-    onError: () => {
-      message.error('删除失败');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '删除失败')),
   });
 
   const handleCreate = () => {

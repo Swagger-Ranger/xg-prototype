@@ -1,0 +1,256 @@
+/* 我的勤工 — Apple 玻璃感 × Feed archetype */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 240rpx;
+}
+
+.hero {
+  padding: 56rpx 32rpx 16rpx;
+}
+
+.heroTitle {
+  display: block;
+  font-size: 64rpx;
+  color: var(--fg);
+}
+
+.heroSubtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+  margin-top: 12rpx;
+}
+
+/* ── Segmented tabs ───────────────────────────────────── */
+.tabsWrap {
+  padding: 0 24rpx 16rpx;
+}
+
+.tabs {
+  display: flex;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r-pill);
+  padding: 6rpx;
+  box-shadow:
+    0 2rpx 8rpx rgba(15,20,33,0.04);
+}
+
+.tab {
+  flex: 1;
+  height: 76rpx;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+
+.tab:active {
+  transform: scale(0.97);
+}
+
+.tabActive {
+  background: var(--ac);
+  box-shadow:
+    0 4rpx 12rpx var(--ac-glow),
+    0 1rpx 0 rgba(255,255,255,0.4) inset;
+}
+
+.tabLabel {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: var(--fg-2);
+  letter-spacing: -0.01em;
+}
+
+.tabActive .tabLabel {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* ── List ─────────────────────────────────────────────── */
+.list {
+  padding: 0 24rpx;
+}
+
+.card,
+.salaryCard {
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r);
+  padding: 28rpx;
+  margin-bottom: 14rpx;
+  box-shadow:
+    0 4rpx 12rpx rgba(15,20,33,0.05);
+}
+
+.card:active {
+  transform: scale(0.992);
+  filter: brightness(0.98);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+  margin-bottom: 14rpx;
+}
+
+.cardTitle {
+  flex: 1;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.intro {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 26rpx;
+  color: var(--fg-2);
+  line-height: 1.55;
+  margin-bottom: 12rpx;
+}
+
+.timestamp {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-4);
+  letter-spacing: 0.04em;
+}
+
+/* ── Status pill ──────────────────────────────────────── */
+.statusPill {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  padding: 6rpx 18rpx;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+}
+
+.tone_pending {
+  background: var(--ac-bg);
+  color: var(--ac-deep);
+}
+
+.tone_ok {
+  background: var(--ok-bg);
+  color: #1a8a3f;
+}
+
+.tone_warn {
+  background: var(--warn-bg);
+  color: #b56e00;
+}
+
+.tone_danger {
+  background: var(--danger-bg);
+  color: #c4322a;
+}
+
+.tone_muted {
+  background: rgba(0,0,0,0.06);
+  color: var(--fg-3);
+}
+
+/* ── Salary section ──────────────────────────────────── */
+.monthGroup {
+  margin-bottom: 14rpx;
+}
+
+.monthHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 12rpx 8rpx 12rpx;
+}
+
+.monthLabel {
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.monthTotal {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--ac-deep);
+  letter-spacing: -0.01em;
+}
+
+.amountWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.amount {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.amountSub {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+}
+
+.detail {
+  font-size: 24rpx;
+  color: var(--fg-3);
+  line-height: 1.5;
+}
+
+/* ── Empty + CTA ─────────────────────────────────────── */
+.empty {
+  text-align: center;
+  padding: 96rpx 32rpx;
+  color: var(--fg-4);
+  font-size: 26rpx;
+}
+
+.emptyAction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ctaBtn {
+  margin-top: -32rpx;
+  padding: 0 40rpx;
+  height: 80rpx;
+  background: var(--ac);
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 12rpx var(--ac-glow);
+}
+
+.ctaBtn:active {
+  transform: scale(0.98);
+  background: var(--ac-deep);
+}
+
+.ctaBtnLabel {
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 600;
+}

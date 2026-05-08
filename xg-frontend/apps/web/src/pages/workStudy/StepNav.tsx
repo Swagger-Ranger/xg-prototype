@@ -7,6 +7,9 @@ export interface StepDef<V extends string> {
   n: number;
   title: string;
   hint?: string;
+  /** Pending-action count shown as a red pill next to the title. Undefined or
+   *  0 hides the pill — only approval-type steps (e.g. 申请审批) should set it. */
+  badge?: number;
 }
 
 export interface StepNavProps<V extends string> {
@@ -33,7 +36,14 @@ export default function StepNav<V extends string>({ steps, value, onChange }: St
           >
             <span className={styles.dot}>{s.n}</span>
             <span className={styles.body}>
-              <span className={styles.title}>{s.title}</span>
+              <span className={styles.titleRow}>
+                <span className={styles.title}>{s.title}</span>
+                {typeof s.badge === 'number' && s.badge > 0 && (
+                  <span className={styles.badge} aria-label={`${s.badge} 项待处理`}>
+                    {s.badge > 99 ? '99+' : s.badge}
+                  </span>
+                )}
+              </span>
               {s.hint && <span className={styles.hint}>{s.hint}</span>}
             </span>
           </button>

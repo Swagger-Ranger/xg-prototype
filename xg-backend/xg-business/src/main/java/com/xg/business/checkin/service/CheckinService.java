@@ -198,7 +198,7 @@ public class CheckinService {
 
     @Transactional
     public void rollCall(Long activityId, RollCallRequest req, Long operatorId) {
-        getActivity(activityId);
+        CheckinActivity activity = getActivity(activityId);
         OffsetDateTime now = OffsetDateTime.now();
 
         for (RollCallRequest.RollCallEntry entry : req.getRecords()) {
@@ -207,6 +207,7 @@ public class CheckinService {
                             .eq(CheckinRecord::getActivityId, activityId)
                             .eq(CheckinRecord::getStudentId, entry.getStudentId())
             );
+            boolean wasAbsent = existing != null && "absent".equals(existing.getStatus());
             if (existing != null) {
                 existing.setStatus(entry.getStatus());
                 existing.setSource("roll_call");
@@ -225,6 +226,13 @@ public class CheckinService {
                 }
                 record.setCreatedAt(now);
                 checkinRecordMapper.insert(record);
+            }
+            if ("absent".equals(entry.getStatus()) && !wasAbsent) {
+                studentEventPublisher.publish(entry.getStudentId(), StudentEventType.CHECKIN_ABSENT, "checkin", Map.of(
+                        "activity_id", activity.getId(),
+                        "activity_name", activity.getTitle() == null ? "" : activity.getTitle(),
+                        "operator_id", operatorId
+                ));
             }
         }
     }

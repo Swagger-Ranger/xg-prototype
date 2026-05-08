@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Map;
+
 @Getter
 @Setter
 public class ApplicationCreateRequest {
@@ -19,4 +21,6 @@ public class ApplicationCreateRequest {
     @NotBlank
     @Size(max = 2000)
     private String intro;
+
+    private Map<String, Object> extraData;
 }

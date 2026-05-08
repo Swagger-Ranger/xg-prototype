@@ -1,0 +1,147 @@
+.wrap {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-xs);
+  padding: 14px 18px 10px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.subtitle {
+  font-size: 11px;
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+}
+
+.empty {
+  text-align: center;
+  color: var(--fg-4);
+  font-size: 12px;
+  padding: 32px 0;
+}
+
+.timeline {
+  position: relative;
+  padding-left: 22px;
+}
+
+/* Vertical rail */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--bd);
+}
+
+.row {
+  position: relative;
+  padding: 6px 0 6px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.dot {
+  position: absolute;
+  left: -19px;
+  top: 12px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-2);
+}
+
+.dotLeave {
+  background: #f59e0b;
+}
+
+.dotLeaveRej {
+  background: #dc2626;
+}
+
+.dotWorkstudy {
+  background: #6366f1;
+}
+
+.dotWorkstudyHired {
+  background: #059669;
+}
+
+.date {
+  flex-shrink: 0;
+  width: 64px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  padding-top: 2px;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.bodyTitle {
+  font-size: 12.5px;
+  color: var(--fg);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.bodyTitle em {
+  font-style: normal;
+  color: var(--ac-hi);
+  font-weight: 600;
+}
+
+.bodySub {
+  font-size: 11px;
+  color: var(--fg-3);
+  margin-top: 2px;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 0 6px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.tagApproved {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}
+
+.tagRejected {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.tagPending {
+  background: rgba(217, 119, 6, 0.14);
+  color: #92400e;
+}
+
+.tagHired {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}

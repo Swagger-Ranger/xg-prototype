@@ -1,41 +1,36 @@
 package com.xg.business.leave.model;
 
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableName;
 import com.xg.common.base.BaseEntity;
-import com.xg.common.mybatis.JsonbTypeHandler;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Leave-type view model. Used as a return shape for API and as the input shape
+ * to {@link com.xg.business.leave.service.LeaveTypeFieldTranslator}. After V076
+ * this is no longer bound to a table — data flows through
+ * {@link com.xg.business.leave.service.LeaveConfigBaseService} which materialises
+ * instances from {@code leave_config_base.config.leaveTypes}.
+ *
+ * <p>{@link BaseEntity} is kept as the parent so the JSON shape returned by
+ * {@code /api/v1/leave-types} stays backward compatible with the frontend
+ * (id/tenantId/createdAt/... will simply be null). The {@code @TableName} /
+ * {@code @TableField} annotations have been removed because the legacy
+ * {@code leave_type_config} table is no longer the source of truth.
+ */
 @Getter
 @Setter
-@TableName(value = "leave_type_config", autoResultMap = true)
 public class LeaveTypeConfig extends BaseEntity {
 
-    @TableField("code")
     private String code;
-
-    @TableField("name")
     private String name;
-
-    @TableField("parent_code")
     private String parentCode;
-
-    /**
-     * JSONB stored as String
-     */
-    @TableField(value = "extra_fields", typeHandler = JsonbTypeHandler.class)
+    /** JSON array string: legacy {@code [{field_key, field_label, field_type, ...}]} shape. */
     private String extraFields;
-
-    @TableField("require_attachment")
     private Boolean requireAttachment;
-
-    @TableField("max_days")
+    /** 单次请假天数上限(防一次请太多)。NULL=不限。 */
     private Integer maxDays;
-
-    @TableField("enabled")
+    /** 本学期累计请假上限(天数,可半天)。NULL=不限。 */
+    private java.math.BigDecimal termMaxDays;
     private Boolean enabled;
-
-    @TableField("sort_order")
     private Integer sortOrder;
 }

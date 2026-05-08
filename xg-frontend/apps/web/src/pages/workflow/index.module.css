@@ -1,0 +1,208 @@
+.page {
+  max-width: 1400px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+
+.filterBar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tableCard {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+
+.statusTag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.actionLink {
+  background: none;
+  border: none;
+  color: var(--ac);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  transition: color 0.15s var(--ease);
+}
+
+.actionLink:hover {
+  color: var(--ac-hi, var(--ac));
+}
+
+.actionLink + .actionLink {
+  margin-left: 12px;
+}
+
+.actionLink.disabled {
+  color: var(--fg-3);
+  cursor: not-allowed;
+}
+
+.yaml {
+  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.codeCell {
+  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.metaLine {
+  color: var(--fg-2);
+  font-size: 12px;
+}
+
+.roleHint {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--bg-1);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+}
+
+.roleHintLabel {
+  display: block;
+  font-size: 11px;
+  color: var(--fg-3);
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+.roleHintChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roleChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--bd-2);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+  font-family: inherit;
+  color: var(--fg-2);
+}
+
+.roleChip:hover {
+  background: var(--ac-bg);
+  border-color: var(--ac);
+  color: var(--ac-deep);
+}
+
+.roleChip code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ac-deep);
+}
+
+.roleChipName {
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+.roleChip:hover .roleChipName {
+  color: var(--ac-deep);
+}
+
+/* ---- two-column edit layout (node list + live chart) ---- */
+.editGrid {
+  display: grid;
+  grid-template-columns: minmax(380px, 1fr) minmax(420px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.editLeft {
+  min-width: 0;
+}
+
+.editLeftHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.editLeftLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-1);
+}
+
+.editRight {
+  min-width: 0;
+}
+
+.editRightLabel {
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-bottom: 8px;
+}
+
+/* ---- footer "advanced YAML" link, deliberately understated ---- */
+.advancedToggle {
+  background: none;
+  border: none;
+  color: var(--fg-4);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-right: auto;
+  font-family: inherit;
+}
+
+.advancedToggle:hover {
+  color: var(--ac);
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .editGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.editFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.editFooterRight {
+  display: flex;
+  gap: 8px;
+}

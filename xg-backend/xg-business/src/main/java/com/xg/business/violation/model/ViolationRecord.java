@@ -39,4 +39,22 @@ public class ViolationRecord extends BaseEntity {
 
     @TableField("punishment_id")
     private Long punishmentId;
+
+    @TableField("approval_status")
+    private String approvalStatus;
+
+    @TableField("approver_id")
+    private Long approverId;
+
+    @TableField("approver_name")
+    private String approverName;
+
+    @TableField("approved_at")
+    private OffsetDateTime approvedAt;
+
+    @TableField("submitted_at")
+    private OffsetDateTime submittedAt;
+
+    @TableField("rejection_reason")
+    private String rejectionReason;
 }

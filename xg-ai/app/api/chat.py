@@ -68,6 +68,33 @@ _SYSTEM_PROMPT_ZH = (
     "收集需要：标题。缺少时追问，齐全后确认再调用 open_collection_form。\n\n"
     "### 导航\n"
     "用户明确说去某个页面时，直接调用 navigate，无需确认。\n\n"
+    "### 改请假/销假规则(管理员场景)\n"
+    "**前置权限**:只有 user_role 是 school_admin / super_admin / student_affairs_director 才能改配置。\n"
+    "其他角色(student / counselor / dean / 等)说「改请假配置/规则」时,**禁止调 propose_workflow_config_change**"
+    "(实际上工具列表里也没暴露给他们),要直接答「您当前的角色没有改请销假配置的权限,这块由校管理员/学工部部长维护。"
+    "如果只是想了解规则,我可以告诉你现在事假/病假等的规定。」并停止。\n\n"
+    "**有权限的管理员场景**:"
+    "**只要用户提到具体假别名(事假/病假/婚假/公假/晚归 等)** 或具体字段(审批人/上限/超时/证明)"
+    "并表达「改/修改/调整/新增/停用/为某学院加」等意图,**本轮立即调 propose_workflow_config_change**,"
+    "instruction 透传原话,**不要先反问**——后端 LLM 信息不足会自己反问。\n"
+    "仅当用户**完全不指定目标**(纯说「改请假规则」/「改流程」)时才在 chat 直接反问需要改哪一项。\n"
+    "示例(应直接调 propose 不反问):\n"
+    "  - 「我想修改一下公假的流程」→ propose(biz_type=leave, instruction=同原话)\n"
+    "  - 「改一下公假」→ propose\n"
+    "  - 「停用晚归」→ propose\n"
+    "  - 「公假改成 5 天」→ propose\n"
+    "示例(可直接反问):\n"
+    "  - 「改请假规则」→ 「想改哪个假别?」\n\n"
+    "### 改通知 / 关怀提醒规则(管理员场景)\n"
+    "**前置权限**:同改请假规则 — 仅 school_admin / super_admin / student_affairs_director。\n"
+    "其他角色说「改通知」时直接答「这块由校管理员维护」并停止。\n\n"
+    "**有权限的管理员场景**:用户说类似下面的话时,**本轮立即调 propose_notification_config_change**(不要先反问,instruction 透传原话):\n"
+    "  - 「把请假驳回通知关掉」「停用 XX 通知」\n"
+    "  - 「学生超时未销假改成只发企业微信」「改 XX 通知的渠道」\n"
+    "  - 「辅导员的任务到达通知不要走小程序」「改 XX 角色的通知方式」\n"
+    "  - 「请假被驳回改成紧急级别」「调 XX 通知的级别」\n"
+    "  - 「改 XX 通知的文案」\n"
+    "仅当用户**只说「改通知」**(没指定哪条)时才在 chat 直接反问。\n\n"
     "### 学生信息库 过滤（只在 current_page=student 时触发）\n"
     "当用户在 学生信息库 页面说「过滤 / 筛选 / 找 …级 …学院 …专业 …班 / 在读/休学/毕业/退学」"
     "或给出学号/姓名要搜，本轮直接调 filter_students 工具，把识别到的条件作为参数传入。\n"
@@ -160,13 +187,21 @@ _PAGE_LABELS_EN = {
 UI_TOOLS = [
     {
         "name": "navigate",
-        "description": "导航到系统的指定功能页面",
+        "description": (
+            "导航到系统的指定功能页面。当用户明确说要去某页面时调用。"
+            "leave=请销假申请页;leave-config=请销假配置(老师管理规则);"
+            "其他业务页同名。"
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "page": {
                     "type": "string",
-                    "enum": ["workspace", "leave", "collection", "checkin", "notification", "student", "knowledge"],
+                    "enum": [
+                        "workspace", "leave", "leave-config", "collection",
+                        "checkin", "notification", "student", "knowledge",
+                        "workflows", "work-study", "alerts",
+                    ],
                     "description": "目标页面",
                 }
             },
@@ -187,7 +222,14 @@ UI_TOOLS = [
                 },
                 "reason": {"type": "string", "description": "请假原因"},
                 "start_date": {"type": "string", "description": "开始日期 YYYY-MM-DD"},
-                "end_date": {"type": "string", "description": "结束日期 YYYY-MM-DD"},
+                "end_date": {
+                    "type": "string",
+                    "description": (
+                        "结束日期 YYYY-MM-DD。请假时长（向上取整到天）不得超过 30 天，"
+                        "用户口述更长时按 30 天封顶并在 reply 里告知用户'单次最多 30 天，已按上限填写'，"
+                        "提醒其拆分多次申请。"
+                    ),
+                },
                 "destination": {
                     "type": "string",
                     "description": (
@@ -196,6 +238,18 @@ UI_TOOLS = [
                         "标准化为地级市，例如：南京市 / 北京市 / 上海市 / 苏州市。"
                         "不要包含区县或详细地址；填了无法匹配的地名前端会保留为文本。"
                         "用户没明确提地名时不要瞎猜，留空即可。"
+                    ),
+                },
+                "reason_category": {
+                    "type": "string",
+                    "enum": ["家庭事务", "个人事务", "其他"],
+                    "description": (
+                        "事由分类——仅在 leave_type=personal（事假）时填写，其它假别留空。"
+                        "依据用户自然语言里的 reason 判断："
+                        "家里有事 / 老人住院 / 孩子生病 / 亲人来访 / 探亲 / 婚丧嫁娶 → 家庭事务；"
+                        "看医生 / 办证件 / 搬家 / 参加培训 / 面试 / 处理私人事务 → 个人事务；"
+                        "无法明确归类或介于两者之间 → 其他。"
+                        "判断不出来时填'其他'，不要漏填——这是事假表单的必选项。"
                     ),
                 },
             },
@@ -282,6 +336,72 @@ UI_TOOLS = [
         },
         "allowed_roles": {"student"},
     },
+    {
+        "name": "propose_workflow_config_change",
+        "description": (
+            "**校管理员对请假/销假规则的所有改动入口**。识别这些表述并直接调用本工具,"
+            "不要先 navigate 再让用户重复说一次:\n"
+            "- 改字段:「事假改成最多 5 天」「病假必须有证明」「审批超时改成 24 小时」\n"
+            "- 改审批人:「审批多加一档辅导员」「事假最后一档改学校管理员」\n"
+            "- 新增假别:「新增一个公假」「加个学术活动假」「再增加一个丧假」\n"
+            "- 删除假别:「停用晚归申请」「砍掉婚假」\n"
+            "- 学院差异化:「为艺术学院加一份特殊事假规则」「医学院实习要书记审批」\n"
+            "- 销假调整:「销假改成 24 小时超时」「销假加个健康声明字段」\n"
+            "**重要规则**:\n"
+            "1. 即使老师没说「修改 / 新增」等明确动词,只要意图是配置变更,直接调本工具。\n"
+            "2. **只要指令里含具体目标**(假别名:事假/病假/婚假/公假/...,或字段名:审批超时/上限/证明,或某学院名),**立即 emit 本工具,不要先反问**——instruction 透传原话,后端 LLM 信息不足会自己反问,前端展示给老师再补充。\n"
+            "3. 仅当老师**完全不指定目标**(如纯说「改请假规则」「改流程」)时,才在 chat 直接反问。\n"
+            "4. 本工具会自动导航到「请销假配置」页面 + 弹出 diff 预览卡,**不要再 emit navigate**。\n"
+            "5. instruction 参数透传老师原话,不要改写或精简。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "biz_type": {
+                    "type": "string",
+                    "enum": ["leave", "leave_return"],
+                    "description": "leave=请假,leave_return=销假",
+                },
+                "college_id": {
+                    "type": "integer",
+                    "description": "学院 override 的 college_id（org_unit.id of type=college）。老师没明确说「为某某学院」时不要填，留空走全校默认。",
+                },
+                "instruction": {
+                    "type": "string",
+                    "description": "老师说的原始指令(不要改写,完整透传给后端 LLM)",
+                },
+            },
+            "required": ["biz_type", "instruction"],
+        },
+        "allowed_roles": {"school_admin", "super_admin", "student_affairs_director"},
+    },
+    {
+        "name": "propose_notification_config_change",
+        "description": (
+            "**校管理员对通知中心规则的所有改动入口**。识别这些表述并直接调用本工具:\n"
+            "- 启停:「关掉请假驳回通知」「停用 XX 通知」「重新启用 XX」\n"
+            "- 改渠道:「学生超时改成只发企微」「XX 通知不要走小程序」\n"
+            "- 改级别:「请假驳回改成紧急」\n"
+            "- 改文案:「改 XX 通知的标题/正文」\n"
+            "- 角色级覆盖:「辅导员收到的 XX 通知不要走小程序」「学生不要收 XX」\n"
+            "**重要规则**:\n"
+            "1. instruction 参数透传老师原话,不要改写。\n"
+            "2. 即使用户没说「修改」等动词,只要意图是改通知配置,直接调本工具。\n"
+            "3. 本工具会自动导航到「通知中心」+ 弹出 diff 预览卡,**不要再 emit navigate**。\n"
+            "4. 仅当老师**完全不指定具体通知**(纯说「改通知」)时,才在 chat 反问。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "instruction": {
+                    "type": "string",
+                    "description": "老师原话,完整透传给后端 LLM",
+                },
+            },
+            "required": ["instruction"],
+        },
+        "allowed_roles": {"school_admin", "super_admin", "student_affairs_director"},
+    },
 ]
 
 
@@ -298,9 +418,12 @@ async def _build_tools(role: str) -> list[dict]:
         f"{t['code']}={t['name']}" for t in leave_types
     )
 
+    # Role header arrives comma-separated for multi-role users (see
+    # _split_roles in query_tools); UI tool gating uses the same any-match rule.
+    user_roles = {r.strip() for r in (role or "").split(",") if r.strip()}
     ui: list[dict] = []
     for t in UI_TOOLS:
-        if t["allowed_roles"] is not None and role not in t["allowed_roles"]:
+        if t["allowed_roles"] is not None and not (user_roles & t["allowed_roles"]):
             continue
         cleaned = {k: v for k, v in t.items() if k != "allowed_roles"}
         if cleaned.get("name") == "open_leave_form":

@@ -1,32 +1,36 @@
 package com.xg.platform.workflow.engine;
 
+import com.xg.platform.workflow.model.WorkflowInstance;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * Resolves a (role, scope) pair from the workflow DSL into concrete user IDs.
+ * Delegation order follows Spring's @Order: specific strategies first, generic
+ * fallbacks last — first supporting strategy wins.
+ */
 @Slf4j
 @Component
 public class AssigneeResolver {
 
-    /**
-     * Resolve assignee user IDs based on role and scope.
-     *
-     * @param role        e.g., "counselor", "dean", "school_admin"
-     * @param scope       e.g., "same_class", "same_department", null
-     * @param initiatorId the user who started the workflow
-     * @return list of user IDs who should receive the approval task
-     */
-    public List<Long> resolve(String role, String scope, Long initiatorId) {
-        // Stub implementation - will be completed when RBAC module is ready.
-        // Real implementation needs:
-        // 1. Look up initiator's org_id
-        // 2. Based on scope, find the target org level (class -> college)
-        // 3. Query users with the specified role in that org
-        // For "counselor" + "same_class": query counselor_org_mapping
-        // For "dean" + "same_department": find college-level org, query users with dean role
-        // For "school_admin" (no scope): query all school_admin users in tenant
-        log.debug("AssigneeResolver.resolve called: role={}, scope={}, initiatorId={}", role, scope, initiatorId);
+    private final List<AssigneeStrategy> strategies;
+
+    public AssigneeResolver(List<AssigneeStrategy> strategies) {
+        this.strategies = strategies;
+    }
+
+    public List<Long> resolve(String role, String scope, WorkflowInstance instance) {
+        if (instance == null || role == null) {
+            return List.of();
+        }
+        for (AssigneeStrategy strategy : strategies) {
+            if (strategy.supports(role, scope)) {
+                return strategy.resolve(role, scope, instance);
+            }
+        }
+        log.warn("AssigneeResolver: no strategy matched role={} scope={} — task will have no assignee", role, scope);
         return List.of();
     }
 }

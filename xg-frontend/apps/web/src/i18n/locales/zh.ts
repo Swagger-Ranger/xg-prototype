@@ -3,16 +3,9 @@
 export interface LocaleResource {
   app: { name: string; tagline: string };
   topbar: {
-    homeCrumb: string;
-    searchPlaceholder: string;
     unreadSuffix: string;
     profile: string;
     logout: string;
-    profileSoon: string;
-    searchSoon: string;
-    languageZh: string;
-    languageEn: string;
-    languageToggleAria: string;
   };
   routes: {
     workspace: string; leave: string; collection: string; checkin: string;
@@ -28,20 +21,13 @@ export interface LocaleResource {
 
 const zh: LocaleResource = {
   app: {
-    name: '学工管理系统',
+    name: '朝夕',
     tagline: 'AI 原生学生工作服务平台',
   },
   topbar: {
-    homeCrumb: '学工管理',
-    searchPlaceholder: '搜索学生、请假单、通知…',
     unreadSuffix: '条未读',
-    profile: '个人设置',
+    profile: '个人中心',
     logout: '退出登录',
-    profileSoon: '个人设置功能即将上线',
-    searchSoon: '全局搜索即将上线',
-    languageZh: '中文',
-    languageEn: 'English',
-    languageToggleAria: '切换语言',
   },
   routes: {
     workspace: '工作台',

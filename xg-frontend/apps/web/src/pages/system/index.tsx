@@ -1,30 +1,44 @@
 import { useState } from 'react';
-import { Table, Tag, Select, Button, Input, Modal, Form, Tabs, message } from 'antd';
+import { useSearchParams } from 'react-router-dom';
+import { Table, Tag, Select, Button, Input, Modal, Form, Tabs } from 'antd';
+import { message } from '@/utils/antdApp';
 import type { ColumnsType } from 'antd/es/table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { RoleCode } from '@xg1/shared';
+import { ROLE_LABELS as SHARED_ROLE_LABELS } from '@xg1/shared';
 import type { SystemUser, UserQueryParams, CreateUserData, UpdateUserData } from '@/api/system';
 import { getUsers, createUser, updateUser, resetPassword, toggleUserStatus } from '@/api/system';
 import styles from './index.module.css';
 import { describeApiError } from '@/utils/api-error';
 import AiMetricsPanel from './AiMetricsPanel';
 import KnowledgePanel from './KnowledgePanel';
+import OrgAssignmentPanel from './OrgAssignmentPanel';
+import SettingsPanel from './settings/SettingsPanel';
+import NotificationCenterPanel from './notification/NotificationCenterPanel';
 
-const ROLE_LABELS: Record<string, string> = {
-  student: '学生',
-  counselor: '辅导员',
-  dean: '院系领导',
-  school_admin: '管理员',
-};
+// 单一数据源：从 @xg1/shared 拉 RoleCode + ROLE_LABELS。super_admin 不在
+// 普通管理员可见的列表里（系统级运维，走 platform-admin 后台维护）。
+const ASSIGNABLE_ROLES: RoleCode[] = [
+  'student',
+  'counselor',
+  'class_master',
+  'college_admin',
+  'college_secretary',
+  'dean',
+  'student_affairs_officer',
+  'student_affairs_director',
+  'school_admin',
+  'employer',
+];
+
+const ROLE_LABELS: Record<string, string> = SHARED_ROLE_LABELS;
 
 const STATUS_LABELS: Record<string, string> = { active: '正常', disabled: '禁用' };
 const STATUS_COLORS: Record<string, string> = { active: 'var(--ok)', disabled: 'var(--danger)' };
 
 const ROLE_OPTIONS = [
   { label: '全部角色', value: '' },
-  { label: '学生', value: 'student' },
-  { label: '辅导员', value: 'counselor' },
-  { label: '院系领导', value: 'dean' },
-  { label: '管理员', value: 'school_admin' },
+  ...ASSIGNABLE_ROLES.map((r) => ({ label: SHARED_ROLE_LABELS[r], value: r })),
 ];
 
 const STATUS_OPTIONS = [
@@ -33,12 +47,10 @@ const STATUS_OPTIONS = [
   { label: '禁用', value: 'disabled' },
 ];
 
-const ROLE_SELECT_OPTIONS = [
-  { label: '学生', value: 'student' },
-  { label: '辅导员', value: 'counselor' },
-  { label: '院系领导', value: 'dean' },
-  { label: '管理员', value: 'school_admin' },
-];
+const ROLE_SELECT_OPTIONS = ASSIGNABLE_ROLES.map((r) => ({
+  label: SHARED_ROLE_LABELS[r],
+  value: r,
+}));
 
 const PAGE_SIZE = 20;
 
@@ -402,15 +414,36 @@ export default function SystemManagement() {
 
   return (
     <div className={styles.page}>
-      <Tabs
-        defaultActiveKey="users"
-        size="middle"
-        items={[
-          { key: 'users', label: '用户管理', children: userManagement },
-          { key: 'ai', label: 'AI 表现', children: <AiMetricsPanel /> },
-          { key: 'kb', label: '知识库', children: <KnowledgePanel /> },
-        ]}
-      />
+      <SystemTabs userManagement={userManagement} />
     </div>
+  );
+}
+
+/**
+ * Tabs 控制器：把 active tab 跟 URL `?tab=` 同步，外部链接（HealthCard 的
+ * `去给班级指派班主任`）可直接 `?tab=org` 跳到「组织派班」。
+ */
+function SystemTabs({ userManagement }: { userManagement: React.ReactNode }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') || 'users';
+  return (
+    <Tabs
+      activeKey={tab}
+      size="middle"
+      onChange={(k) => {
+        const next = new URLSearchParams(searchParams);
+        if (k === 'users') next.delete('tab');
+        else next.set('tab', k);
+        setSearchParams(next, { replace: true });
+      }}
+      items={[
+        { key: 'users', label: '用户管理', children: userManagement },
+        { key: 'org', label: '组织派班', children: <OrgAssignmentPanel /> },
+        { key: 'settings', label: '基础设置', children: <SettingsPanel /> },
+        { key: 'notif', label: '通知', children: <NotificationCenterPanel /> },
+        { key: 'ai', label: 'AI 表现', children: <AiMetricsPanel /> },
+        { key: 'kb', label: '知识库', children: <KnowledgePanel /> },
+      ]}
+    />
   );
 }

@@ -1,0 +1,122 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--bd-2);
+  border-radius: var(--r);
+  background: var(--bg-2);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.card:hover {
+  border-color: var(--ac);
+  box-shadow: var(--sh-sm);
+}
+
+.cardLeft {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.cardIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-3);
+  color: var(--ac-deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.type_approval .cardIcon { background: var(--ac-bg); color: var(--ac-deep); }
+.type_condition .cardIcon { background: rgba(245, 158, 11, 0.14); color: #b45309; }
+.type_publicity .cardIcon { background: rgba(168, 85, 247, 0.14); color: #7c3aed; }
+.type_end .cardIcon { background: var(--bg-4); color: var(--fg-3); }
+.type_notification .cardIcon { background: rgba(56, 189, 248, 0.14); color: #0369a1; }
+.type_form_submit .cardIcon { background: rgba(16, 185, 129, 0.14); color: #047857; }
+
+.cardMain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cardName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.typeTag {
+  margin: 0;
+  font-size: 11px;
+}
+
+.cardId {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--fg-4);
+  margin-left: auto;
+}
+
+.cardSummary {
+  font-size: 12px;
+  color: var(--fg-2);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.muted {
+  color: var(--fg-4);
+}
+
+.codeMuted {
+  background: var(--bg-3);
+  color: var(--fg-2);
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.addBar {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px dashed var(--bd-2);
+  border-radius: var(--r);
+  background: var(--bg-3);
+}
+
+.branchEdit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

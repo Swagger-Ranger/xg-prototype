@@ -13,6 +13,10 @@ public class CurrentUserView {
     private String username;
     private String realName;
     private String avatarUrl;
+    private String email;
+    private String phone;
+    /** male / female / unknown — backend stores English; UI translates. */
+    private String gender;
     private String tenantId;
     private String tenantName;
     private String orgId;

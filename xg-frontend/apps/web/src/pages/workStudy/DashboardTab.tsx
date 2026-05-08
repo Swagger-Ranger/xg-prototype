@@ -95,7 +95,7 @@ function StudentDashboard({ userId }: { userId: string }) {
 
       <div className={styles.tipCard}>
         <ul className={styles.tipBody}>
-          <li>找匹配的岗位？在右侧 AI 面板说"按我的偏好找岗位"或"按我的空余时间匹配岗位"。</li>
+          <li>找匹配的岗位？在 AI 面板里说"按我的偏好找岗位"或"按我的空余时间匹配岗位"。</li>
           <li>提交申请前，让 AI 帮你 <em>起草申请理由</em>。</li>
           <li>每学年 <em>固定岗最多 1 个</em>，临时岗可多个；超额申请会被系统拦截。</li>
         </ul>
@@ -203,7 +203,7 @@ function StaffDashboard() {
         <div className={styles.tipHead}>
           <span className={styles.tipTitle}><BulbOutlined /> 一键问 AI</span>
         </div>
-        <div className={styles.chipsLabel}>点 chip 把问题直接送进右侧 AI 面板：</div>
+        <div className={styles.chipsLabel}>点 chip 把问题直接送进 AI 面板：</div>
         <div className={styles.chips}>
           <Chip text="这个月薪资有没有异常？" />
           <Chip text="给岗位 #X 的候选人做对比卡（X 替换为岗位 ID）" />

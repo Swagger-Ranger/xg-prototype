@@ -1,9 +1,11 @@
-import { Drawer, Tag, Table, Button, message, Typography, Modal } from 'antd';
+import { Drawer, Tag, Table, Button, Typography, Modal } from 'antd';
+import { message } from '@/utils/antdApp';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CheckinActivity, CheckinRecord } from '@/api/checkin';
 import { getQrCode, getRecords, closeActivity } from '@/api/checkin';
+import { describeApiError } from '@/utils/api-error';
 
 const { Text } = Typography;
 
@@ -50,9 +52,7 @@ export default function ActivityDetailDrawer({ activity, onClose }: Props) {
       queryClient.invalidateQueries({ queryKey: ['checkinRecords', activity?.id] });
       onClose();
     },
-    onError: () => {
-      message.error('结束签到失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '结束签到失败，请重试')),
   });
 
   const columns: ColumnsType<CheckinRecord> = [

@@ -8,6 +8,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
+    // Prefer .ts/.tsx over stale sibling .js artifacts from prior `tsc -b` runs.
+    extensions: ['.ts', '.tsx', '.mjs', '.js', '.mts', '.jsx', '.json'],
   },
   server: {
     port: 5173,

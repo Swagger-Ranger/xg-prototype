@@ -1,0 +1,624 @@
+/* 首页 — 「Smart Home Light」+ web 对齐版.
+ * 今日简报（规则化）+ AI 观察员（LLM）双区清晰拆分。
+ */
+
+.page {
+  min-height: 100vh;
+  padding: 16rpx 0 240rpx;
+  background: var(--bg-1);
+}
+
+/* ── 1. Hero ───────────────────────────────────────── */
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 56rpx 32rpx 28rpx;
+}
+
+.heroText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+/* 日期 eyebrow — mono uppercase letter-spaced（web label vibe）+ 数字粗体强调 */
+.heroEyebrow {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  margin-bottom: 4rpx;
+}
+
+.heroEyebrowDate {
+  font-weight: 700;
+  color: var(--ac-deep);
+  font-size: 24rpx;
+  letter-spacing: 0.04em;
+}
+
+.heroEyebrowSep {
+  color: var(--fg-5);
+  margin: 0 4rpx;
+}
+
+.heroEyebrowMeta {
+  color: var(--fg-3);
+}
+
+/* 大字主体（姓名 / 未登录 placeholder） */
+.heroDisplay {
+  display: block;
+  font-size: 64rpx;
+  color: var(--fg);
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+
+.heroSubline {
+  display: block;
+  font-size: 24rpx;
+  color: var(--fg-3);
+  letter-spacing: -0.005em;
+  margin-top: 4rpx;
+}
+
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding-top: 24rpx;
+  flex-shrink: 0;
+}
+
+/* 未登录 hero 右侧蓝 pill CTA */
+.heroLoginBtn {
+  height: 80rpx;
+  padding: 0 28rpx;
+  background: var(--ac);
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 12rpx var(--ac-glow);
+}
+
+.heroLoginBtn:active {
+  background: var(--ac-deep);
+  transform: scale(0.97);
+}
+
+.heroLoginBtnLabel {
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.heroBtn {
+  position: relative;
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 50%;
+  background: var(--bg-2);
+  box-shadow: var(--sh-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heroBtn:active {
+  transform: scale(0.94);
+  filter: brightness(0.96);
+}
+
+.heroBtnDot {
+  position: absolute;
+  top: 18rpx;
+  right: 18rpx;
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 3rpx solid var(--bg-2);
+}
+
+.avatar {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--ac-hi) 0%, var(--ac) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 12rpx var(--ac-glow);
+}
+
+.avatar:active {
+  transform: scale(0.94);
+}
+
+.avatarText {
+  font-size: 36rpx;
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ── 2. Quick chips ────────────────────────────────── */
+.chipsScroll {
+  white-space: nowrap;
+  margin-bottom: 32rpx;
+}
+
+.chips {
+  display: inline-flex;
+  gap: 16rpx;
+  padding: 0 24rpx;
+}
+
+.chip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 16rpx 28rpx 16rpx 16rpx;
+  background: var(--bg-2);
+  border-radius: var(--r-pill);
+  box-shadow: var(--sh-sm);
+}
+
+.chip:active {
+  transform: scale(0.97);
+  filter: brightness(0.97);
+}
+
+.chipIcon {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: var(--ac-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chipLabel {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+/* ── 3. Section header ─────────────────────────────── */
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12rpx;
+  padding: 8rpx 32rpx 16rpx;
+}
+
+.sectionTitle {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+/* 右侧日期 / count — mono letter-spaced */
+.sectionDate {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-4);
+  letter-spacing: 0.04em;
+}
+
+.sectionBadge {
+  min-width: 36rpx;
+  height: 36rpx;
+  padding: 0 10rpx;
+  border-radius: var(--r-pill);
+  background: var(--ac);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sectionBadgeText {
+  font-size: 22rpx;
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── 4. 今日简报 card ─────────────────────────────── */
+.briefCard {
+  margin: 0 24rpx 32rpx;
+  padding: 28rpx 28rpx 8rpx;
+  background: var(--bg-2);
+  border-radius: var(--r);
+  box-shadow: var(--sh-sm);
+}
+
+.briefSummary {
+  display: block;
+  font-size: 28rpx;
+  color: var(--fg);
+  line-height: 1.6;
+  letter-spacing: -0.005em;
+}
+
+/* stats grid 2x2 */
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.statCell {
+  background: var(--bg-3);
+  border-radius: var(--r-sm);
+  padding: 20rpx 22rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.statCellLink:active {
+  transform: scale(0.98);
+  filter: brightness(0.96);
+}
+
+.statLabel {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-3);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.statValue {
+  font-size: 44rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-top: 2rpx;
+}
+
+.statValueCritical {
+  color: var(--danger);
+}
+
+/* footer 也走 mono — 与 web TodayBriefCard 一致 */
+.statFooter {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-4);
+  letter-spacing: 0.04em;
+  margin-top: 4rpx;
+}
+
+/* items list — 可点深链 row */
+.itemsList {
+  margin-top: 24rpx;
+  padding-top: 8rpx;
+  border-top: 1rpx solid var(--bd);
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid var(--bd);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.itemLink:active {
+  filter: brightness(0.96);
+}
+
+.itemIcon {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: var(--ac-bg);
+  color: var(--ac);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tone_warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.tone_danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.tone_success {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.itemText {
+  flex: 1;
+  font-size: 26rpx;
+  color: var(--fg);
+  line-height: 1.5;
+  min-width: 0;
+}
+
+.itemNum {
+  font-weight: 700;
+  margin: 0 4rpx;
+  color: var(--fg);
+}
+
+.numTone_warn { color: var(--warn); }
+.numTone_danger { color: var(--danger); }
+.numTone_success { color: var(--ok); }
+
+.itemTrail {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  color: var(--ac-deep);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+/* ── 5. AI 观察员（staff only）──────────────────── */
+.observerList {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin: 0 24rpx;
+}
+
+.observerCard {
+  background: var(--bg-2);
+  border-radius: var(--r);
+  padding: 24rpx 24rpx;
+  box-shadow: var(--sh-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+/* 第一条用实色蓝突出（视觉锚点） */
+.observerCardLead {
+  background: var(--ac);
+  box-shadow: var(--sh-accent);
+}
+
+.observerHead {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.observerSeverity {
+  font-size: 22rpx;
+  font-weight: 600;
+  padding: 4rpx 14rpx;
+  border-radius: var(--r-pill);
+}
+
+.sev_critical {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.sev_warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.sev_info {
+  background: var(--ac-bg);
+  color: var(--ac-deep);
+}
+
+/* 主推卡上 severity 走半透明白底 */
+.observerCardLead .observerSeverity {
+  background: rgba(255,255,255,0.22);
+  color: #ffffff;
+}
+
+.observerCategory {
+  font-size: 22rpx;
+  color: var(--fg-4);
+}
+
+.observerCardLead .observerCategory {
+  color: rgba(255,255,255,0.66);
+}
+
+.observerTitle {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.observerTitleLead {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.observerBody {
+  font-size: 26rpx;
+  color: var(--fg-3);
+  line-height: 1.55;
+}
+
+.observerBodyLead {
+  font-size: 26rpx;
+  color: rgba(255,255,255,0.84);
+  line-height: 1.55;
+}
+
+.observerSuggest {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  padding: 12rpx 14rpx;
+  background: var(--ac-bg);
+  border-radius: var(--r-sm);
+  margin-top: 4rpx;
+}
+
+.observerCardLead .observerSuggest {
+  background: rgba(255,255,255,0.16);
+}
+
+.observerSuggestLabel {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  font-weight: 600;
+  color: var(--ac-deep);
+  letter-spacing: -0.005em;
+  padding-top: 2rpx;
+}
+
+.observerCardLead .observerSuggestLabel {
+  color: #ffffff;
+}
+
+.observerSuggestText {
+  flex: 1;
+  font-size: 24rpx;
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+
+.observerSuggestTextLead {
+  flex: 1;
+  font-size: 24rpx;
+  color: #ffffff;
+  line-height: 1.5;
+}
+
+.observerEmpty {
+  margin: 0 24rpx;
+  padding: 40rpx 32rpx;
+  background: var(--bg-2);
+  border-radius: var(--r);
+  box-shadow: var(--sh-sm);
+  text-align: center;
+}
+
+.observerEmptyText {
+  font-size: 24rpx;
+  color: var(--fg-4);
+  line-height: 1.5;
+}
+
+/* ── 学生：近 5 条请假记录 ─────────────────────────── */
+.leaveList {
+  margin: 0 24rpx 32rpx;
+  background: var(--bg-2);
+  border-radius: var(--r);
+  box-shadow: var(--sh-sm);
+  padding: 8rpx 24rpx;
+}
+
+.leaveRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--bd);
+}
+
+.leaveRow:last-child {
+  border-bottom: none;
+}
+
+.leaveRow:active {
+  filter: brightness(0.96);
+}
+
+.leaveMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  min-width: 0;
+}
+
+.leaveTitle {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+.leaveDays {
+  color: var(--fg-3);
+  font-weight: 500;
+}
+
+.leaveDate {
+  font-size: 22rpx;
+  color: var(--fg-4);
+}
+
+.leaveStatus {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  padding: 4rpx 14rpx;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+}
+
+.leaveStatus_pending {
+  background: var(--ac-bg);
+  color: var(--ac-deep);
+}
+
+.leaveStatus_ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.leaveStatus_danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.leaveStatus_warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.leaveStatus_muted {
+  background: rgba(0,0,0,0.06);
+  color: var(--fg-3);
+}

@@ -1,0 +1,120 @@
+.page {
+  max-width: 1200px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.filterBar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.tableCard {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+
+.severityTag {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  border: 1px solid;
+}
+
+.statusTag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.actionLink {
+  background: none;
+  border: none;
+  color: var(--ac);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  transition: color 0.15s var(--ease);
+}
+
+.actionLink:hover {
+  color: var(--ac-hi, var(--ac));
+}
+
+.actionLink:disabled {
+  color: var(--fg-4);
+  cursor: not-allowed;
+}
+
+.drawerBody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-bottom: 4px;
+}
+
+.fieldValue {
+  font-size: 14px;
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+.triggerJson {
+  background: var(--bg-3);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-md);
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.eventList {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--fg-2);
+  line-height: 1.9;
+}
+
+.eventList li {
+  list-style: disc;
+}
+
+.drawerActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--bd);
+}

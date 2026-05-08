@@ -1,9 +1,218 @@
-/* Import mini program design tokens */
+/* mini-app design tokens — 「朝夕」对齐 web。
+ *
+ * 核心调性（见 `packages/design-tokens/src/web.css` + `theme/global.css`）：
+ *   · Indigo `#6366f1` 主色 + Cyan `#0891b2` 二级强调
+ *   · Slate 5 级灰阶（带蓝调，比中性灰更"工业"）
+ *   · 小圆角（16rpx 主卡，比之前 28rpx 显著紧凑）
+ *   · 极浅多层阴影 + 1rpx 边 — 立体感来自描边而非投影
+ *   · Page 背景叠 ambient 双色 blob + dot grid，让纯白底"不空"
+ *   · 所有 label 走 mono uppercase letter-spaced — dashboard 工业感的标志
+ *   · 所有数字走 mono + tnum
+ */
 
-/* Base styles */
 page {
-  font-family: 'Geist', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: #f5f3ff;
-  color: #1e1b4b;
+  /* ── Surfaces ─────────────────────────────────────── */
+  --bg-0: #eceff4;
+  --bg-1: #f6f7fa;          /* page 底色 */
+  --bg-2: #ffffff;          /* card 主底 */
+  --bg-2-strong: #ffffff;
+  --bg-3: #f1f3f7;          /* input / inner card / KPI inner */
+  --bg-4: #e6e9f0;          /* chip 边底 / 三级 surface */
+
+  /* ── Borders（rgba 而非纯灰，与文字色同源 slate） ── */
+  --bd:        rgba(15,23,42,0.06);
+  --bd-2:      rgba(15,23,42,0.09);
+  --bd-3:      rgba(15,23,42,0.14);
+  --separator: rgba(15,23,42,0.06);
+  --separator-strong: rgba(15,23,42,0.10);
+
+  /* ── Text — slate 色谱 5 级 ─────────────────────── */
+  --fg:   #0f172a;
+  --fg-2: #334155;
+  --fg-3: #64748b;
+  --fg-4: #94a3b8;
+  --fg-5: #cbd5e1;
+
+  /* ── Accent — Indigo (web 同色) ─────────────────── */
+  --ac:        #6366f1;
+  --ac-hi:     #4f46e5;
+  --ac-lo:     #818cf8;
+  --ac-deep:   #4338ca;
+  --ac-bg:     rgba(99,102,241,0.07);
+  --ac-bg-2:   rgba(99,102,241,0.13);
+  --ac-ring:   rgba(99,102,241,0.28);
+  --ac-glow:   rgba(99,102,241,0.30);
+
+  /* ── Cyan — secondary（quick action / 知识问答用）── */
+  --cy:        #0891b2;
+  --cy-hi:     #0e7490;
+  --cy-bg:     rgba(8,145,178,0.09);
+  --cy-ring:   rgba(8,145,178,0.25);
+
+  /* ── Status（精确对齐 web）─────────────────────── */
+  --ok:        #059669;
+  --ok-bg:     rgba(5,150,105,0.08);
+  --ok-ring:   rgba(5,150,105,0.25);
+  --warn:      #b45309;     /* 棕橙，不是亮橙；web 选这个色为了印刷感 */
+  --warn-bg:   rgba(217,119,6,0.10);
+  --warn-ring: rgba(217,119,6,0.28);
+  --danger:    #dc2626;
+  --danger-bg: rgba(220,38,38,0.08);
+  --danger-ring: rgba(220,38,38,0.25);
+
+  /* ── Shadows — 极浅多层 + 内嵌 1rpx "假 border" ────
+   *  把 1rpx ring 作为阴影第一层，任何用 var(--sh-sm) 的卡都自动获得
+   *  描边感（web 的 1px solid border + drop shadow 双件套效果），不用
+   *  每个 selector 都加 border。card 已显式声明 border 时会叠加但不脏。 */
+  --sh-xs:
+    0 0 0 1rpx var(--bd),
+    0 1rpx 0 rgba(15,23,42,0.03);
+  --sh-sm:
+    0 0 0 1rpx var(--bd),
+    0 1rpx 2rpx rgba(15,23,42,0.05),
+    0 1rpx 0 rgba(15,23,42,0.02);
+  --sh:
+    0 0 0 1rpx var(--bd),
+    0 2rpx 4rpx rgba(15,23,42,0.05),
+    0 1rpx 2rpx rgba(15,23,42,0.03);
+  --sh-md:
+    0 0 0 1rpx var(--bd),
+    0 6rpx 16rpx -4rpx rgba(15,23,42,0.08),
+    0 2rpx 4rpx rgba(15,23,42,0.04);
+  --sh-lg:
+    0 0 0 1rpx var(--bd),
+    0 14rpx 36rpx -10rpx rgba(15,23,42,0.14),
+    0 4rpx 10rpx rgba(15,23,42,0.04);
+
+  /* 主推蓝卡（实色 indigo）专用阴影 */
+  --sh-accent:
+    0 14rpx 32rpx rgba(99,102,241,0.28),
+    0 4rpx 12rpx rgba(99,102,241,0.14);
+
+  /* ── Radii — 小圆角（web 风）─────────────────── */
+  --r-xs: 4rpx;
+  --r-sm: 12rpx;
+  --r:    16rpx;
+  --r-lg: 20rpx;
+  --r-xl: 28rpx;
+  --r-pill: 9999rpx;
+
+  /* ── Type stack ─────────────────────────────────── */
+  --font-body:    -apple-system, 'PingFang SC', 'Inter', sans-serif;
+  --font-display: -apple-system, 'PingFang SC', 'Inter Tight', sans-serif;
+  --font-mono:    'SF Mono', 'JetBrains Mono', 'Roboto Mono', Menlo, monospace;
+
+  --tap-min: 88rpx;
+
+  font-family: var(--font-body);
+  font-feature-settings: 'tnum', 'lnum', 'kern';
+  letter-spacing: -0.005em;
+  background: var(--bg-1);
+  color: var(--fg);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Ambient 双色 radial blob（右上 indigo 10% + 左下 cyan 8%）
+     +
+     Dot grid 48rpx 网格点
+     —— 与 web body::before / body::after 对应，让纯白底"不空"，
+     固定不滚动用 background-attachment: fixed 不行（小程序不支持），
+     直接挂 page 即可（page 自身就是视口） */
+  background-image:
+    radial-gradient(ellipse 1800rpx 1200rpx at 88% -10%, rgba(99,102,241,0.10), transparent 55%),
+    radial-gradient(ellipse 1200rpx 1000rpx at 8% 110%, rgba(8,145,178,0.08), transparent 55%),
+    radial-gradient(rgba(15,23,42,0.05) 1rpx, transparent 1rpx);
+  background-size: auto, auto, 48rpx 48rpx;
+  background-position: 0 0, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, repeat;
+}
+
+/* ============================================================
+ * 工具类 — 全 mini 复用
+ * ============================================================ */
+
+/* Display 大字标题 — 紧字距 + 600 weight */
+.display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+/* 数字 — mono + tabular-nums，所有 KPI / 计数 / 日期都套这个 */
+.num {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum', 'lnum';
+  font-variant-numeric: tabular-nums;
+}
+
+/* Label vibe — mono uppercase letter-spaced
+ * web 的 dashboard 工业感标志：所有 KPI label / section label / stat label 都套它
+ * (mini 端汉字 uppercase 无意义，但 mono + letter-spacing 仍然奏效；
+ *  英文 label 会显得规整) */
+.label {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  font-weight: 500;
+  color: var(--fg-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tap-min {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 通用主卡 — 白底 + 1rpx 边 + 极浅阴影。立体感主要靠描边。 */
+.card {
+  background: var(--bg-2);
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r);
+  box-shadow: var(--sh-xs);
+}
+
+/* 主推卡 — 实色 indigo */
+.card-accent {
+  background: var(--ac);
+  color: #ffffff;
+  border-radius: var(--r);
+  box-shadow: var(--sh-accent);
+}
+
+/* Pill 按钮 */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14rpx 32rpx;
+  border-radius: var(--r-pill);
+  font-size: 26rpx;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.pill-primary {
+  background: var(--ac);
+  color: #ffffff;
+  box-shadow: 0 4rpx 12rpx var(--ac-glow);
+}
+
+.pill-primary:active {
+  background: var(--ac-hi);
+  transform: scale(0.97);
+}
+
+.pill-glass {
+  background: var(--bg-2);
+  color: var(--fg);
+  border: 1rpx solid var(--bd);
+}
+
+.pill-glass:active {
+  background: var(--bg-3);
+  transform: scale(0.97);
 }

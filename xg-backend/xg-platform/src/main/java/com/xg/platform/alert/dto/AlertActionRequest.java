@@ -7,4 +7,6 @@ import lombok.Setter;
 @Setter
 public class AlertActionRequest {
     private String note;
+    /** Days to mute starting now. Used only by the /mute endpoint. */
+    private Integer days;
 }

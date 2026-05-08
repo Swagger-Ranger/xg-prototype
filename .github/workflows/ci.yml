@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  java-tests:
+    name: Java unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      # setup-gradle handles gradle home + wrapper caching automatically
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Run xg-business tests
+        working-directory: xg-backend
+        run: ./gradlew :xg-business:test --no-daemon
+
+  python-tests:
+    name: Python (xg-ai) tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip          # builtin pip cache
+      - name: Install dev deps
+        working-directory: xg-ai
+        run: pip install pytest pytest-asyncio httpx pydantic pydantic-settings fastapi
+      - name: Run pytest
+        working-directory: xg-ai
+        run: python -m pytest tests/ -v
+
+  web-typecheck:
+    name: Web TypeScript check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm        # builtin pnpm-store cache; needs pnpm setup before node
+          cache-dependency-path: xg-frontend/pnpm-lock.yaml
+      - name: Install
+        working-directory: xg-frontend
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck web
+        working-directory: xg-frontend/apps/web
+        run: pnpm exec tsc --noEmit
+      - name: Vitest web
+        working-directory: xg-frontend/apps/web
+        run: pnpm test
+      - name: Typecheck mini
+        working-directory: xg-frontend/apps/mini
+        run: pnpm exec tsc --noEmit

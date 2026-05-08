@@ -8,6 +8,7 @@ export const LEAVE_STATUS_LABELS: Record<LeaveStatus, string> = {
   rejected: '已驳回',
   cancelled: '已撤销',
   cancel_pending: '销假审批中',
+  pending_manual_return: '人工销假待审',
 };
 
 export const LEAVE_STATUS_COLORS: Record<LeaveStatus, string> = {
@@ -17,6 +18,7 @@ export const LEAVE_STATUS_COLORS: Record<LeaveStatus, string> = {
   rejected: '#dc2626',
   cancelled: '#94a3b8',
   cancel_pending: '#b45309',
+  pending_manual_return: '#d97706',
 };
 
 export const WORKFLOW_STATUS_LABELS: Record<WorkflowStatus, string> = {

@@ -1,0 +1,158 @@
+/* 通知 — Apple 玻璃感 × Feed archetype */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 240rpx;
+}
+
+.hero {
+  padding: 56rpx 32rpx 24rpx;
+}
+
+.heroTitle {
+  display: block;
+  font-size: 64rpx;
+  color: var(--fg);
+}
+
+.heroSubtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+  margin-top: 12rpx;
+}
+
+.list {
+  padding: 0 24rpx;
+}
+
+.card {
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r);
+  padding: 24rpx 28rpx;
+  margin-bottom: 14rpx;
+  box-shadow:
+    0 4rpx 12rpx rgba(15,20,33,0.05);
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+
+.card:active {
+  transform: scale(0.992);
+  filter: brightness(0.98);
+}
+
+.cardUnread {
+  background: #ffffff;
+  border-color: var(--ac);
+  box-shadow:
+    0 4rpx 14rpx var(--ac-bg);
+}
+
+.cardRead {
+  opacity: 0.85;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12rpx;
+  margin-bottom: 10rpx;
+}
+
+.titleWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
+}
+
+.unreadDot {
+  flex-shrink: 0;
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: var(--ac);
+  box-shadow: 0 0 0 4rpx var(--ac-bg-2);
+}
+
+.cardTitle {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.cardRead .cardTitle {
+  font-weight: 500;
+  color: var(--fg-2);
+}
+
+.levelPill {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  padding: 4rpx 14rpx;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+}
+
+.level_important {
+  background: var(--warn-bg);
+  color: #b56e00;
+}
+
+.level_urgent {
+  background: var(--danger-bg);
+  color: #c4322a;
+}
+
+.cardBody {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 26rpx;
+  color: var(--fg-2);
+  line-height: 1.55;
+  margin-bottom: 12rpx;
+}
+
+.cardRead .cardBody {
+  color: var(--fg-3);
+}
+
+.cardFoot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.timeText {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-4);
+  letter-spacing: 0.04em;
+}
+
+.openLink {
+  font-size: 24rpx;
+  color: var(--ac-deep);
+  font-weight: 500;
+}
+
+.empty {
+  text-align: center;
+  padding: 96rpx 32rpx;
+  color: var(--fg-4);
+  font-size: 26rpx;
+}

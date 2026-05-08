@@ -3,15 +3,19 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  RobotOutlined, SendOutlined, CheckCircleOutlined, EditOutlined, FormOutlined,
+  SendOutlined, CheckCircleOutlined, FormOutlined,
   CalendarOutlined, FileTextOutlined, CheckSquareOutlined, QuestionCircleOutlined,
   CompassOutlined, BulbOutlined, RightOutlined, BookOutlined, PushpinOutlined, CloseOutlined,
+  PlusOutlined, ToolOutlined,
 } from '@ant-design/icons';
+import { useQueryClient } from '@tanstack/react-query';
+import AssistantAvatar, { useAssistantPersona } from '@/components/brand/AssistantAvatar';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import { useBatchActionStore } from '@/stores/batch-action.store';
 import { useLocaleStore } from '@/stores/locale.store';
 import { useAuth } from '@/hooks/useAuth';
 import BatchActionDrawer from '@/components/batch/BatchActionDrawer';
+import api from '@/api';
 import styles from './AIPanel.module.css';
 
 /* ── Message types ── */
@@ -37,12 +41,6 @@ interface CardMessage {
   card: {
     type: string;
     fields: { label: string; value: string }[];
-    buttons: { label: string; action: string; data?: Record<string, unknown> }[];
-    /** Set after the user clicks any button — locks the card so the action
-     *  isn't dispatched twice if the user clicks again. */
-    consumed?: boolean;
-    /** Last action the user took on this card, for the inline status text. */
-    lastAction?: string;
   };
 }
 
@@ -54,7 +52,50 @@ interface EventMessage {
   icon: 'success' | 'info';
 }
 
-type Message = TextMessage | CardMessage | EventMessage;
+/**
+ * 工作流配置改动建议卡。LLM 在 /chat 里 emit propose_workflow_config_change
+ * action,AIPanel 调 sidecar /workflow-config/propose 计算 new_yaml,落到这种
+ * message 里展示中文 diff + 「确认应用」按钮。零 YAML 暴露。
+ */
+interface WorkflowProposalMessage {
+  id: string;
+  role: 'assistant';
+  kind: 'workflow_proposal';
+  /** 老师的原始指令(展示用) */
+  instruction: string;
+  /** 业务类型,sidecar /apply 时透传 */
+  biz_type: string;
+  college_id: number | null;
+  /** 中文 diff bullet 列表 */
+  diff_zh: string;
+  /** 简短摘要,落到 changelog */
+  change_summary: string;
+  /** LLM 给老师的旁白(影响提示等) */
+  ai_message: string;
+  /** 后端 apply 用的完整 YAML 文本(老师不可见) */
+  new_yaml: string;
+  /** 状态:pending=未点确认,applying=正在写库,applied=已成功,cancelled=取消 */
+  status: 'pending' | 'applying' | 'applied' | 'cancelled' | 'failed';
+  /** 失败时的错误文本 */
+  error?: string;
+}
+
+interface NotificationProposalMessage {
+  id: string;
+  role: 'assistant';
+  kind: 'notification_proposal';
+  instruction: string;
+  /** 中文 diff bullet 列表 */
+  diff_zh: string;
+  /** LLM 给老师的旁白 */
+  ai_message: string;
+  /** apply 时 POST 给 backend 的 op pipeline */
+  ops: unknown[];
+  status: 'pending' | 'applying' | 'applied' | 'cancelled' | 'failed';
+  error?: string;
+}
+
+type Message = TextMessage | CardMessage | EventMessage | WorkflowProposalMessage | NotificationProposalMessage;
 
 /* ── Helpers ── */
 
@@ -141,6 +182,7 @@ export default function AIPanel() {
   const location = useLocation();
 
   const { user, isStudent, hasPermission } = useAuth();
+  const persona = useAssistantPersona();
 
   const dispatchAction = useAIActionStore((s) => s.dispatch);
   const panelContext = useAIActionStore((s) => s.panelContext);
@@ -155,7 +197,256 @@ export default function AIPanel() {
   const consumeInputSeed = useAIActionStore((s) => s.consumeInputSeed);
   const setHoveredRef = useAIActionStore((s) => s.setHoveredRef);
   const batchOpen = useBatchActionStore((s) => s.open);
+  const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * 跑 workflow 配置改动建议:调 sidecar /propose 拿到 new_yaml + diff_zh,
+   * 落成 workflow_proposal 卡片让老师确认。
+   */
+  async function runWorkflowProposal(bizType: string, collegeId: number | null, instruction: string) {
+    const loadingId = (Date.now() + 2).toString();
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: loadingId,
+        role: 'assistant',
+        kind: 'event',
+        icon: 'info',
+        content: 'AI 正在分析改动…',
+      },
+    ]);
+    try {
+      const token = localStorage.getItem('xg_token');
+      const tenantId = user?.tenant_id || 'default';
+      const userId = user?.id ? String(user.id) : '';
+      const res = await fetch('/ai/api/v1/workflow-config/propose', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-User-Id': userId,
+          'X-Tenant-Id': tenantId,
+          'X-User-Role': user?.role_codes?.[0] || 'school_admin',
+        },
+        body: JSON.stringify({
+          biz_type: bizType,
+          college_id: collegeId,
+          instruction,
+        }),
+      });
+      const data = await res.json();
+      // remove loading
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      if (!data.ok) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 3).toString(),
+            role: 'assistant',
+            kind: 'text',
+            content: data.ai_message || `分析失败:${data.error_code || 'UNKNOWN'}`,
+          },
+        ]);
+        return;
+      }
+      // set_term_cap 之类「直接落库不需要二次确认」的 op,sidecar 已经写了
+      // backend,new_yaml=null。这种情况下不渲染确认卡,直接显示 ai_message,
+      // 顺便刷一下假别字典让请销假配置页的学期上限实时跟新。
+      if (!data.new_yaml) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 3).toString(),
+            role: 'assistant',
+            kind: 'text',
+            content: data.ai_message || '✓ 已应用',
+          },
+        ]);
+        queryClient.invalidateQueries({ queryKey: ['leaveTypes'] });
+        setTimeout(scrollToBottom, 50);
+        return;
+      }
+      const proposal: WorkflowProposalMessage = {
+        id: (Date.now() + 3).toString(),
+        role: 'assistant',
+        kind: 'workflow_proposal',
+        instruction,
+        biz_type: bizType,
+        college_id: collegeId,
+        diff_zh: data.diff_zh,
+        change_summary: data.change_summary,
+        ai_message: data.ai_message,
+        new_yaml: data.new_yaml,
+        status: 'pending',
+      };
+      setMessages((prev) => [...prev, proposal]);
+      setTimeout(scrollToBottom, 50);
+    } catch (e) {
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 4).toString(),
+          role: 'assistant',
+          kind: 'text',
+          content: `AI 服务连接失败:${e instanceof Error ? e.message : String(e)}`,
+        },
+      ]);
+    }
+  }
+
+  /** 老师点「确认应用」:调 backend POST /workflow-config/apply 写库 + 刷新页面查询。 */
+  async function applyWorkflowProposal(msgId: string) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.kind === 'workflow_proposal' ? { ...m, status: 'applying' } : m,
+      ),
+    );
+    const target = messages.find((m): m is WorkflowProposalMessage =>
+      m.id === msgId && m.kind === 'workflow_proposal');
+    if (!target) return;
+    try {
+      await api.post('/workflow-config/apply', {
+        biz_type: target.biz_type,
+        college_id: target.college_id,
+        new_yaml: target.new_yaml,
+        change_summary: target.change_summary,
+      });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId && m.kind === 'workflow_proposal' ? { ...m, status: 'applied' } : m,
+        ),
+      );
+      // 刷新「请销假配置」页摘要
+      queryClient.invalidateQueries({ queryKey: ['workflow-config.summary'] });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId && m.kind === 'workflow_proposal'
+            ? { ...m, status: 'failed', error: msg }
+            : m,
+        ),
+      );
+    }
+  }
+
+  function cancelWorkflowProposal(msgId: string) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.kind === 'workflow_proposal' ? { ...m, status: 'cancelled' } : m,
+      ),
+    );
+  }
+
+  /**
+   * 通知中心改动建议:调 sidecar /notification-config/propose 拿到 ops + diff,
+   * 落成 notification_proposal 卡片。结构跟 workflow_proposal 相似但 op 模型
+   * 不同(无 yaml,直接 op 数组)。
+   */
+  async function runNotificationProposal(instruction: string) {
+    const loadingId = (Date.now() + 2).toString();
+    setMessages((prev) => [
+      ...prev,
+      { id: loadingId, role: 'assistant', kind: 'event', icon: 'info', content: 'AI 正在分析改动…' },
+    ]);
+    try {
+      const token = localStorage.getItem('xg_token');
+      const tenantId = user?.tenant_id || 'default';
+      const userId = user?.id ? String(user.id) : '';
+      const res = await fetch('/ai/api/v1/notification-config/propose', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-User-Id': userId,
+          'X-Tenant-Id': tenantId,
+          'X-User-Role': user?.role_codes?.[0] || 'school_admin',
+        },
+        body: JSON.stringify({ instruction }),
+      });
+      const data = await res.json();
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      if (!data.ok) {
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 3).toString(), role: 'assistant', kind: 'text',
+            content: data.ai_message || `分析失败:${data.error_code || 'UNKNOWN'}` },
+        ]);
+        return;
+      }
+      // ops 空 = LLM 反问 / 找不到匹配模板,只显示 ai_message,不渲染确认卡
+      if (!Array.isArray(data.ops) || data.ops.length === 0) {
+        setMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 3).toString(), role: 'assistant', kind: 'text',
+            content: data.ai_message || '请告诉我具体想改哪条通知。' },
+        ]);
+        setTimeout(scrollToBottom, 50);
+        return;
+      }
+      const proposal: NotificationProposalMessage = {
+        id: (Date.now() + 3).toString(),
+        role: 'assistant',
+        kind: 'notification_proposal',
+        instruction,
+        diff_zh: data.diff_zh || '',
+        ai_message: data.ai_message || '',
+        ops: data.ops,
+        status: 'pending',
+      };
+      setMessages((prev) => [...prev, proposal]);
+      setTimeout(scrollToBottom, 50);
+    } catch (e) {
+      setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 4).toString(), role: 'assistant', kind: 'text',
+          content: `AI 服务连接失败:${e instanceof Error ? e.message : String(e)}` },
+      ]);
+    }
+  }
+
+  /** 老师点「确认应用」:POST backend /notification-center/apply-ops 写库 + 刷新本页查询。 */
+  async function applyNotificationProposal(msgId: string) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.kind === 'notification_proposal' ? { ...m, status: 'applying' } : m,
+      ),
+    );
+    const target = messages.find((m): m is NotificationProposalMessage =>
+      m.id === msgId && m.kind === 'notification_proposal');
+    if (!target) return;
+    try {
+      await api.post('/notification-center/apply-ops', { ops: target.ops });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId && m.kind === 'notification_proposal' ? { ...m, status: 'applied' } : m,
+        ),
+      );
+      // 刷新通知中心页的查询
+      queryClient.invalidateQueries({ queryKey: ['notifTemplates'] });
+      queryClient.invalidateQueries({ queryKey: ['notifPreferences'] });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId && m.kind === 'notification_proposal'
+            ? { ...m, status: 'failed', error: msg }
+            : m,
+        ),
+      );
+    }
+  }
+
+  function cancelNotificationProposal(msgId: string) {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.kind === 'notification_proposal' ? { ...m, status: 'cancelled' } : m,
+      ),
+    );
+  }
 
   // Track current page from URL
   useEffect(() => {
@@ -283,10 +574,9 @@ export default function AIPanel() {
               { label: '假别', value: LEAVE_TYPE_LABELS[d.leave_type] || d.leave_type || '待选择' },
               { label: '日期', value: d.start_date ? `${d.start_date}${d.end_date && d.end_date !== d.start_date ? ' ~ ' + d.end_date : ''}` : '待选择' },
               { label: '事由', value: d.reason || '待填写' },
-            ],
-            buttons: [
-              { label: '去修改', action: 'open_form', data: d },
-              { label: '直接提交', action: 'submit_leave', data: d },
+              ...(d.reason_category
+                ? [{ label: '事由分类', value: String(d.reason_category) }]
+                : []),
             ],
           },
         };
@@ -315,6 +605,28 @@ export default function AIPanel() {
             // isn't already, then dispatch so the page applies the filters.
             if (!location.pathname.startsWith('/student')) navigate('/student');
             setTimeout(() => dispatchAction(type, actionData), 100);
+          } else if (type === 'propose_notification_config_change') {
+            // 校管理员改通知中心规则 — 调 sidecar /notification-config/propose 算 op,
+            // 落成 notification_proposal 卡片让老师确认。
+            // 同时导航到「通知」配置页方便看 diff 后的现状。
+            if (!location.pathname.startsWith('/system')) {
+              navigate('/system?tab=notif');
+            }
+            void runNotificationProposal(String(actionData.instruction || msgText));
+          } else if (type === 'propose_workflow_config_change') {
+            // 校管理员改请假/销假规则 — 调 sidecar /propose 计算 new_yaml,
+            // 落成 workflow_proposal 卡片让老师确认。
+            // 同时导航到「请销假配置」页让老师在上下文中看到当前规则,
+            // 应用后页面自动 invalidate 刷新。biz_type 通过 URL tab 参数传给页面。
+            const tab = String(actionData.biz_type) === 'leave_return' ? 'leave_return' : 'leave';
+            if (location.pathname !== '/leave-config') {
+              navigate(`/leave-config?tab=${tab}`);
+            }
+            void runWorkflowProposal(
+              String(actionData.biz_type),
+              actionData.college_id != null ? Number(actionData.college_id) : null,
+              String(actionData.instruction || msgText),
+            );
           } else {
             if (type === 'open_checkin_form') navigate('/checkin');
             else if (type === 'open_collection_form') navigate('/collection');
@@ -334,25 +646,6 @@ export default function AIPanel() {
     }
   };
 
-  const handleCardButton = (msgId: string, action: string, data?: Record<string, unknown>) => {
-    // Lock the card immediately so a double-click doesn't fire the action twice
-    // (especially "直接提交" which would create duplicate leave_request rows).
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === msgId && m.kind === 'action_card'
-          ? { ...m, card: { ...m.card, consumed: true, lastAction: action } }
-          : m,
-      ),
-    );
-    if (action === 'open_form') {
-      navigate('/leave');
-      setTimeout(() => dispatchAction('open_leave_form', data), 100);
-    } else if (action === 'submit_leave') {
-      dispatchAction('submit_leave_directly', data);
-      navigate('/leave');
-    }
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -368,6 +661,165 @@ export default function AIPanel() {
         <div key={msg.id} className={styles.eventMsg}>
           <CheckCircleOutlined className={styles.eventIcon} />
           <span>{msg.content}</span>
+        </div>
+      );
+    }
+
+    if (msg.kind === 'workflow_proposal') {
+      const m = msg;
+      const titleByBiz: Record<string, string> = {
+        leave: '请假规则改动',
+        leave_return: '销假规则改动',
+      };
+      return (
+        <div key={m.id} className={`${styles.msg} ${styles.assistant}`}>
+          <div className={styles.msgBubble}>
+            <div className={styles.markdown}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.ai_message || ''}</ReactMarkdown>
+            </div>
+          </div>
+          <div className={styles.actionCard} style={{ borderColor: '#a78bfa' }}>
+            <div className={styles.cardTitle}>
+              <ToolOutlined className={styles.cardTitleIcon} />
+              <span>{titleByBiz[m.biz_type] || '配置改动'}</span>
+              <span className={styles.cardTitleDot} />
+            </div>
+            <div style={{ padding: '8px 12px 4px', fontSize: 12, color: 'var(--fg-3)' }}>
+              老师指令:{m.instruction}
+            </div>
+            <div style={{ padding: '4px 12px 12px', fontSize: 13, lineHeight: 1.7 }}>
+              <div className={styles.markdown}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.diff_zh}</ReactMarkdown>
+              </div>
+            </div>
+            {m.status === 'pending' && (
+              <div style={{ display: 'flex', gap: 8, padding: '0 12px 12px' }}>
+                <button
+                  className={styles.confirmBtn ?? ''}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    border: 'none',
+                    borderRadius: 6,
+                    background: '#1677ff',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                  onClick={() => applyWorkflowProposal(m.id)}
+                >
+                  确认应用
+                </button>
+                <button
+                  style={{
+                    padding: '8px 16px',
+                    border: '1px solid var(--bd-2, #e5e7eb)',
+                    borderRadius: 6,
+                    background: '#fff',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => cancelWorkflowProposal(m.id)}
+                >
+                  取消
+                </button>
+              </div>
+            )}
+            {m.status === 'applying' && (
+              <div style={{ padding: '0 12px 12px', fontSize: 12, color: 'var(--fg-3)' }}>
+                正在应用…
+              </div>
+            )}
+            {m.status === 'applied' && (
+              <div style={{
+                padding: '8px 12px',
+                margin: '0 12px 12px',
+                background: '#f0fdf4',
+                color: '#166534',
+                borderRadius: 6,
+                fontSize: 13,
+              }}>
+                ✅ 已应用,请销假配置页已自动刷新到新版本。
+              </div>
+            )}
+            {m.status === 'cancelled' && (
+              <div style={{ padding: '0 12px 12px', fontSize: 12, color: 'var(--fg-3)' }}>
+                已取消,未应用任何改动。
+              </div>
+            )}
+            {m.status === 'failed' && (
+              <div style={{
+                padding: '8px 12px',
+                margin: '0 12px 12px',
+                background: '#fef2f2',
+                color: '#b91c1c',
+                borderRadius: 6,
+                fontSize: 13,
+              }}>
+                ❌ 应用失败:{m.error}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (msg.kind === 'notification_proposal') {
+      const m = msg;
+      return (
+        <div key={m.id} className={`${styles.msg} ${styles.assistant}`}>
+          <div className={styles.msgBubble}>
+            <div className={styles.markdown}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.ai_message || ''}</ReactMarkdown>
+            </div>
+          </div>
+          <div className={styles.actionCard} style={{ borderColor: '#a78bfa' }}>
+            <div className={styles.cardTitle}>
+              <ToolOutlined className={styles.cardTitleIcon} />
+              <span>通知规则改动</span>
+              <span className={styles.cardTitleDot} />
+            </div>
+            <div style={{ padding: '8px 12px 4px', fontSize: 12, color: 'var(--fg-3)' }}>
+              老师指令:{m.instruction}
+            </div>
+            <div style={{ padding: '4px 12px 12px', fontSize: 13, lineHeight: 1.7 }}>
+              <div className={styles.markdown}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.diff_zh}</ReactMarkdown>
+              </div>
+            </div>
+            {m.status === 'pending' && (
+              <div style={{ display: 'flex', gap: 8, padding: '0 12px 12px' }}>
+                <button
+                  className={styles.confirmBtn ?? ''}
+                  style={{ flex: 1, padding: '8px', border: 'none', borderRadius: 6, background: '#1677ff', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                  onClick={() => applyNotificationProposal(m.id)}
+                >
+                  确认应用
+                </button>
+                <button
+                  style={{ padding: '8px 16px', border: '1px solid var(--bd-2, #e5e7eb)', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
+                  onClick={() => cancelNotificationProposal(m.id)}
+                >
+                  取消
+                </button>
+              </div>
+            )}
+            {m.status === 'applying' && (
+              <div style={{ padding: '0 12px 12px', fontSize: 12, color: 'var(--fg-3)' }}>正在应用…</div>
+            )}
+            {m.status === 'applied' && (
+              <div style={{ padding: '8px 12px', margin: '0 12px 12px', background: '#f0fdf4', color: '#166534', borderRadius: 6, fontSize: 13 }}>
+                已应用,通知中心已自动刷新。
+              </div>
+            )}
+            {m.status === 'cancelled' && (
+              <div style={{ padding: '0 12px 12px', fontSize: 12, color: 'var(--fg-3)' }}>已取消,未应用任何改动。</div>
+            )}
+            {m.status === 'failed' && (
+              <div style={{ padding: '8px 12px', margin: '0 12px 12px', background: '#fef2f2', color: '#b91c1c', borderRadius: 6, fontSize: 13 }}>
+                应用失败:{m.error}
+              </div>
+            )}
+          </div>
         </div>
       );
     }
@@ -393,32 +845,6 @@ export default function AIPanel() {
                   <span className={styles.cardValue}>{f.value}</span>
                 </div>
               ))}
-            </div>
-            <div className={styles.cardButtons}>
-              {msg.card.consumed ? (
-                <span style={{
-                  fontSize: 12, color: 'var(--fg-3)',
-                  background: 'var(--bg-3)', padding: '4px 10px',
-                  borderRadius: 4,
-                }}>
-                  {msg.card.lastAction === 'submit_leave'
-                    ? '✓ 已提交申请'
-                    : msg.card.lastAction === 'open_form'
-                      ? '✓ 已打开表单（请在右侧继续）'
-                      : '✓ 已处理'}
-                </span>
-              ) : (
-                msg.card.buttons.map((btn) => (
-                <button
-                  key={btn.action}
-                  className={`${styles.cardBtn} ${btn.action === 'submit_leave' ? styles.cardBtnPrimary : ''}`}
-                  onClick={() => handleCardButton(msg.id, btn.action, btn.data)}
-                >
-                  {btn.action === 'open_form' ? <EditOutlined /> : <FormOutlined />}
-                  {btn.label}
-                </button>
-                ))
-              )}
             </div>
           </div>
         </div>
@@ -453,19 +879,23 @@ export default function AIPanel() {
 
   /* ── Context pill ── */
 
-  const currentPageLabel = PAGE_LABELS[panelContext.page] || panelContext.page;
+  // /workspace label flips to 校园 for students (their page is a school-life
+  // dashboard, not a "workspace"). Other roles keep 工作台.
+  const currentPageLabel = panelContext.page === 'workspace' && isStudent
+    ? '校园'
+    : PAGE_LABELS[panelContext.page] || panelContext.page;
 
   return (
     <div className={styles.panel}>
       {/* Header */}
       <div className={styles.header}>
         <div className={styles.headerIcon}>
-          <RobotOutlined />
+          <AssistantAvatar />
           <div className={styles.headerGlow} />
         </div>
         <div className={styles.headerText}>
           <div className={styles.headerTitle}>
-            AI 助手
+            {persona.name}
             <span className={styles.headerVersion}>v0.1</span>
           </div>
           <div className={styles.headerStatus}>
@@ -473,6 +903,20 @@ export default function AIPanel() {
             在线
           </div>
         </div>
+        {/* Reset chat → empty state grid (the "快捷问答" view). Pinned refs
+            are intentionally kept — they live independently and have their
+            own clear button down by the input. */}
+        {messages.length > 0 && (
+          <button
+            type="button"
+            className={styles.headerNewBtn}
+            title="新对话（清空当前会话，回到快捷入口）"
+            onClick={() => setMessages([])}
+          >
+            <PlusOutlined />
+            <span>新对话</span>
+          </button>
+        )}
       </div>
 
       {/* Context bar */}
@@ -486,25 +930,41 @@ export default function AIPanel() {
         {messages.length === 0 ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>
-              <RobotOutlined />
+              <AssistantAvatar />
               <div className={styles.emptyIconGlow} />
             </div>
-            <p className={styles.emptyTitle}>有什么可以帮您？</p>
-            <p className={styles.emptyHint}>我是您的智能助手，可以快速操作系统功能，也是您的校规政策知识问答入口</p>
+            <p className={styles.emptyTitle}>我是{persona.name}，能帮您做什么？</p>
+            <p className={styles.emptyHint}>朝夕的 AI 助手，可以快速操作系统功能，也是您的校规政策知识问答入口</p>
 
             <div className={styles.quickGroup}>
               <span className={styles.quickGroupLabel}>快捷操作</span>
               <div className={styles.quickGrid}>
                 {isStudent ? (
                   <>
-                    <button className={styles.quickBtn} onClick={() => handleSend('帮我请明天一天事假')}>
-                      <span className={`${styles.quickIconWrap} ${styles.accent}`}><CalendarOutlined /></span>
-                      <span className={styles.quickTextGroup}>
-                        <span className={styles.quickText}>请假申请</span>
-                        <span className={styles.quickDesc}>AI 引导填写，快速提交</span>
-                      </span>
-                      <RightOutlined className={styles.quickArrow} />
-                    </button>
+                    {/* Leave-apply card: tap header for the generic "I want to take
+                        leave" path (Xiaoxi will then ask the type / time / etc.); tap
+                        a type chip to skip straight to that flavor. Fixes the old
+                        "请明天一天事假" hardcode that always assumed personal leave. */}
+                    <div className={styles.quickCard}>
+                      <button
+                        type="button"
+                        className={styles.quickCardHeader}
+                        onClick={() => handleSend('我想请假')}
+                      >
+                        <span className={`${styles.quickIconWrap} ${styles.accent}`}><CalendarOutlined /></span>
+                        <span className={styles.quickTextGroup}>
+                          <span className={styles.quickText}>请假申请</span>
+                          <span className={styles.quickDesc}>选假别直接开始，或让{persona.name}引导</span>
+                        </span>
+                        <RightOutlined className={styles.quickArrow} />
+                      </button>
+                      <div className={styles.quickChips}>
+                        <button type="button" className={styles.chip} onClick={() => handleSend('我想请事假')}>事假</button>
+                        <button type="button" className={styles.chip} onClick={() => handleSend('我想请病假')}>病假</button>
+                        <button type="button" className={styles.chip} onClick={() => handleSend('我想请公假')}>公假</button>
+                        <button type="button" className={styles.chip} onClick={() => handleSend('我想申请周末离校')}>周末离校</button>
+                      </div>
+                    </div>
                     <button className={styles.quickBtn} onClick={() => handleSend('学生请假最多能请几天？')}>
                       <span className={`${styles.quickIconWrap} ${styles.cyan}`}><QuestionCircleOutlined /></span>
                       <span className={styles.quickTextGroup}>

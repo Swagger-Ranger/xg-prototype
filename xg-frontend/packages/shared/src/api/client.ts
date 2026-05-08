@@ -48,6 +48,13 @@ export function createApiClient(config: ClientConfig): AxiosInstance {
       if (error.response?.status === 401) {
         config.onUnauthorized();
       }
+      // BizException → HTTP 4xx with R body {code, message}. Unwrap it so
+      // callers see the localized message via err.message instead of axios'
+      // generic "Request failed with status code 400".
+      const body = error.response?.data as ApiResponse | undefined;
+      if (body && typeof body === 'object' && body.code && body.code !== 'SUCCESS') {
+        return Promise.reject(new ApiError(body.code, body.message));
+      }
       return Promise.reject(error);
     },
   );

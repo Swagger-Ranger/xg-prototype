@@ -2,7 +2,7 @@
   "miniprogramRoot": "dist/",
   "projectname": "xg1-mini",
   "description": "学工管理系统 - 微信小程序",
-  "appid": "wx0000000000000000",
+  "appid": "wx8fa5be97a2f425e7",
   "setting": {
     "urlCheck": false,
     "es6": false,
@@ -10,8 +10,33 @@
     "compileHotReLoad": false,
     "postcss": false,
     "minified": false,
-    "newFeature": true
+    "newFeature": true,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
   },
   "compileType": "miniprogram",
-  "condition": {}
+  "condition": {},
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {},
+  "libVersion": "3.15.2"
 }

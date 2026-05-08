@@ -1,0 +1,40 @@
+.moon {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.body {
+  transform-origin: 32px 32px;
+  animation: xx-breathe 4.2s ease-in-out infinite;
+}
+
+.eye {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: xx-blink 6.8s ease-in-out infinite;
+}
+
+.eyeR {
+  /* Blink the right eye a hair after the left so it reads as natural, not
+     mechanical. Same as how real eyelids close together but with a tiny
+     stagger people don't consciously notice. */
+  animation-delay: 0.04s;
+}
+
+@keyframes xx-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.025); }
+}
+
+@keyframes xx-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%           { transform: scaleY(0.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .body, .eye {
+    animation: none;
+  }
+}

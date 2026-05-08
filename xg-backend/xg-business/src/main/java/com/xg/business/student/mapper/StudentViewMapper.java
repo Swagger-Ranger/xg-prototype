@@ -81,4 +81,21 @@ public interface StudentViewMapper {
             "WHERE sp.id = #{id} AND sp.deleted_at IS NULL"
     })
     StudentView selectStudentById(@Param("id") Long id);
+
+    /**
+     * Look up the student profile by sys_user.id rather than student_profile.id.
+     * Used by the {@code /students-me} endpoint where the caller is the student
+     * themselves and only their {@code X-User-Id} header is in scope.
+     */
+    @Select({
+            "SELECT sp.id, sp.user_id, sp.student_no,",
+            "       u.real_name AS name, u.gender, sp.grade, sp.college, sp.major,",
+            "       sp.class_name, u.phone, u.email, sp.status,",
+            "       sp.education_level, sp.enrollment_date, sp.created_at,",
+            "       sp.extended_info::text AS extended_info",
+            "FROM student_profile sp",
+            "JOIN sys_user u ON u.id = sp.user_id AND u.deleted_at IS NULL",
+            "WHERE sp.user_id = #{userId} AND sp.deleted_at IS NULL"
+    })
+    StudentView selectStudentByUserId(@Param("userId") Long userId);
 }

@@ -4,6 +4,20 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-2);
+  position: relative;
+}
+
+.drawerOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: var(--bg-2);
+  box-shadow: -6px 0 16px -8px rgba(0, 0, 0, 0.12);
+}
+
+.pinnedChipActive {
+  outline: 1px solid var(--ac);
+  outline-offset: 1px;
 }
 
 /* Header */
@@ -15,6 +29,36 @@
   border-bottom: 1px solid var(--bd);
   background: linear-gradient(180deg, rgba(99,102,241,0.04), transparent 70%);
   flex-shrink: 0;
+}
+
+/* "新对话" button — pushed to the far right via margin-left: auto. Hidden
+   until messages exist (the empty-state grid is what it returns to, so
+   showing the button on an already-empty panel is meaningless). */
+.headerNewBtn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.headerNewBtn:hover {
+  background: var(--ac-bg);
+  border-color: var(--ac-ring);
+  color: var(--ac-deep);
+}
+
+.headerNewBtn:active {
+  transform: scale(0.97);
 }
 
 .headerIcon {
@@ -326,6 +370,88 @@
   transform: translateX(2px);
 }
 
+/* ── Quick action card with chip row (used by 请假申请) ──
+   Visually mirrors .quickBtn but adds a second row of type-specific chips
+   so the entry doesn't presume one leave type. Outer is a div (not a button)
+   because nested buttons aren't valid HTML. */
+.quickCard {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r);
+  border: 1px solid var(--bd);
+  background: var(--bg-2);
+  box-shadow: var(--sh-xs);
+  overflow: hidden;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.22s ease;
+}
+
+.quickCard:hover {
+  background: var(--bg-3);
+  border-color: var(--ac-bg-2);
+  box-shadow: var(--sh-sm), 0 0 0 3px var(--ac-bg);
+}
+
+.quickCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: transform 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.quickCardHeader:active {
+  transform: scale(0.98);
+}
+
+.quickCard:hover .quickArrow {
+  color: var(--ac);
+  transform: translateX(2px);
+}
+
+.quickChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 13px 10px 55px;
+  /* Left padding aligns with the text column (icon 32px + gap 10px + card padding 13px = 55px). */
+}
+
+.chip {
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--fg-2);
+  background: var(--bg-1);
+  border: 1px solid var(--bd-2);
+  border-radius: 999px;
+  padding: 3px 11px;
+  cursor: pointer;
+  letter-spacing: -0.005em;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.12s ease;
+}
+
+.chip:hover {
+  background: var(--ac-bg);
+  border-color: var(--ac-bg-2);
+  color: var(--ac-deep);
+}
+
+.chip:active {
+  transform: scale(0.95);
+}
+
 /* ── Suggestion chips (above input) ── */
 
 .suggestions {
@@ -383,6 +509,19 @@
 .suggestion:active {
   transform: translateY(0) scale(0.96);
   box-shadow: none;
+}
+
+/* Route shortcuts — direct-nav, indigo dot to mark them apart from AI Q&A */
+.routeSuggestion::before {
+  background: var(--ac);
+}
+.routeSuggestion {
+  color: var(--ac-deep);
+  border-color: var(--ac-ring);
+}
+.routeSuggestion:hover {
+  border-color: var(--ac);
+  background: var(--ac-bg);
 }
 
 /* Input */
@@ -638,7 +777,8 @@
 }
 
 .actionCard {
-  max-width: 88%;
+  width: 100%;
+  align-self: stretch;
   margin-top: 10px;
   background: var(--bg-2);
   border: 1px solid var(--bd-2);
@@ -889,4 +1029,91 @@
   0%   { background-position: 0%   50%; }
   50%  { background-position: 100% 50%; }
   100% { background-position: 0%   50%; }
+}
+
+/* ── Pinned refs (user pins objects from right panel into AI context) ── */
+
+.pinnedRefs {
+  padding: 8px 18px 4px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  border-top: 1px solid var(--bd);
+  background: var(--bg-1);
+  flex-shrink: 0;
+}
+
+.pinnedLabel {
+  font-size: 11px;
+  color: var(--fg-3);
+  margin-right: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pinnedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #5e8fff;
+  background: rgba(94, 143, 255, 0.10);
+  border: 1px solid rgba(94, 143, 255, 0.28);
+  border-radius: 10px;
+  line-height: 1.4;
+  max-width: 220px;
+}
+
+.pinnedChipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinnedChipType {
+  font-size: 10px;
+  color: var(--fg-3);
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 5px;
+  border-radius: 6px;
+  margin-right: 2px;
+}
+
+.pinnedChipRemove {
+  background: transparent;
+  border: none;
+  color: var(--fg-3);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+}
+
+.pinnedChipRemove:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--danger);
+}
+
+.pinnedClearAll {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--fg-3);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 10px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.pinnedClearAll:hover {
+  color: var(--danger);
+  background: rgba(0, 0, 0, 0.04);
 }

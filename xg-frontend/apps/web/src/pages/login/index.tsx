@@ -1,10 +1,12 @@
-import { Card, message, Spin } from 'antd';
+import { Card, Spin } from 'antd';
+import { message } from '@/utils/antdApp';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { RoleCode } from '@xg1/shared';
 import { login as loginApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth.store';
+import ZhaoxiLogo from '@/components/brand/ZhaoxiLogo';
 import styles from './index.module.css';
 
 interface QuickAccount {
@@ -18,15 +20,15 @@ interface QuickAccount {
 // Passwords are seeded in V022; every demo account shares the default.
 const DEFAULT_PASSWORD = 'xg@123456';
 
+// 演示用快速登录账号。前两个是核心请假流程主角（学生提交 → 班主任审批），
+// 其余覆盖审批链上游 + 系统管理 + 用工单位等场景。
 const QUICK_ACCOUNTS: QuickAccount[] = [
   { username: 'stu_zhang',      display: '张晓明', roleLabel: '学生',     role: 'student',                 color: '#1677ff' },
-  { username: 'stu_wang',       display: '王丽华', roleLabel: '学生',     role: 'student',                 color: '#1677ff' },
-  { username: 'stu_chen',       display: '陈思远', roleLabel: '学生',     role: 'student',                 color: '#1677ff' },
-  { username: 'stu_liu',        display: '刘婷婷', roleLabel: '学生',     role: 'student',                 color: '#1677ff' },
-  { username: 'stu_zhao',       display: '赵宇航', roleLabel: '学生',     role: 'student',                 color: '#1677ff' },
+  { username: 'monitor1',       display: '陈班长', roleLabel: '班长',     role: 'class_monitor',           color: '#2f9e44' },
+  { username: 'master1',        display: '孙班主任', roleLabel: '班主任', role: 'class_master',            color: '#fa8c16' },
   { username: 'counselor_li',   display: '李老师', roleLabel: '辅导员',   role: 'counselor',               color: '#52c41a' },
   { username: 'college_admin1', display: '钱院管', roleLabel: '院系管理', role: 'college_admin',           color: '#13c2c2' },
-  { username: 'dean1',          display: '赵院长', roleLabel: '院系领导', role: 'dean',                    color: '#fa8c16' },
+  { username: 'dean1',          display: '赵院长', roleLabel: '院系领导', role: 'dean',                    color: '#fa541c' },
   { username: 'officer1',       display: '周学工', roleLabel: '学工处',   role: 'student_affairs_officer', color: '#eb2f96' },
   { username: 'employer1',      display: '吴主管', roleLabel: '用工单位', role: 'employer',                color: '#a0522d' },
   { username: 'admin1',         display: '王管理', roleLabel: '校管理员', role: 'school_admin',            color: '#722ed1' },
@@ -63,6 +65,7 @@ export default function Login() {
     <div className={styles.container}>
       <Card className={styles.card}>
         <div className={styles.logo}>
+          <ZhaoxiLogo size={56} />
           <h1>{t('app.name')}</h1>
           <p>{t('app.tagline')}</p>
         </div>

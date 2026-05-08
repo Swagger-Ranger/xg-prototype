@@ -34,6 +34,7 @@ import {
   decideApplication,
   listApplications,
   listPositions,
+  listSalaries,
 } from '@/api/workStudy';
 import { useAuth } from '@/hooks/useAuth';
 import { useAIActionStore } from '@/stores/ai-action.store';
@@ -46,6 +47,7 @@ import TimeSlotsEditor, {
 import DashboardTab from './DashboardTab';
 import EmployerSelect from './EmployerSelect';
 import EmployersTab from './EmployersTab';
+import PreferenceTab from './PreferenceTab';
 import SalariesTab from './SalariesTab';
 import YearSettingsTab from './YearSettingsTab';
 import styles from './index.module.css';
@@ -110,7 +112,7 @@ const SALARY_UNIT_LABEL: Record<string, string> = {
 
 const PAGE_SIZE = 20;
 
-type Tab = 'dashboard' | 'positions' | 'applications' | 'employers' | 'salaries' | 'year_settings';
+type Tab = 'dashboard' | 'preference' | 'positions' | 'applications' | 'employers' | 'salaries' | 'year_settings';
 
 /** Role-aware workflow ordering. Each role sees the steps in the order they
  *  naturally do them — staff start with employer setup, employers start with
@@ -131,14 +133,59 @@ const EMPLOYER_STEPS: StepDef<Tab>[] = [
 ];
 const STUDENT_STEPS: StepDef<Tab>[] = [
   { value: 'dashboard',    n: 1, title: '总览',     hint: '看一下我的进度' },
-  { value: 'positions',    n: 2, title: '找岗位',   hint: '挑符合条件的岗' },
-  { value: 'applications', n: 3, title: '我的申请', hint: '看审批 / 录用结果' },
+  { value: 'preference',   n: 2, title: '偏好设置', hint: '课表 + 岗位偏好' },
+  { value: 'positions',    n: 3, title: '找岗位',   hint: '按你的偏好筛选' },
+  { value: 'applications', n: 4, title: '我的申请', hint: '看审批 / 录用结果' },
 ];
 
 export default function WorkStudyManagement() {
   const queryClient = useQueryClient();
   const { isStudent, isEmployer } = useAuth();
-  const steps = isStudent ? STUDENT_STEPS : isEmployer ? EMPLOYER_STEPS : STAFF_STEPS;
+
+  // Pending-count badges on approval steps. Backend already scopes results by
+  // role (employer sees only their unit's apps, etc.), so the same queries
+  // work for staff & employer. Disabled for students — their tabs aren't
+  // approval actions. Refetch every 60s so counts feel live.
+  const pendingPositionsQ = useQuery({
+    queryKey: ['ws-step-badge-positions'],
+    queryFn: () => listPositions({ page: 1, size: 1, status: 'pending_approval' }),
+    enabled: !isStudent && !isEmployer,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const pendingAppsQ = useQuery({
+    queryKey: ['ws-step-badge-apps'],
+    queryFn: () => listApplications({ page: 1, size: 1, status: 'pending' }),
+    enabled: !isStudent,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const pendingSalariesQ = useQuery({
+    queryKey: ['ws-step-badge-salaries'],
+    queryFn: () => listSalaries({ page: 1, size: 1, status: 'pending' }),
+    enabled: !isStudent && !isEmployer,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const baseSteps = isStudent ? STUDENT_STEPS : isEmployer ? EMPLOYER_STEPS : STAFF_STEPS;
+  const stepBadges: Partial<Record<Tab, number>> = {
+    positions: Number(pendingPositionsQ.data?.total ?? 0),
+    applications: Number(pendingAppsQ.data?.total ?? 0),
+    salaries: Number(pendingSalariesQ.data?.total ?? 0),
+  };
+  // Only attach a badge to steps that are genuinely approval-style for the
+  // current role. Employer's "岗位" tab is "manage own positions", not approval,
+  // so no badge there. Same for "薪资申报" (employer submits, doesn't approve).
+  const APPROVAL_STEPS: Record<'staff' | 'employer', Tab[]> = {
+    staff: ['positions', 'applications', 'salaries'],
+    employer: ['applications'],
+  };
+  const role: 'staff' | 'employer' | 'student' = isStudent ? 'student' : isEmployer ? 'employer' : 'staff';
+  const approvalSet = role === 'student' ? new Set<Tab>() : new Set(APPROVAL_STEPS[role]);
+  const steps: StepDef<Tab>[] = baseSteps.map((s) =>
+    approvalSet.has(s.value) ? { ...s, badge: stepBadges[s.value] } : s,
+  );
 
   const [tab, setTab] = useState<Tab>('dashboard');
   const [page, setPage] = useState(1);
@@ -490,6 +537,7 @@ export default function WorkStudyManagement() {
 
       <div className={styles.tableCard}>
         {tab === 'dashboard' && <DashboardTab />}
+        {tab === 'preference' && <PreferenceTab />}
         {tab === 'positions' && (
           <>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--bd)' }}>

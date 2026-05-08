@@ -1,0 +1,49 @@
+.sun {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.body {
+  transform-origin: 32px 32px;
+  animation: xz-breathe 4s ease-in-out infinite;
+}
+
+.rays {
+  transform-origin: 32px 32px;
+  animation: xz-rays 12s linear infinite;
+}
+
+.eye {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: xz-blink 6s ease-in-out infinite;
+}
+
+.eyeR {
+  animation-delay: 0.04s;
+}
+
+@keyframes xz-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.03); }
+}
+
+/* Slow rotation gives the sun a quiet "alive" presence without being
+   flashy. 12s per turn = barely perceptible at any single glance. */
+@keyframes xz-rays {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes xz-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%           { transform: scaleY(0.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .body, .rays, .eye {
+    animation: none;
+  }
+}

@@ -49,6 +49,12 @@ public class StudentAlert {
 
     private String note;
 
+    @TableField("counselor_talk_id")
+    private Long counselorTalkId;
+
+    @TableField("muted_until")
+    private OffsetDateTime mutedUntil;
+
     @TableField("created_at")
     private OffsetDateTime createdAt;
 

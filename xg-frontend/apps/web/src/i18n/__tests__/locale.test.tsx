@@ -10,7 +10,7 @@ function Probe() {
   const { t } = useTranslation();
   return (
     <>
-      <span data-testid="home">{t('topbar.homeCrumb')}</span>
+      <span data-testid="appName">{t('app.name')}</span>
       <span data-testid="logout">{t('topbar.logout')}</span>
     </>
   );
@@ -24,7 +24,7 @@ describe('locale store + i18next wiring', () => {
 
   it('renders zh strings by default', () => {
     render(<Probe />);
-    expect(screen.getByTestId('home').textContent).toBe('学工管理');
+    expect(screen.getByTestId('appName').textContent).toBe('朝夕');
     expect(screen.getByTestId('logout').textContent).toBe('退出登录');
     expect(useLocaleStore.getState().antdLocale).toBe(zhCN);
   });
@@ -33,7 +33,8 @@ describe('locale store + i18next wiring', () => {
     const { rerender } = render(<Probe />);
     useLocaleStore.getState().toggle();
     rerender(<Probe />);
-    expect(screen.getByTestId('home').textContent).toBe('Student Affairs');
+    // Brand name is Chinese-only by product decision — same in en locale.
+    expect(screen.getByTestId('appName').textContent).toBe('朝夕');
     expect(screen.getByTestId('logout').textContent).toBe('Sign out');
     expect(useLocaleStore.getState().antdLocale).toBe(enUS);
     expect(useLocaleStore.getState().lang).toBe('en');

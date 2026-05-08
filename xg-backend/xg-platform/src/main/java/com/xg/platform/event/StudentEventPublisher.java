@@ -25,7 +25,7 @@ public class StudentEventPublisher {
                         StudentEventType type,
                         String source,
                         Map<String, Object> data) {
-        publish(studentId, type, source, data, OffsetDateTime.now());
+        publish(studentId, type, source, data, OffsetDateTime.now(), type.defaultSeverity());
     }
 
     public void publish(Long studentId,
@@ -33,6 +33,15 @@ public class StudentEventPublisher {
                         String source,
                         Map<String, Object> data,
                         OffsetDateTime occurredAt) {
+        publish(studentId, type, source, data, occurredAt, type.defaultSeverity());
+    }
+
+    public void publish(Long studentId,
+                        StudentEventType type,
+                        String source,
+                        Map<String, Object> data,
+                        OffsetDateTime occurredAt,
+                        int severity) {
         if (studentId == null) {
             return;
         }
@@ -43,6 +52,7 @@ public class StudentEventPublisher {
             entry.setEventType(type.code());
             entry.setEventSource(source);
             entry.setEventData(data);
+            entry.setSeverity(Math.max(0, Math.min(10, severity)));
             entry.setOccurredAt(occurredAt == null ? OffsetDateTime.now() : occurredAt);
             entry.setCreatedAt(OffsetDateTime.now());
             mapper.insert(entry);

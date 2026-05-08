@@ -1,0 +1,73 @@
+.page {
+  max-width: 1200px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.tableCard {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+
+.topicTag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--bg-3);
+  color: var(--fg-2);
+  border: 1px solid var(--bd);
+}
+
+.alertBadge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--ac);
+  padding: 1px 6px;
+  border: 1px solid var(--ac);
+  border-radius: 99px;
+}
+
+.contextHint {
+  background: var(--bg-3);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--fg-2);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.actionLink {
+  background: none;
+  border: none;
+  color: var(--ac);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+}

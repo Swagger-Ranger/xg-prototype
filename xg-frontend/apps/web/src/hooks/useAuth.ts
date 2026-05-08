@@ -14,6 +14,7 @@ export function useAuth() {
   const isCounselor = user?.role_codes?.includes('counselor') ?? false;
   const isDean = user?.role_codes?.includes('dean') ?? false;
   const isAdmin = user?.role_codes?.includes('school_admin') ?? false;
+  const isEmployer = user?.role_codes?.includes('employer') ?? false;
 
-  return { user, hasPermission, hasRole, isStudent, isCounselor, isDean, isAdmin };
+  return { user, hasPermission, hasRole, isStudent, isCounselor, isDean, isAdmin, isEmployer };
 }

@@ -1,0 +1,212 @@
+/* 我的档案 — 白底卡风，与首页 token 一致 */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.scroll {
+  flex: 1;
+  height: 100vh;
+}
+
+/* ── Hero ──────────────────────────────────────────── */
+.hero {
+  padding: 56rpx 32rpx 28rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.heroEyebrow {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--ac-deep);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.heroName {
+  display: block;
+  font-size: 64rpx;
+  color: var(--fg);
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+
+.heroMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 12rpx;
+  flex-wrap: wrap;
+}
+
+.heroSub {
+  font-size: 24rpx;
+  color: var(--fg-3);
+}
+
+.statusPill {
+  font-size: 22rpx;
+  padding: 6rpx 18rpx;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+}
+
+.tone_pending { background: var(--ac-bg); color: var(--ac-deep); }
+.tone_ok { background: var(--ok-bg); color: var(--ok); }
+.tone_danger { background: var(--danger-bg); color: var(--danger); }
+.tone_warn { background: var(--warn-bg); color: var(--warn); }
+.tone_muted { background: rgba(0,0,0,0.06); color: var(--fg-3); }
+
+/* ── Section header ──────────────────────────────── */
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 20rpx 32rpx 12rpx;
+}
+
+.sectionTitle {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+/* 小日期 / count — mono letter-spaced */
+.sectionDate {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-4);
+  letter-spacing: 0.04em;
+}
+
+/* ── Card 通用 ────────────────────────────────────── */
+.card {
+  margin: 0 24rpx 8rpx;
+  padding: 8rpx 28rpx;
+  background: var(--bg-2);
+  border-radius: var(--r);
+  box-shadow: var(--sh-sm);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22rpx 0;
+  gap: 16rpx;
+  min-height: 70rpx;
+}
+
+.rowLabel {
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.rowValue {
+  font-size: 28rpx;
+  color: var(--fg);
+  font-weight: 500;
+  text-align: right;
+  flex: 1;
+  word-break: break-all;
+}
+
+.divider {
+  height: 1rpx;
+  background: var(--bd);
+}
+
+/* ── Leave list（与首页同款）─────────────────────── */
+.leaveList {
+  margin: 0 24rpx 32rpx;
+  background: var(--bg-2);
+  border-radius: var(--r);
+  box-shadow: var(--sh-sm);
+  padding: 8rpx 24rpx;
+}
+
+.leaveRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid var(--bd);
+}
+
+.leaveRow:last-child {
+  border-bottom: none;
+}
+
+.leaveRow:active {
+  filter: brightness(0.96);
+}
+
+.leaveMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  min-width: 0;
+}
+
+.leaveTitle {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+.leaveDays {
+  color: var(--fg-3);
+  font-weight: 500;
+}
+
+.leaveDate {
+  font-size: 22rpx;
+  color: var(--fg-4);
+}
+
+.leaveStatus {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  padding: 4rpx 14rpx;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+}
+
+.bottomSpace {
+  height: 100rpx;
+}
+
+/* ── Empty ───────────────────────────────────────── */
+.empty {
+  text-align: center;
+  padding: 80rpx 32rpx;
+  color: var(--fg-4);
+  font-size: 26rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.emptyText {
+  font-size: 30rpx;
+  color: var(--fg-2);
+  font-weight: 600;
+}
+
+.emptySub {
+  font-size: 24rpx;
+  color: var(--fg-4);
+}

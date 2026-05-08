@@ -1,0 +1,150 @@
+.row {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--bd);
+  transition: background 0.15s var(--ease);
+}
+.row:last-child {
+  border-bottom: none;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px 10px 4px;
+  gap: 10px;
+}
+
+.trigger {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  transition: background 0.15s var(--ease);
+}
+.trigger:hover {
+  background: var(--bg-3);
+}
+.trigger:focus-visible {
+  outline: 2px solid var(--ac-ring);
+  outline-offset: 2px;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-4);
+  font-size: 11px;
+  transform: rotate(0deg);
+  transition: transform 0.18s var(--ease), color 0.15s var(--ease);
+}
+.chevronOpen {
+  transform: rotate(90deg);
+  color: var(--fg-2);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.titleMeta {
+  color: var(--fg-3);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.sub {
+  font-size: 11px;
+  color: var(--fg-3);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.time {
+  font-size: 11px;
+  color: var(--fg-4);
+  margin-right: 4px;
+}
+
+.panel {
+  margin: 0 12px 12px 32px;
+  padding: 12px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-left: 2px solid var(--ac-lo);
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--fg-2);
+  animation: panelIn 0.18s var(--ease);
+}
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.section {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-3);
+  margin-top: 12px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.section:first-child {
+  margin-top: 0;
+}
+
+.reasons {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--fg);
+}
+.reasons li {
+  margin: 2px 0;
+}
+
+.kv {
+  color: var(--fg);
+}
+
+.commentBox {
+  margin-top: 4px;
+}

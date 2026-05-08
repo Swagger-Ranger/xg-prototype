@@ -13,4 +13,6 @@ public class ViolationQueryRequest extends PageQuery {
     private String category;
     private LocalDate startDate;
     private LocalDate endDate;
+    private String approvalStatus;
+    private Long recorderId;
 }

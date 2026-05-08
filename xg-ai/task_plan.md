@@ -128,6 +128,26 @@
 - [x] 坑：`PageResult.total` 被 Long→String 序列化且经常返 "0"（MyBatis-Plus pagination interceptor 没装），**total 字段不可信**；stats 端用 `data.length` 计数绕开
 - [x] P0 里 spec 的 6 个 stats tool 里，只合并了 4 个现有模块；`query_violation_stats` / `query_work_study_stats` 因后端模块缺失延到 Wave C；`query_dashboard_summary` 因聚合端点不存在暂未实现
 
+## Phase 16: 统一查询 Tool（Wave C — 工作日志 / 违纪 / 勤工助学）`status: complete`
+- [x] `query_work_logs(category?, date_range?)` — 辅导员/管理员看自己的工作日志
+- [x] `query_violations(scope: recent/student, student_id?, category?)` — 违纪列表 + 指定学生 punishments
+- [x] `query_work_study(scope: positions/my_applications, prefer_financial_aid?)` — 在招岗位 / 我的申请
+- [x] 每个 tool 的 `allowed_roles` 元数据按 scope 精细化（positions 对 student 放开；my_applications 仅 student）
+- [x] Smoke 通过（chat 路径端到端）：
+  - counselor 问"最近一周工作日志" → `query_work_logs` → 空数据降级文案
+  - counselor 问"最近班里有谁违纪" → `query_violations scope=recent` → 返王丽华 2026-04-20 考勤违纪
+  - student 问"优先资助生的在招岗位" → `query_work_study scope=positions prefer_financial_aid=true` → 2 个图书馆助理岗
+  - student 问"我自己申请的勤工助学" → `query_work_study scope=my_applications` → 无申请降级文案
+
+## Phase 17: 审批风险分级 + AI 叙事 `status: complete`
+- [x] Phase A 规则引擎：`PendingTaskEnricher` 批量补齐申请人画像（30天旷课 / 30天请假 / open alerts / 违纪），按 unpunishedViolations / critical+high alerts / absent30d / duration 规则评 low/medium/high
+- [x] `GET /workflows/tasks/pending-enriched` 返 `PendingTaskVO(riskLevel, reasons, applicantStats, leave_*)`
+- [x] 前端 `QuickApprovalList.tsx`：风险 Tag + reasons 摘要，low-risk 支持"一键通过"批量审批；点开展开详情含判定依据 + 请假信息 + 学生历史
+- [x] Phase B AI 叙事：Python sidecar `/api/v1/task-recommendation` 用 DeepSeek 生成 `{recommendation, headline, rationale, checkpoints[]}`，LLM 失败返空 recommendation + error_message 降级
+- [x] Java `AiSidecarClient.taskRecommendation` + `EnrichedTaskController.aiRecommendation` 代理
+- [x] 前端 `AiRecommendationBlock` 仅对 medium/high 风险 + 展开时懒加载（`staleTime=5min`），按 recommendation 上色
+- [x] 端到端冒烟通过：张晓明（medium，30天请假10次）→ caution + headline "请假频繁，建议谨慎审批" + 3 条 checkpoint；low-risk 不触发 LLM
+
 ## Phase 11: AI Sidecar — RAG 扩库 + 条款级检索 `status: complete`
 - [x] 语料扩充：2 → 6 份制度文（新增 学籍管理 / 违纪处分 / 经济困难资助 / 宿舍管理）
 - [x] 每份文档按 `第X条` 自动切条，共 49 篇 article；`ALL_ARTICLES` 在 module load 时生成

@@ -1,0 +1,576 @@
+/* 请假详情 — Apple 玻璃感 × Detail archetype */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.scroll {
+  flex: 1;
+  height: 100vh;
+}
+
+/* ── Hero ──────────────────────────────────────────────── */
+.hero {
+  padding: 56rpx 32rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.heroTitle {
+  display: block;
+  font-size: 56rpx;
+  color: var(--fg);
+}
+
+.heroMeta {
+  font-size: 24rpx;
+  color: var(--fg-3);
+}
+
+.statusPillLg {
+  align-self: flex-start;
+  font-size: 24rpx;
+  font-weight: 600;
+  padding: 8rpx 22rpx;
+  border-radius: var(--r-pill);
+}
+
+.tone_pending {
+  background: var(--ac-bg);
+  color: var(--ac-deep);
+}
+
+.tone_ok {
+  background: var(--ok-bg);
+  color: #1a8a3f;
+}
+
+.tone_danger {
+  background: var(--danger-bg);
+  color: #c4322a;
+}
+
+.tone_warn {
+  background: var(--warn-bg);
+  color: #b56e00;
+}
+
+.tone_muted {
+  background: rgba(0,0,0,0.06);
+  color: var(--fg-3);
+}
+
+/* ── Section header ────────────────────────────────────── */
+.sectionHead {
+  padding: 24rpx 32rpx 12rpx;
+}
+
+.sectionLabel {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+/* ── Card ──────────────────────────────────────────────── */
+.card {
+  margin: 0 24rpx 8rpx;
+  padding: 8rpx 28rpx;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r);
+  box-shadow:
+    0 4rpx 12rpx rgba(15,20,33,0.05);
+}
+
+.cardDanger {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+/* ── 影响课程 trigger + 展开列表 ─────────────────── */
+.impactCard {
+  padding: 0 28rpx;
+}
+
+.impactTrigger {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 24rpx 0;
+  min-height: 80rpx;
+}
+
+.impactTrigger:active {
+  filter: brightness(0.97);
+}
+
+.impactStat {
+  display: flex;
+  align-items: baseline;
+}
+
+.impactNum {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: var(--ac-deep);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.impactNumUnit {
+  font-size: 22rpx;
+  color: var(--fg-3);
+  margin-left: 2rpx;
+}
+
+.impactSep {
+  font-size: 24rpx;
+  color: var(--fg-5);
+}
+
+.impactArrow {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  padding: 6rpx 14rpx;
+  border-radius: var(--r-pill);
+  background: var(--ac-bg);
+}
+
+.impactArrowGlyph {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--ac-deep);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.impactArrowChev {
+  font-size: 22rpx;
+  color: var(--ac-deep);
+  font-weight: 700;
+}
+
+.impactList {
+  padding: 8rpx 0 16rpx;
+  border-top: 1rpx dashed var(--bd-2);
+}
+
+.impactDay {
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid var(--bd);
+}
+
+.impactDay:last-child {
+  border-bottom: none;
+}
+
+.impactDayHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+  margin-bottom: 10rpx;
+}
+
+.impactDayDate {
+  font-family: var(--font-mono);
+  font-size: 24rpx;
+  color: var(--fg);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.impactDayMeta {
+  font-size: 22rpx;
+  color: var(--fg-4);
+}
+
+.impactCourse {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 12rpx 0 12rpx 6rpx;
+}
+
+.impactCourseDot {
+  flex-shrink: 0;
+  width: 10rpx;
+  height: 36rpx;
+  border-radius: 5rpx;
+  background: var(--ac);
+}
+
+.impactCourseText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  min-width: 0;
+}
+
+.impactCourseName {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.impactCourseMeta {
+  font-size: 22rpx;
+  color: var(--fg-3);
+}
+
+.impactCoursePeriod {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--fg-3);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 0;
+  gap: 16rpx;
+  min-height: 80rpx;
+}
+
+.rowLabel {
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.rowValue {
+  font-size: 28rpx;
+  color: var(--fg);
+  font-weight: 500;
+  text-align: right;
+  flex: 1;
+  word-break: break-all;
+}
+
+.unit {
+  font-size: 24rpx;
+  color: var(--fg-3);
+}
+
+.divider {
+  height: 1rpx;
+  background: rgba(0,0,0,0.06);
+}
+
+.bodyText {
+  display: block;
+  padding: 24rpx 0;
+  font-size: 28rpx;
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+/* ── 定位 row（可点） ─────────────────────────────────── */
+.locRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 0;
+  min-height: 80rpx;
+  gap: 16rpx;
+}
+
+.locRow:active {
+  filter: brightness(0.96);
+}
+
+.locText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.locCoords {
+  font-size: 24rpx;
+  color: var(--ac-deep);
+}
+
+.locArrow {
+  font-size: 32rpx;
+  color: var(--fg-4);
+  font-weight: 600;
+}
+
+/* ── Action bar (sticky bottom) ───────────────────────── */
+.bottomSpace {
+  height: 200rpx;
+}
+
+.actionBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24rpx 32rpx calc(24rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
+  border-top: 1rpx solid var(--separator);
+  display: flex;
+  gap: 16rpx;
+  z-index: 100;
+}
+
+.barBtn {
+  flex: 1;
+  height: 88rpx;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid var(--bd);
+}
+
+.barBtn:active {
+  transform: scale(0.98);
+}
+
+.barBtnPrimary {
+  background: var(--ac);
+  box-shadow: 0 4rpx 12rpx var(--ac-glow);
+}
+
+.barBtnPrimary .barBtnLabel {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.barBtnGhost {
+  background: #ffffff;
+  box-shadow: 0 1rpx 4rpx rgba(0,0,0,0.04);
+}
+
+.barBtnGhost .barBtnLabel {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.barBtnLabel {
+  font-size: 30rpx;
+  letter-spacing: -0.01em;
+}
+
+/* ── Empty state ───────────────────────────────────────── */
+.empty {
+  text-align: center;
+  padding: 200rpx 32rpx;
+  color: var(--fg-4);
+  font-size: 26rpx;
+}
+
+/* ── 驳回底栏 sheet ──────────────────────────────────── */
+.rejectMask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+}
+
+.rejectSheet {
+  width: 100%;
+  background: #ffffff;
+  border-top-left-radius: var(--r-lg);
+  border-top-right-radius: var(--r-lg);
+  padding: 16rpx 32rpx calc(28rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -8rpx 28rpx rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.rejectHandle {
+  align-self: center;
+  width: 80rpx;
+  height: 6rpx;
+  border-radius: 3rpx;
+  background: rgba(0,0,0,0.18);
+}
+
+.rejectHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.rejectTitle {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.rejectSubtitle {
+  font-size: 22rpx;
+  color: var(--fg-3);
+  line-height: 1.5;
+}
+
+.rejectInputWrap {
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r-sm);
+  padding: 20rpx 24rpx;
+  min-height: 200rpx;
+}
+
+.rejectInput {
+  width: 100%;
+  min-height: 200rpx;
+  font-size: 28rpx;
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+.rejectActions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.rejectAction {
+  flex: 1;
+  height: 88rpx;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid var(--bd);
+}
+
+.rejectAction:active {
+  transform: scale(0.98);
+}
+
+.rejectActionGhost {
+  background: #ffffff;
+  border-color: var(--bd);
+}
+
+.rejectActionDanger {
+  background: var(--danger);
+  border-color: rgba(255,255,255,0.4);
+  box-shadow: 0 4rpx 12rpx var(--danger);
+}
+
+.rejectActionLabel {
+  font-size: 28rpx;
+  color: var(--ac-deep);
+  font-weight: 500;
+}
+
+.rejectActionLabelDanger {
+  font-size: 28rpx;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* ── 销假 sheet 字段表 ─────────────────────────────────── */
+.returnFields {
+  max-height: 600rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding: 0 4rpx;
+}
+
+.returnRow {
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r-sm);
+  padding: 16rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.returnLabel {
+  font-size: 24rpx;
+  color: var(--fg-3);
+  letter-spacing: -0.01em;
+}
+
+.required {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.returnPicker {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 60rpx;
+}
+
+.returnPicker:active {
+  filter: brightness(0.96);
+}
+
+.returnPickerValue {
+  font-size: 30rpx;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.returnPickerPlaceholder {
+  color: var(--fg-4);
+  font-weight: 400;
+}
+
+.returnPickerArrow {
+  font-size: 28rpx;
+  color: var(--fg-4);
+  font-weight: 600;
+}
+
+.returnInputWrap {
+  min-height: 60rpx;
+  display: flex;
+  align-items: center;
+}
+
+.returnInputDisabled {
+  opacity: 0.55;
+}
+
+.returnDisabledHint {
+  font-size: 26rpx;
+  color: var(--fg-4);
+}
+
+.returnInput {
+  flex: 1;
+  font-size: 30rpx;
+  color: var(--fg);
+}
+
+.returnTextarea {
+  width: 100%;
+  min-height: 120rpx;
+  font-size: 30rpx;
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+/* 销假提交按钮用蓝色（不像驳回那样危险）—— 复用 rejectAction 结构 */
+.returnActionPrimary {
+  background: var(--ac);
+  border-color: rgba(255,255,255,0.4);
+  box-shadow: 0 4rpx 12rpx var(--ac-glow);
+}

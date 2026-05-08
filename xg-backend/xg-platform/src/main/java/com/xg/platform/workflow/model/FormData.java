@@ -2,8 +2,8 @@ package com.xg.platform.workflow.model;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.xg.common.base.BaseEntity;
+import com.xg.common.mybatis.JsonbMapTypeHandler;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -16,9 +16,9 @@ public class FormData extends BaseEntity {
 
     private Long workflowInstanceId;
 
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = JsonbMapTypeHandler.class)
     private Map<String, Object> data;
 
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = JsonbMapTypeHandler.class)
     private Map<String, Object> aiDraft;
 }

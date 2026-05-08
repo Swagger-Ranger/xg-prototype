@@ -51,6 +51,11 @@ public class FileController {
                 .body(new InputStreamResource(stream));
     }
 
+    @GetMapping("/{id}")
+    public R<FileMetadata> getMetadata(@PathVariable Long id) {
+        return R.ok(fileService.getById(id));
+    }
+
     @GetMapping("/{id}/url")
     public R<Map<String, String>> getPresignedUrl(
             @PathVariable Long id,

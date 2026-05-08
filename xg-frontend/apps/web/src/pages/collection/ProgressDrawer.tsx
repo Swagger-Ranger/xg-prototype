@@ -1,9 +1,11 @@
-import { Drawer, Progress, Table, Button, Space, message } from 'antd';
+import { Drawer, Progress, Table, Button, Space } from 'antd';
+import { message } from '@/utils/antdApp';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import type { CollectionForm, CollectionSubmission } from '@/api/collection';
 import { getFormProgress, remindForm } from '@/api/collection';
+import { describeApiError } from '@/utils/api-error';
 
 interface Props {
   form: CollectionForm | null;
@@ -44,9 +46,7 @@ export default function ProgressDrawer({ form, onClose }: Props) {
     onSuccess: () => {
       message.success('催填通知已发送');
     },
-    onError: () => {
-      message.error('发送催填通知失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '发送催填通知失败，请重试')),
   });
 
   const submitted = progress?.submitted ?? 0;

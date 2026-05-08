@@ -5,6 +5,8 @@ interface AuthState {
   token: string | null;
   user: UserInfo | null;
   setAuth: (token: string, user: UserInfo) => void;
+  /** Refresh the cached user without touching the token (e.g. after profile edit). */
+  setUser: (user: UserInfo) => void;
   logout: () => void;
 }
 
@@ -23,6 +25,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.setItem('xg_token', token);
     localStorage.setItem('xg_user', JSON.stringify(user));
     set({ token, user });
+  },
+
+  setUser: (user) => {
+    localStorage.setItem('xg_user', JSON.stringify(user));
+    set({ user });
   },
 
   logout: () => {

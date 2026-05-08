@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Input, Spin, Tag, message } from 'antd';
+import { Input, Spin, Tag } from 'antd';
+import { message } from '@/utils/antdApp';
 import {
   LikeOutlined,
   DislikeOutlined,
   MessageOutlined,
 } from '@ant-design/icons';
+import { describeApiError } from '@/utils/api-error';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import type { QAItem } from '@/api/knowledge';
@@ -28,9 +30,7 @@ export default function KnowledgeBase() {
     onSuccess: (data) => {
       setCurrentAnswer(data);
     },
-    onError: () => {
-      message.error('查询失败，请稍后重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '查询失败，请稍后重试')),
   });
 
   const feedbackMutation = useMutation({
@@ -42,9 +42,7 @@ export default function KnowledgeBase() {
       }
       message.success('感谢反馈');
     },
-    onError: () => {
-      message.error('反馈提交失败');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '反馈提交失败')),
   });
 
   const { data: historyData } = useQuery({

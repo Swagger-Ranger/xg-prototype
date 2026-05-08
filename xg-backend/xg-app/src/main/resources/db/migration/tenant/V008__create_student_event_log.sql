@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS student_event_log (
 CREATE INDEX idx_event_tenant_student ON student_event_log(tenant_id, student_id);
 CREATE INDEX idx_event_type ON student_event_log(event_type);
 CREATE INDEX idx_event_occurred ON student_event_log(occurred_at DESC);
-CREATE INDEX idx_event_student_30d ON student_event_log(student_id, occurred_at)
-    WHERE occurred_at > NOW() - INTERVAL '30 days';
+CREATE INDEX idx_event_student_recent ON student_event_log(student_id, occurred_at DESC);
 
 COMMENT ON TABLE student_event_log IS '学生事件流水（跨模块事件记录，用于异常预警）';

@@ -76,6 +76,13 @@
   min-width: 0;
 }
 
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .title {
   font-size: 13px;
   font-weight: 500;
@@ -85,6 +92,30 @@
   overflow: hidden;
   text-overflow: ellipsis;
   transition: color 0.18s ease, font-weight 0.18s ease;
+}
+
+/* Pending-action pill next to the title. Sized to be visible without
+   crowding the title, monospace digits so 1- and 2-digit counts align. */
+.badge {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--danger, #dc2626);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  letter-spacing: 0;
+  box-shadow: 0 0 0 2px var(--bg-2);
+}
+
+.step.active .badge {
+  /* Keep the pill saturated on the active step's tinted background. */
+  box-shadow: 0 0 0 2px var(--ac-bg);
 }
 
 .step.active .title {

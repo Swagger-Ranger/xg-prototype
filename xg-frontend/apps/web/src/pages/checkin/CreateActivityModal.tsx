@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
-import { Modal, Form, Input, InputNumber, Radio, Switch, Button, message } from 'antd';
+import { Modal, Form, Input, InputNumber, Radio, Switch, Button } from 'antd';
+import { message } from '@/utils/antdApp';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createActivity } from '@/api/checkin';
+import { describeApiError } from '@/utils/api-error';
 
 interface Props {
   open: boolean;
@@ -28,9 +30,7 @@ export default function CreateActivityModal({ open, onClose }: Props) {
       form.resetFields();
       onClose();
     },
-    onError: () => {
-      message.error('创建签到活动失败，请重试');
-    },
+    onError: (e: unknown) => message.error(describeApiError(e, '创建签到活动失败，请重试')),
   });
 
   useEffect(() => {

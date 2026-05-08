@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -54,9 +56,32 @@ public class AlertController {
         return R.ok();
     }
 
+    @PostMapping("/api/v1/alerts/{id}/false-positive")
+    public R<Void> falsePositive(@PathVariable Long id,
+                                 @RequestBody(required = false) AlertActionRequest req,
+                                 @RequestHeader("X-User-Id") Long userId) {
+        alertService.markFalsePositive(id, userId, req == null ? null : req.getNote());
+        return R.ok();
+    }
+
+    @PostMapping("/api/v1/alerts/{id}/mute")
+    public R<Void> mute(@PathVariable Long id,
+                        @RequestBody AlertActionRequest req,
+                        @RequestHeader("X-User-Id") Long userId) {
+        int days = req.getDays() == null ? 7 : req.getDays();
+        alertService.mute(id, userId, days, req.getNote());
+        return R.ok();
+    }
+
     @PostMapping("/api/v1/alerts/scan")
     public R<Map<String, Object>> triggerScan() {
         int inserted = alertService.scanCurrentTenant();
         return R.ok(Map.of("inserted", inserted));
+    }
+
+    @GetMapping("/api/v1/alert-rules/stats")
+    public R<List<Map<String, Object>>> ruleStats(
+            @RequestParam(value = "window_days", defaultValue = "30") int windowDays) {
+        return R.ok(alertService.listRulesWithStats(windowDays));
     }
 }

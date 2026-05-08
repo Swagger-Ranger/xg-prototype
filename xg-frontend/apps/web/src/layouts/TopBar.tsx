@@ -1,11 +1,13 @@
-import { Dropdown, message } from 'antd';
-import { BellOutlined, SearchOutlined, UserOutlined, LogoutOutlined, GlobalOutlined } from '@ant-design/icons';
+import { Dropdown } from 'antd';
+import { BellOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/auth.store';
-import { useLocaleStore } from '@/stores/locale.store';
+import { useAuth } from '@/hooks/useAuth';
 import { getUnreadCount } from '@/api/notification';
+import UserAvatar from '@/components/avatar/UserAvatar';
+import ZhaoxiLogo from '@/components/brand/ZhaoxiLogo';
 import styles from './TopBar.module.css';
 
 const ROUTE_KEYS: Array<[prefix: string, key: string]> = [
@@ -27,8 +29,7 @@ export default function TopBar() {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const lang = useLocaleStore((s) => s.lang);
-  const toggleLang = useLocaleStore((s) => s.toggle);
+  const { isStudent } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -40,7 +41,7 @@ export default function TopBar() {
 
   const handleMenuClick = ({ key }: { key: string }) => {
     if (key === 'profile') {
-      message.info(t('topbar.profileSoon'));
+      navigate('/profile');
     } else if (key === 'logout') {
       logout();
       navigate('/login');
@@ -54,13 +55,26 @@ export default function TopBar() {
   ];
 
   const matched = ROUTE_KEYS.find(([prefix]) => location.pathname.startsWith(prefix));
-  const crumbCurrent = matched ? t(`routes.${matched[1]}`) : '';
-  const avatarLetter = user?.real_name?.trim()?.charAt(0) || user?.username?.charAt(0)?.toUpperCase() || '?';
+  // Student-side relabel: /workspace shows as 校园 instead of 工作台 since
+  // students don't "work" — it's their school-life dashboard.
+  const crumbCurrent = matched
+    ? matched[1] === 'workspace' && isStudent
+      ? '校园'
+      : t(`routes.${matched[1]}`)
+    : '';
+  const homeLabel = isStudent ? '校园' : '工作台';
 
   return (
     <header className={styles.topBar}>
       <div className={styles.crumbs}>
-        <span className={styles.crumbHome} onClick={() => navigate('/workspace')}>{t('topbar.homeCrumb')}</span>
+        <button
+          type="button"
+          className={styles.crumbHome}
+          onClick={() => navigate('/workspace')}
+          aria-label={`朝夕 · 返回${homeLabel}`}
+        >
+          <ZhaoxiLogo size={22} withWord wordSize={15} />
+        </button>
         {crumbCurrent && (
           <>
             <span className={styles.crumbSep}>/</span>
@@ -72,28 +86,19 @@ export default function TopBar() {
         <span className={styles.metaPill}>{unreadCount} {t('topbar.unreadSuffix')}</span>
       )}
       <div className={styles.spacer} />
-      <div className={styles.search} onClick={() => message.info(t('topbar.searchSoon'))}>
-        <SearchOutlined />
-        <span>{t('topbar.searchPlaceholder')}</span>
-        <kbd>⌘K</kbd>
-      </div>
-      <button
-        className={styles.iconBtn}
-        onClick={toggleLang}
-        title={t('topbar.languageToggleAria')}
-        aria-label={t('topbar.languageToggleAria')}
-      >
-        <GlobalOutlined />
-        <span style={{ marginLeft: 4, fontSize: 12 }}>
-          {lang === 'zh' ? t('topbar.languageEn') : t('topbar.languageZh')}
-        </span>
-      </button>
       <button className={styles.iconBtn} onClick={() => navigate('/notification')}>
         <BellOutlined />
         {unreadCount > 0 && <span className={styles.notiDot} />}
       </button>
       <Dropdown menu={{ items: userMenuItems, onClick: handleMenuClick }} placement="bottomRight">
-        <button className={styles.avatar}>{avatarLetter}</button>
+        <button className={styles.avatar} aria-label="账户菜单">
+          <UserAvatar
+            avatarUrl={user?.avatar_url}
+            seed={user?.id ?? user?.username ?? 'guest'}
+            name={user?.real_name ?? user?.username}
+            size={32}
+          />
+        </button>
       </Dropdown>
     </header>
   );

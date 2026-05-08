@@ -1,0 +1,164 @@
+.body {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 18px;
+  min-height: 420px;
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hint {
+  font-size: 12.5px;
+  color: var(--fg-3);
+  line-height: 1.6;
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 160px;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--bd);
+  border-radius: var(--r-xs);
+  background: #ffffff;
+  color: var(--fg);
+  line-height: 1.6;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--ac-ring);
+  box-shadow: 0 0 0 3px var(--ac-bg);
+}
+
+.textarea:disabled {
+  background: var(--bg-2);
+  cursor: not-allowed;
+}
+
+.examples {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-1);
+  border: 1px dashed var(--bd-2);
+  border-radius: var(--r-xs);
+}
+
+.examplesLabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.exampleTag {
+  cursor: pointer;
+  font-size: 11.5px;
+  margin: 0;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.exampleTag:hover {
+  border-color: var(--ac);
+  color: var(--ac);
+}
+
+.actions {
+  margin-top: auto;
+}
+
+.right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-xs);
+  min-height: 420px;
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--fg-4);
+}
+
+.emptyIcon {
+  font-size: 36px;
+  opacity: 0.6;
+}
+
+.emptyText {
+  font-size: 12.5px;
+  text-align: center;
+  line-height: 1.7;
+}
+
+.statusRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dslWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  flex: 1;
+}
+
+.dslLabel {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dslJson {
+  flex: 1;
+  margin: 0;
+  padding: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--fg-2);
+  overflow: auto;
+  max-height: 260px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.saveRow {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px dashed var(--bd-2);
+  margin-top: 4px;
+}
+
+.previewWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}

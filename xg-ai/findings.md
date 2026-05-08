@@ -1,25 +1,28 @@
 # Findings
 
+## 2026-04-20 — GlobalExceptionHandler 把参数解析异常映射成 500 — 已修
+- 症状：客户端调 `/complaints/my` 等 endpoint 时如果**漏传 X-User-Id** 一律返 `500 INTERNAL_ERROR`，看日志才知道是 `MissingRequestHeaderException`
+- 根因：`xg-common/exception/GlobalExceptionHandler` 只处理了 `BizException` 和 `MethodArgumentNotValidException`，其他 Spring 参数解析异常（`MissingRequestHeaderException` / `MissingServletRequestParameterException` / `MethodArgumentTypeMismatchException`）落到 `Exception.class` → 500
+- 修复：这三类全部走 400 BAD_REQUEST，error code 分别 `MISSING_HEADER` / `MISSING_PARAM` / `BAD_REQUEST`，message 含具体参数名便于定位
+- 需重启 bootRun 生效（未接 devtools）
+- 这也解释了 Wave A smoke 阶段记录的 "complaints 500"：当时某些 code path 的 header 注入遗漏 → 500（掩盖真因）
+
 ## 2026-04-18 — Wave A（统一查询 Tool）发现的问题
 
 ### Java 侧 complaints 模块 500 — 已修
 - 根因：`tenant_default.complaint` 表不存在，V013 从未在该 schema 应用
 - 现象：`tenant_default` 已有 27 张表（V001-V012、V014 等），唯独 V013（complaint）、V015（knowledge_qa）没到位
-- 更深根因：**tenant track 迁移无自动运行机制**
-  - `application.yml` 只配了 `classpath:db/migration/public`
-  - Java 源码里搜不到 `Flyway` / `FlywayConfig` / `TenantMigration` / `db/migration/tenant` 的使用
-  - `public.flyway_schema_history` 只有 V001/V002；`tenant_default` 根本没 `flyway_schema_history` 表
-  - 那 27 张表怎么来的不明（可能早期手工 psql，或历史上的 runner 被删了）
+- 更深根因已修正（2026-04-21 复核）：`TenantMigrationRunner.java` 存在且启动时跑；tenant_default 已有 V030-V033 记录。早先"无自动运行机制"的断言不对。
+- 仍属实：`application.yml` 没显式列 tenant path，runner 是 Java-side 编程式 Flyway
 - 本次修复：手工 `docker exec xg-postgres psql` 执行 V013 DDL，插入 3 条 seed complaint
 - 验证：smoke 套件 `S-complaint-my` 和 `C-complaints-h` 均返正确计数
 - **长期债**：需要一个 tenant migration runner（Java 端），目前新增 tenant/V0xx.sql 不会自动生效
 
-### `PageResult.total` 不可信（Java 后端级 bug）
-- 所有 list 端点返 `{data: {data: [...], total: "N", page, size}}`
-- `total` 字段被 Jackson Long→String 序列化（避免 JS 精度丢失），但值常返 "0" 即使 `data` 数组有元素
-- 根因：MyBatis-Plus 的 PaginationInterceptor 没装/没启；`Page.getTotal()` 在 searchCount 未触发时返 -1 或 0
-- 影响：任何"靠 total 报数"的逻辑都会错；已知中招：`query_stats` 早期版本按 total 聚合全返 0
-- 绕法：用 `len(data.data)` + 大 `size` 作为下界；长期需要修 Java pagination interceptor
+### `PageResult.total` — 2026-04-21 复核后修正
+- 实测：`/leaves/my` 返 `total:"1"` 对应 `data_len:1`；`MyBatisPlusConfig` 里 `PaginationInnerInterceptor(POSTGRE_SQL)` 已装
+- Jackson Long→String 是 JS 精度保护，不是 bug
+- 早期 Wave A 看到的 "total=0 即使有数据" 大概率是特定 mapper 没 passed Page 对象、或 tenant schema 隔离导致 count SQL 跑错 schema；不是全局 interceptor 问题
+- 结论：total 可信；如将来遇到个别端点 total=0 而 data 非空，查那个 mapper 而不是换 interceptor
 
 ### 响应形状统一性
 - 大多数 list endpoint：`{code, data: {data:[], total, page, size}, message}`（MyBatis-Plus IPage 序列化）

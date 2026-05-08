@@ -39,4 +39,8 @@ public class StudentProfile extends BaseEntity {
 
     @TableField("status")
     private String status;
+
+    /** 困难等级：special / difficult / mild / none / null=未认定 */
+    @TableField("aid_level")
+    private String aidLevel;
 }

@@ -5,3 +5,8 @@ logging:
   level:
     com.xg: DEBUG
     org.springframework.web: DEBUG
+
+xg:
+  alert:
+    dev-scan-interval-ms: 120000
+    dev-scan-initial-delay-ms: 60000

@@ -1,0 +1,164 @@
+/* 请假审批 — Apple 玻璃感 × Feed archetype */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 240rpx;
+}
+
+.hero {
+  padding: 56rpx 32rpx 24rpx;
+}
+
+.heroTitle {
+  display: block;
+  font-size: 64rpx;
+  color: var(--fg);
+}
+
+.heroSubtitle {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 22rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+  margin-top: 12rpx;
+}
+
+.list {
+  padding: 0 24rpx;
+}
+
+.card {
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r);
+  padding: 28rpx;
+  margin-bottom: 14rpx;
+  box-shadow:
+    0 4rpx 12rpx rgba(15,20,33,0.05);
+}
+
+.card:active {
+  transform: scale(0.992);
+  filter: brightness(0.98);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+  margin-bottom: 14rpx;
+}
+
+.titleWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cardTitle {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.titleDim {
+  font-weight: 500;
+  color: var(--fg-3);
+}
+
+.nodeMeta {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-4);
+  letter-spacing: 0.04em;
+  margin-top: 4rpx;
+}
+
+/* ── Risk pill ─────────────────────────────────────────── */
+.riskPill {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  padding: 6rpx 18rpx;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+}
+
+.risk_low {
+  background: var(--ok-bg);
+  color: #1a8a3f;
+}
+
+.risk_medium {
+  background: var(--warn-bg);
+  color: #b56e00;
+}
+
+.risk_high {
+  background: var(--danger-bg);
+  color: #c4322a;
+}
+
+/* ── Meta line ─────────────────────────────────────────── */
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10rpx;
+}
+
+.metaText {
+  font-size: 24rpx;
+  color: var(--fg-3);
+  line-height: 1.4;
+}
+
+.duration {
+  font-size: 24rpx;
+  color: var(--fg-2);
+  font-weight: 600;
+}
+
+.durationUnit {
+  font-size: 22rpx;
+  color: var(--fg-3);
+  margin-left: 2rpx;
+}
+
+.reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 26rpx;
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+
+/* ── Risk reasons (tags) ───────────────────────────────── */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 14rpx;
+}
+
+.tag {
+  font-size: 22rpx;
+  padding: 4rpx 14rpx;
+  border-radius: var(--r-pill);
+  background: rgba(0,0,0,0.05);
+  color: var(--fg-3);
+}
+
+.empty {
+  text-align: center;
+  padding: 96rpx 32rpx;
+  color: var(--fg-4);
+  font-size: 26rpx;
+}

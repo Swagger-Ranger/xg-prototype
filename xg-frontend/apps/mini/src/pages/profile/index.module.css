@@ -1,0 +1,151 @@
+/* 个人中心 — Apple 玻璃感。 */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 240rpx;
+}
+
+.hero {
+  padding: 56rpx 32rpx 28rpx;
+}
+
+.heroTitle {
+  display: block;
+  font-size: 64rpx;
+  color: var(--fg);
+}
+
+/* 身份卡 — 大玻璃卡 */
+.identityCard {
+  margin: 8rpx 24rpx 24rpx;
+  padding: 36rpx 28rpx;
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow:
+    0 8rpx 24rpx rgba(15,20,33,0.07);
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--ac-hi) 0%, var(--ac) 50%, var(--ac-deep) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2rpx solid var(--bd);
+  box-shadow: 0 4rpx 12rpx var(--ac-glow);
+}
+
+.avatarText {
+  font-size: 52rpx;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.identityText {
+  flex: 1;
+  min-width: 0;
+}
+
+.identityName {
+  display: block;
+  font-size: 38rpx;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.identityRole {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 8rpx;
+}
+
+.roleMore {
+  color: var(--ac);
+  font-weight: 500;
+}
+
+/* 操作列表 — 玻璃卡组 */
+.list {
+  margin: 0 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 24rpx;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r);
+  box-shadow:
+    0 4rpx 12rpx rgba(15,20,33,0.05);
+  transition: transform 0.12s ease;
+}
+
+.row:active {
+  transform: scale(0.99);
+  filter: brightness(0.98);
+}
+
+.rowDisabled {
+  opacity: 0.55;
+}
+
+.rowIcon {
+  flex-shrink: 0;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tone_accent {
+  background: var(--ac-bg);
+  color: var(--ac);
+}
+
+.tone_danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.rowText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.rowHint {
+  font-family: var(--font-mono);
+  font-size: 20rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+  margin-top: 4rpx;
+  line-height: 1.4;
+}

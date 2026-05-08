@@ -3,9 +3,9 @@ package com.xg.platform.notification.controller;
 import com.xg.common.base.PageQuery;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
-import com.xg.platform.notification.model.NotificationRecipient;
 import com.xg.platform.notification.service.NotificationService;
 import com.xg.platform.notification.service.SendNotificationRequest;
+import com.xg.platform.notification.vo.MyNotificationVO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +19,7 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @GetMapping("/api/v1/notifications/my")
-    public R<PageResult<NotificationRecipient>> listMyNotifications(
+    public R<PageResult<MyNotificationVO>> listMyNotifications(
             PageQuery query,
             HttpServletRequest request) {
         Long userId = extractUserId(request);

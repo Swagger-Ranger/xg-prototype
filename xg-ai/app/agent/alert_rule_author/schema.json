@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AlertRuleDsl",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "window", "aggregations", "condition", "severity"],
+  "properties": {
+    "name":          { "type": "string", "minLength": 1, "maxLength": 80 },
+    "description":   { "type": "string" },
+    "nl_source":     { "type": "string" },
+    "enabled":       { "type": "boolean" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grade":    { "type": "array", "items": { "type": "string" } },
+        "class_id": { "type": "array", "items": { "type": "integer" } }
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["rolling", "calendar_month", "calendar_week", "semester"] },
+        "days": { "type": "integer", "minimum": 1, "maximum": 365 }
+      }
+    },
+    "aggregations": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z_][a-z0-9_]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dimension", "op"],
+        "properties": {
+          "dimension": { "enum": ["leave", "checkin_late", "violation", "dorm_check", "ai_chat", "consumption", "absence", "exam_fail"] },
+          "op":        { "enum": ["count", "sum", "avg", "max", "min", "distinct_days", "consecutive_days", "exists"] },
+          "field":     { "type": "string" },
+          "filter":    { "type": "string" },
+          "compare_to":{ "enum": ["previous_period", "previous_month", "previous_week"] }
+        }
+      }
+    },
+    "condition":     { "type": "string", "minLength": 1 },
+    "severity":      { "type": "integer", "minimum": 0, "maximum": 10 },
+    "cooldown_days": { "type": "integer", "minimum": 0, "maximum": 365 },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "notify":     { "type": "array", "items": { "enum": ["counselor", "parent", "self"] } },
+        "ai_explain": { "type": "boolean" }
+      }
+    },
+    "ai_hooks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled":  { "type": "boolean" },
+          "agent":    { "type": "string" },
+          "target":   { "enum": ["severity", "filter"] },
+          "params":   { "type": "object" }
+        }
+      }
+    }
+  }
+}

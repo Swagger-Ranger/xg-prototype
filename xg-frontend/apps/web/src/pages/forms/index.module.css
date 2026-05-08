@@ -1,0 +1,227 @@
+.page {
+  max-width: 1400px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  color: var(--fg-3);
+  font-size: 12.5px;
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.filterBar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tableCard {
+  background: var(--bg-2);
+  border: 1px solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+  overflow: hidden;
+}
+
+.statusTag {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.actionLink {
+  background: none;
+  border: none;
+  color: var(--ac);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+}
+.actionLink:hover {
+  color: var(--ac-hi, var(--ac));
+}
+.actionLink + .actionLink {
+  margin-left: 12px;
+}
+.actionLink.disabled {
+  color: var(--fg-3);
+  cursor: not-allowed;
+}
+
+.codeCell {
+  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.metaLine {
+  color: var(--fg-2);
+  font-size: 12px;
+}
+
+.editorBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.editorHint {
+  font-size: 12.5px;
+  color: var(--fg-3);
+  line-height: 1.6;
+  background: var(--bg-3);
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+}
+
+.fieldList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fieldCard {
+  border: 1px solid var(--bd-2);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  background: var(--bg-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fieldCardDeprecated {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.fieldCardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fieldName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.fieldKey {
+  font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 11.5px;
+  color: var(--fg-4);
+  font-weight: 400;
+}
+
+.fieldType {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--ac-bg);
+  color: var(--ac);
+  border: 1px solid var(--ac-ring);
+  letter-spacing: 0.02em;
+}
+
+.fieldMeta {
+  font-size: 12px;
+  color: var(--fg-3);
+  line-height: 1.55;
+}
+
+.fieldChip {
+  display: inline-block;
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  margin-right: 4px;
+  background: var(--bg-3);
+  color: var(--fg-2);
+}
+
+.fieldActions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.fieldActions button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-3);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--r-xs);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.fieldActions button:hover:not(:disabled) {
+  border-color: var(--bd-2);
+  background: var(--bg-3);
+  color: var(--fg);
+}
+.fieldActions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.fieldActions button.danger:hover {
+  color: var(--err);
+  border-color: var(--err);
+}
+
+.addBlock {
+  border: 1px dashed var(--bd-2);
+  border-radius: var(--r);
+  padding: 14px;
+  background: var(--bg-2);
+}
+
+.addBlockTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-2);
+  margin-bottom: 12px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 32px;
+  color: var(--fg-3);
+  font-size: 13px;
+  border: 1px dashed var(--bd-2);
+  border-radius: var(--r);
+}
+
+.dirtyBar {
+  position: sticky;
+  bottom: 0;
+  background: var(--ac-bg);
+  border-top: 1px solid var(--ac-ring);
+  padding: 10px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--fg-2);
+  margin: 0 -24px -24px -24px;
+}

@@ -1,0 +1,322 @@
+/* ============================================================
+ * AI 抽屉 — 与 web AIPanel.tsx 对齐
+ *   · Header：渐变 mark + 标题 + 在线状态 + 「新对话」+ 关闭
+ *   · 空态：role-aware quick action 列表 + 知识问答
+ *   · 有消息：bubble + "正在思考" 动画
+ * ============================================================ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0);
+  z-index: 40;
+  pointer-events: none;
+  transition: background 0.28s ease;
+}
+
+.backdropOpen {
+  background: rgba(15, 23, 42, 0.42);
+  pointer-events: auto;
+}
+
+.sheet {
+  position: fixed;
+  left: 16rpx;
+  right: 16rpx;
+  top: 88rpx;
+  bottom: calc(216rpx + env(safe-area-inset-bottom, 0px));
+  background: #ffffff;
+  border: 1rpx solid rgba(15, 23, 42, 0.08);
+  border-radius: 32rpx;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(120%);
+  opacity: 0;
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease;
+  box-shadow:
+    0 24rpx 60rpx -12rpx rgba(15, 23, 42, 0.25),
+    0 8rpx 20rpx -4rpx rgba(15, 23, 42, 0.10);
+  overflow: hidden;
+}
+
+.sheetOpen {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 20rpx 22rpx 16rpx;
+  border-bottom: 1rpx solid var(--bd);
+  flex-shrink: 0;
+}
+
+.headerIcon {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 14rpx;
+  background: linear-gradient(135deg, var(--ac-hi) 0%, var(--ac) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4rpx 12rpx var(--ac-glow);
+}
+
+.headerInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.headerTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.headerTitle {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.headerStatus {
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+  padding: 2rpx 8rpx;
+  border-radius: var(--r-pill);
+  background: var(--ok-bg);
+}
+
+.headerStatusDot {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.headerStatusText {
+  font-size: 18rpx;
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.headerHint {
+  font-size: 22rpx;
+  color: var(--fg-3);
+  margin-top: 2rpx;
+  display: block;
+}
+
+.headerActionBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+  padding: 10rpx 16rpx;
+  border-radius: var(--r-pill);
+  background: var(--ac-bg);
+}
+
+.headerActionBtn:active {
+  background: var(--ac-bg-2);
+  transform: scale(0.96);
+}
+
+.headerActionLabel {
+  font-size: 22rpx;
+  color: var(--ac-deep);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.closeBtn {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: var(--bg-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.closeBtn:active {
+  background: var(--bg-4);
+}
+
+/* ── 消息区 ─────────────────────────────────────────── */
+.messages {
+  flex: 1;
+  padding: 20rpx 24rpx 24rpx;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+/* ── 空态 + Quick action ───────────────────────────── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  padding: 24rpx 4rpx 12rpx;
+}
+
+.emptyTitle {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+  margin-bottom: 8rpx;
+}
+
+.emptyHint {
+  font-size: 24rpx;
+  color: var(--fg-3);
+  line-height: 1.55;
+  margin-bottom: 28rpx;
+}
+
+.quickGroup {
+  margin-bottom: 24rpx;
+}
+
+.quickGroupLabel {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 600;
+  color: var(--fg-3);
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  margin-bottom: 12rpx;
+  padding: 0 4rpx;
+}
+
+.quickBtn {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 18rpx 18rpx;
+  background: var(--bg-3);
+  border: 1rpx solid var(--bd-2);
+  border-radius: var(--r-sm);
+  margin-bottom: 10rpx;
+}
+
+.quickBtn:active {
+  background: var(--ac-bg);
+  border-color: var(--ac-bg-2);
+  transform: scale(0.99);
+}
+
+.quickIconWrap {
+  flex-shrink: 0;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background: var(--ac-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quickIconWrapAlt {
+  background: var(--bd-2);
+}
+
+.quickTextGroup {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.quickText {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+.quickDesc {
+  font-size: 22rpx;
+  color: var(--fg-3);
+  margin-top: 2rpx;
+}
+
+.quickArrow {
+  flex-shrink: 0;
+  font-size: 32rpx;
+  color: var(--fg-4);
+  font-weight: 600;
+}
+
+/* ── 气泡 ─────────────────────────────────────────── */
+.bubbleRow {
+  display: flex;
+  margin-bottom: 14rpx;
+}
+
+.bubbleRowUser {
+  justify-content: flex-end;
+}
+
+.bubble {
+  max-width: 78%;
+  padding: 16rpx 20rpx;
+  border-radius: 20rpx;
+  font-size: 28rpx;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.bubbleAssistant {
+  background: var(--bg-1);
+  color: var(--fg);
+  border: 1rpx solid var(--bd);
+  border-bottom-left-radius: 6rpx;
+}
+
+.bubbleUser {
+  background: var(--ac);
+  color: #ffffff;
+  border-bottom-right-radius: 6rpx;
+}
+
+/* "正在思考" bubble */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.thinkingText {
+  font-size: 26rpx;
+  color: var(--fg-3);
+}
+
+.thinkingDots {
+  display: flex;
+  gap: 4rpx;
+}
+
+.thinkingDot {
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: var(--ac);
+  animation: thinkingPulse 1.2s ease infinite;
+}
+
+.thinkingDot:nth-child(2) { animation-delay: 0.2s; }
+.thinkingDot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes thinkingPulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1.1); }
+}

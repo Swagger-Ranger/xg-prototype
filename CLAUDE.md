@@ -110,6 +110,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - **Tool 粒度**：用户任务级而非 CRUD 级，用户身份从上下文获取不暴露给 Agent
 - **动态表单数据**：PostgreSQL JSONB + Generated Column 建索引
 - **轻量优先**：能用 PG 解决的不加新组件，P0 不引入 RabbitMQ/ES/ClickHouse
+- **通知接入**：新模块发通知 = (1) INSERT 一行 `notification_template` seed (2) 调 `NotificationOrchestrator.send(code, sourceType, sourceId, recipients, vars)`。通知中心 UI / AI 助手识别 / 角色偏好 / 双轨去重 / 三渠道扇出 全部自动适配，禁止业务侧绕开 Orchestrator 直接 `NotificationService.send`
 
 ### 项目文档索引
 

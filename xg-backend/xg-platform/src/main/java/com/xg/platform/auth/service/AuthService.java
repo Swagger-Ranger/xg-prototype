@@ -3,9 +3,11 @@ package com.xg.platform.auth.service;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xg.common.tenant.TenantContext;
+import com.xg.platform.auth.dto.ChangeMyPasswordRequest;
 import com.xg.platform.auth.dto.CurrentUserView;
 import com.xg.platform.auth.dto.LoginRequest;
 import com.xg.platform.auth.dto.LoginResponse;
+import com.xg.platform.auth.dto.UpdateMyProfileRequest;
 import com.xg.platform.system.mapper.SysUserMapper;
 import com.xg.platform.system.mapper.SysUserRoleMapper;
 import com.xg.platform.system.model.SysUser;
@@ -94,6 +96,9 @@ public class AuthService {
         view.setUsername(user.getUsername());
         view.setRealName(user.getRealName());
         view.setAvatarUrl(user.getAvatarUrl());
+        view.setEmail(user.getEmail());
+        view.setPhone(user.getPhone());
+        view.setGender(user.getGender());
         view.setTenantId(tenantId);
         view.setTenantName("默认租户");
         view.setOrgId(null);
@@ -101,5 +106,62 @@ public class AuthService {
         view.setRoleCodes(roleCodes);
         view.setPermissions(permissions);
         return view;
+    }
+
+    /** Self-service: limited subset of profile fields. real_name / phone /
+     *  username stay admin-managed (audit + identity-linkage concerns). */
+    @Transactional
+    public CurrentUserView updateMyProfile(Long userId, UpdateMyProfileRequest req) {
+        ensureTenant();
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) throw AuthErrorCode.USER_NOT_FOUND.exception();
+
+        if (req.getEmail() != null) user.setEmail(req.getEmail().isBlank() ? null : req.getEmail().trim());
+        if (req.getPhone() != null) user.setPhone(req.getPhone().isBlank() ? null : req.getPhone().trim());
+        if (req.getGender() != null) {
+            String g = req.getGender().trim();
+            if (!g.isEmpty() && !"male".equals(g) && !"female".equals(g) && !"unknown".equals(g)) {
+                throw AuthErrorCode.INVALID_PROFILE.exception();
+            }
+            user.setGender(g.isEmpty() ? null : g);
+        }
+        if (req.getAvatarUrl() != null) {
+            user.setAvatarUrl(req.getAvatarUrl().isBlank() ? null : req.getAvatarUrl().trim());
+        }
+        sysUserMapper.updateById(user);
+        return buildView(user, TenantContext.getTenantId());
+    }
+
+    /** Self-service password change. Old password must verify; new password
+     *  must differ and meet a minimum length. Reset-password (admin) lives on
+     *  SystemUserController and skips the old-password check. */
+    @Transactional
+    public void changeMyPassword(Long userId, ChangeMyPasswordRequest req) {
+        ensureTenant();
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) throw AuthErrorCode.USER_NOT_FOUND.exception();
+        if (req.getOldPassword() == null || req.getNewPassword() == null) {
+            throw AuthErrorCode.INVALID_PROFILE.exception();
+        }
+        if (user.getPasswordHash() == null
+                || !BCrypt.checkpw(req.getOldPassword(), user.getPasswordHash())) {
+            throw AuthErrorCode.OLD_PASSWORD_MISMATCH.exception();
+        }
+        String np = req.getNewPassword();
+        if (np.length() < 8 || np.length() > 64) {
+            throw AuthErrorCode.WEAK_PASSWORD.exception();
+        }
+        if (BCrypt.checkpw(np, user.getPasswordHash())) {
+            throw AuthErrorCode.SAME_PASSWORD.exception();
+        }
+        user.setPasswordHash(BCrypt.hashpw(np, BCrypt.gensalt()));
+        sysUserMapper.updateById(user);
+    }
+
+    private void ensureTenant() {
+        String tenantId = TenantContext.getTenantId();
+        if (tenantId == null || tenantId.isBlank()) {
+            applyTenant(DEFAULT_TENANT);
+        }
     }
 }

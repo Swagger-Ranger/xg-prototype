@@ -33,7 +33,7 @@ public class ApprovalExecutor implements NodeExecutor {
     public ExecutionResult execute(WorkflowInstance instance, Map<String, Object> nodeDef) {
         String role = getNestedString(nodeDef, "assignee", "role");
         String scope = getNestedString(nodeDef, "assignee", "scope");
-        List<Long> assigneeIds = assigneeResolver.resolve(role, scope, instance.getInitiatorId());
+        List<Long> assigneeIds = assigneeResolver.resolve(role, scope, instance);
 
         String nodeId = (String) nodeDef.get("id");
         String nodeName = (String) nodeDef.get("name");
