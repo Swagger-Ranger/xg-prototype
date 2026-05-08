@@ -6,6 +6,9 @@ import com.xg.platform.notification.mapper.NotificationPreferenceMapper;
 import com.xg.platform.notification.mapper.NotificationTemplateMapper;
 import com.xg.platform.notification.model.NotificationPreference;
 import com.xg.platform.notification.model.NotificationTemplate;
+import com.xg.platform.notification.recipient.RecipientContext;
+import com.xg.platform.notification.recipient.RecipientResolver;
+import com.xg.platform.notification.recipient.ResolvedRecipient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -40,27 +43,32 @@ public class NotificationOrchestrator {
     private final NotificationTemplateMapper templateMapper;
     private final NotificationPreferenceMapper preferenceMapper;
     private final NotificationService notificationService;
-
-    /** 一个收件人 + 它在权限体系里的角色(决定走哪个 role 偏好)。roleCode 可空 — 空时只用默认渠道。 */
-    public record Recipient(Long userId, String roleCode) {
-        public static Recipient of(Long userId, String roleCode) {
-            return new Recipient(userId, roleCode);
-        }
-    }
+    private final RecipientResolver recipientResolver;
 
     /**
-     * 按模板发通知。同 (sourceType, sourceId, templateCode) 重复触发会被
-     * 唯一索引拦掉,Orchestrator 吞 DuplicateKeyException 不再抛。
+     * 按模板发通知。收件人由模板的 recipients JSONB 配置决定(管理员可改),
+     * 业务侧只传 ctx(申请人 / 当前审批人 等)给 RecipientResolver 解析。
      *
-     * @return 写入 notification.id;被去重 / 模板缺失 / 全员静默时返回 null。
+     * <p>同 (sourceType, sourceId, templateCode) 重复触发会被唯一索引拦掉,
+     * Orchestrator 吞 DuplicateKeyException 不再抛。
+     *
+     * @return 写入 notification.id;被去重 / 模板缺失 / 全员静默 / 解析后无收件人时返回 null。
      */
     public Long send(String templateCode, String sourceType, Long sourceId,
-                     List<Recipient> recipients, Map<String, Object> vars) {
-        if (templateCode == null || recipients == null || recipients.isEmpty()) return null;
+                     RecipientContext ctx, Map<String, Object> vars) {
+        if (templateCode == null || ctx == null) return null;
 
         NotificationTemplate tmpl = findTemplate(templateCode);
         if (tmpl == null || Boolean.FALSE.equals(tmpl.getEnabled())) {
             log.debug("Notification template '{}' missing or disabled, skip", templateCode);
+            return null;
+        }
+
+        // 解析模板配的 recipients → 实际用户列表(去重 + cc 标记)
+        List<ResolvedRecipient> recipients = recipientResolver.resolve(tmpl.getRecipients(), ctx);
+        if (recipients.isEmpty()) {
+            log.info("Template {} resolved to zero recipients (source={}/{}); ctx may lack required fields",
+                    templateCode, sourceType, sourceId);
             return null;
         }
 
@@ -69,7 +77,7 @@ public class NotificationOrchestrator {
 
         // 按渠道集合分组(同组共用一条 notification 记录,扇出 recipient)
         Map<List<String>, List<Long>> byChannels = new HashMap<>();
-        for (Recipient r : recipients) {
+        for (ResolvedRecipient r : recipients) {
             List<String> channels = resolveChannels(tmpl, r.roleCode());
             if (channels == null || channels.isEmpty()) continue;
             byChannels.computeIfAbsent(channels, k -> new ArrayList<>()).add(r.userId());

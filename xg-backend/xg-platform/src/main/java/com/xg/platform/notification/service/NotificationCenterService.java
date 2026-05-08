@@ -1,6 +1,9 @@
 package com.xg.platform.notification.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.common.exception.BizException;
 import com.xg.common.tenant.TenantContext;
 import com.xg.platform.notification.mapper.CareRuleMapper;
@@ -9,6 +12,7 @@ import com.xg.platform.notification.mapper.NotificationTemplateMapper;
 import com.xg.platform.notification.model.CareRule;
 import com.xg.platform.notification.model.NotificationPreference;
 import com.xg.platform.notification.model.NotificationTemplate;
+import com.xg.platform.notification.recipient.RecipientType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +38,7 @@ public class NotificationCenterService {
     private final NotificationTemplateMapper templateMapper;
     private final NotificationPreferenceMapper preferenceMapper;
     private final CareRuleMapper careRuleMapper;
+    private final ObjectMapper objectMapper;
 
     /* ───────── 模板 ───────── */
 
@@ -62,6 +67,10 @@ public class NotificationCenterService {
         }
         if (patch.getEnabled() != null) row.setEnabled(patch.getEnabled());
         if (patch.getDescription() != null) row.setDescription(patch.getDescription());
+        if (patch.getRecipients() != null) {
+            validateRecipientsJson(patch.getRecipients());
+            row.setRecipients(patch.getRecipients());
+        }
         row.setUpdatedAt(OffsetDateTime.now());
         templateMapper.updateById(row);
         log.info("notification template {} updated", code);
@@ -196,6 +205,16 @@ public class NotificationCenterService {
                         if (op.get("body") != null) patch.setBodyTmpl((String) op.get("body"));
                         updateTemplate((String) op.get("code"), patch);
                     }
+                    case "set_template_recipients" -> {
+                        Object recipients = op.get("recipients");
+                        if (recipients == null) {
+                            log.warn("applyOps: set_template_recipients missing recipients, skip");
+                            continue;
+                        }
+                        NotificationTemplate patch = new NotificationTemplate();
+                        patch.setRecipients(objectMapper.writeValueAsString(recipients));
+                        updateTemplate((String) op.get("code"), patch);
+                    }
                     case "set_pref_channels" -> {
                         @SuppressWarnings("unchecked")
                         List<String> channels = (List<String>) op.get("channels");
@@ -238,6 +257,32 @@ public class NotificationCenterService {
         for (String c : channels) {
             if (!ALLOWED_CHANNELS.contains(c)) {
                 throw new BizException("INVALID_CHANNEL", "不支持的渠道: " + c);
+            }
+        }
+    }
+
+    /** 校验 recipients JSONB 字面 — 必须是非空 array,每项 type 在 RecipientType 枚举内,
+     *  static_user 必须带 user_id。sidecar 已校验,这里防御重写。 */
+    private void validateRecipientsJson(String recipientsJson) {
+        JsonNode node;
+        try {
+            node = objectMapper.readTree(recipientsJson);
+        } catch (JsonProcessingException e) {
+            throw new BizException("INVALID_RECIPIENTS", "recipients 不是合法 JSON");
+        }
+        if (!node.isArray() || node.isEmpty()) {
+            throw new BizException("INVALID_RECIPIENTS", "recipients 必须为非空数组");
+        }
+        for (JsonNode r : node) {
+            if (!r.isObject()) {
+                throw new BizException("INVALID_RECIPIENTS", "recipients 每项必须是对象");
+            }
+            String type = r.path("type").asText(null);
+            if (type == null || RecipientType.fromCode(type) == null) {
+                throw new BizException("INVALID_RECIPIENTS", "不支持的收件人类型: " + type);
+            }
+            if ("static_user".equals(type) && r.path("user_id").asLong(0L) <= 0L) {
+                throw new BizException("INVALID_RECIPIENTS", "static_user 必须带 user_id");
             }
         }
     }

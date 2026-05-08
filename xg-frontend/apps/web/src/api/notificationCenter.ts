@@ -4,6 +4,21 @@ export type NotificationChannel = 'in_app' | 'miniprogram' | 'wecom';
 export type NotificationLevel = 'normal' | 'important' | 'urgent';
 export type NotificationCategory = 'business' | 'care' | 'system';
 
+export type RecipientType =
+  | 'applicant'
+  | 'current_approver'
+  | 'applicant_counselor'
+  | 'applicant_class_master'
+  | 'applicant_class_monitor'
+  | 'applicant_dean'
+  | 'static_user';
+
+export interface RecipientSpec {
+  type: RecipientType;
+  cc?: boolean;
+  user_id?: number;
+}
+
 export interface NotificationTemplateRow {
   id: string;
   tenant_id: string;
@@ -17,6 +32,7 @@ export interface NotificationTemplateRow {
   wx_template_id: string | null;
   enabled: boolean;
   description: string | null;
+  recipients: RecipientSpec[];
   created_at: string;
   updated_at: string;
 }

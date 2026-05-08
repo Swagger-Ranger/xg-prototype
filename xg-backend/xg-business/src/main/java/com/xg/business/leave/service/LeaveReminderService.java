@@ -6,10 +6,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.business.leave.mapper.LeaveRequestMapper;
 import com.xg.business.leave.model.LeaveRequest;
+import com.xg.platform.notification.recipient.RecipientContext;
 import com.xg.platform.notification.service.NotificationOrchestrator;
-import com.xg.platform.notification.service.NotificationOrchestrator.Recipient;
 import com.xg.platform.weather.client.WeatherClient;
-import com.xg.platform.workflow.mapper.AssigneeLookupMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -61,7 +60,6 @@ public class LeaveReminderService {
 
     private final LeaveRequestMapper leaveMapper;
     private final NotificationOrchestrator orchestrator;
-    private final AssigneeLookupMapper assigneeLookup;
     private final WeatherClient weatherClient;
     private final ObjectMapper objectMapper;
 
@@ -147,7 +145,7 @@ public class LeaveReminderService {
         vars.put("caring", caringFor(leave.getLeaveTypeCode()));
         vars.put("weather_seg", (weather != null && !weather.isBlank()) ? " " + weather : "");
         orchestrator.send("REMINDER_LEAVE_START", "leave", leave.getId(),
-                List.of(Recipient.of(leave.getStudentId(), "student")), vars);
+                RecipientContext.applicant(leave.getStudentId()), vars);
     }
 
     /** Pulls the user-supplied 离校去向 from the leave's JSONB form_data. */
@@ -170,37 +168,27 @@ public class LeaveReminderService {
         vars.put("hours_left", hoursLeft);
         vars.put("end_dt", formatDateTime(leave.getEndTime()));
         orchestrator.send("REMINDER_PRE_END", "leave", leave.getId(),
-                List.of(Recipient.of(leave.getStudentId(), "student")), vars);
+                RecipientContext.applicant(leave.getStudentId()), vars);
     }
 
     private void sendDueReminder(LeaveRequest leave) {
         if (leave.getStudentId() == null) return;
         orchestrator.send("REMINDER_DUE", "leave", leave.getId(),
-                List.of(Recipient.of(leave.getStudentId(), "student")), baseVars(leave));
+                RecipientContext.applicant(leave.getStudentId()), baseVars(leave));
     }
 
     private void sendOverdueReminder(LeaveRequest leave, OffsetDateTime now) {
         if (leave.getStudentId() == null || leave.getEndTime() == null) return;
         long hoursOver = Math.max(2, ChronoUnit.HOURS.between(leave.getEndTime(), now));
+        // 一次 send 覆盖学生 + 辅导员抄送 — 模板的 recipients 配置 [applicant,
+        // applicant_counselor cc:true],RecipientResolver 自动解析,不再需要业务侧
+        // 区分两次硬编码。学生姓名让 OVERDUE 模板能在抄送给辅导员时正确显示。
         Map<String, Object> vars = baseVars(leave);
         vars.put("hours_over", hoursOver);
-        orchestrator.send("REMINDER_OVERDUE", "leave", leave.getId(),
-                List.of(Recipient.of(leave.getStudentId(), "student")), vars);
-
-        // Escalate: 抄送辅导员。模板 code 不同 → 不被双轨去重索引拦截。
-        List<Long> counselorIds = assigneeLookup.findCounselorsOfStudent(leave.getStudentId());
-        if (counselorIds == null || counselorIds.isEmpty()) {
-            log.info("overdue: no counselor mapped for student {}, escalation skipped", leave.getStudentId());
-            return;
-        }
-        List<Recipient> recipients = counselorIds.stream()
-                .map(uid -> Recipient.of(uid, "counselor"))
-                .toList();
-        Map<String, Object> counselorVars = new HashMap<>(vars);
-        counselorVars.put("student_name", leave.getStudentName() != null
+        vars.put("student_name", leave.getStudentName() != null
                 ? leave.getStudentName() : ("学生 #" + leave.getStudentId()));
-        orchestrator.send("REMINDER_OVERDUE_COUNSELOR", "leave", leave.getId(),
-                recipients, counselorVars);
+        orchestrator.send("REMINDER_OVERDUE", "leave", leave.getId(),
+                RecipientContext.applicant(leave.getStudentId()), vars);
     }
 
     /** 5 个 reminder 共用的基础 vars(leave_type_name / range / days / start_date / end_date)。 */

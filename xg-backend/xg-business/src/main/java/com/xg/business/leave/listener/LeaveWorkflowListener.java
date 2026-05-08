@@ -3,8 +3,8 @@ package com.xg.business.leave.listener;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xg.business.leave.mapper.LeaveRequestMapper;
 import com.xg.business.leave.model.LeaveRequest;
+import com.xg.platform.notification.recipient.RecipientContext;
 import com.xg.platform.notification.service.NotificationOrchestrator;
-import com.xg.platform.notification.service.NotificationOrchestrator.Recipient;
 import com.xg.platform.notification.service.NotificationService;
 import com.xg.platform.notification.service.SendNotificationRequest;
 import com.xg.platform.workflow.event.WorkflowFinishedEvent;
@@ -126,7 +126,7 @@ public class LeaveWorkflowListener {
         }
         try {
             notificationOrchestrator.send(templateCode, "leave", leave.getId(),
-                    List.of(Recipient.of(leave.getStudentId(), "student")), vars);
+                    RecipientContext.applicant(leave.getStudentId()), vars);
         } catch (Exception e) {
             log.warn("orchestrator send {} failed for leave {}: {}", templateCode, leave.getId(), e.getMessage());
         }
@@ -141,7 +141,7 @@ public class LeaveWorkflowListener {
             vars.put("return_source_label", returnSourceLabel(leave.getReturnSource()));
             try {
                 notificationOrchestrator.send("LEAVE_RETURNED", "leave", leave.getId(),
-                        List.of(Recipient.of(leave.getStudentId(), "student")), vars);
+                        RecipientContext.applicant(leave.getStudentId()), vars);
             } catch (Exception e) {
                 log.warn("orchestrator send LEAVE_RETURNED failed for leave {}: {}", leave.getId(), e.getMessage());
             }

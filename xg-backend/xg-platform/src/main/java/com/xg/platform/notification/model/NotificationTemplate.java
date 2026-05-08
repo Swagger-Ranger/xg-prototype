@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonRawValue;
+import com.xg.common.mybatis.JsonbTypeHandler;
 import com.xg.common.mybatis.PostgresTextArrayTypeHandler;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Getter;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -50,6 +54,17 @@ public class NotificationTemplate {
     private Boolean enabled;
 
     private String description;
+
+    /** 收件人配置 JSON,例:[{"type":"applicant"},{"type":"applicant_counselor","cc":true}]
+     *  写时由 NotificationCenterService 校验结构,读时由 NotificationOrchestrator 解析。 */
+    @Getter(AccessLevel.NONE)
+    @JsonRawValue
+    @TableField(value = "recipients", typeHandler = JsonbTypeHandler.class)
+    private String recipients;
+
+    public String getRecipients() {
+        return recipients;
+    }
 
     @TableField("created_at")
     private OffsetDateTime createdAt;

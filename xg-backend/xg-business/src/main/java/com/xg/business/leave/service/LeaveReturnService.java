@@ -7,8 +7,8 @@ import com.xg.common.exception.BizException;
 import com.xg.common.tenant.TenantContext;
 import com.xg.platform.event.StudentEventPublisher;
 import com.xg.platform.event.StudentEventType;
+import com.xg.platform.notification.recipient.RecipientContext;
 import com.xg.platform.notification.service.NotificationOrchestrator;
-import com.xg.platform.notification.service.NotificationOrchestrator.Recipient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -203,7 +203,7 @@ public class LeaveReturnService {
                 });
         try {
             notificationOrchestrator.send("LEAVE_RETURNED", "leave", leave.getId(),
-                    List.of(Recipient.of(leave.getStudentId(), "student")), vars);
+                    RecipientContext.applicant(leave.getStudentId()), vars);
         } catch (Exception e) {
             log.warn("orchestrator send LEAVE_RETURNED failed for leave {}: {}", leave.getId(), e.getMessage());
         }

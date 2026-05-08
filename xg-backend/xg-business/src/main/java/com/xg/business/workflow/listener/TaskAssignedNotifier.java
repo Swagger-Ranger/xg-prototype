@@ -1,7 +1,7 @@
 package com.xg.business.workflow.listener;
 
+import com.xg.platform.notification.recipient.RecipientContext;
 import com.xg.platform.notification.service.NotificationOrchestrator;
-import com.xg.platform.notification.service.NotificationOrchestrator.Recipient;
 import com.xg.platform.workflow.event.TaskAssignedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,15 +55,17 @@ public class TaskAssignedNotifier {
         // 节点名("辅导员审批")写进 summary,管理员能看出在哪个环节卡住。
         vars.put("summary", event.getNodeName() != null ? event.getNodeName() : "审批");
 
-        // 审批人的 role 这里不查 — 走模板默认渠道。如果管理员想给特定角色配偏好,
-        // 在通知管理 UI 上显式覆盖即可,不强制 Listener 去 sys_user_role 查回再传。
-        List<Recipient> recipients = event.getAssigneeIds().stream()
-                .map(uid -> Recipient.of(uid, null))
-                .toList();
+        // RecipientContext 把申请人 + 当前节点审批人都带上;模板默认 recipients
+        // 是 [{type:current_approver}],resolver 解析时只取 currentApprovers,
+        // 但管理员若把模板改成"加抄送辅导员",applicant 字段就能立刻被解析用上,无需改业务代码。
+        RecipientContext ctx = RecipientContext.builder()
+                .applicant(event.getInitiatorId())
+                .currentApprovers(event.getAssigneeIds())
+                .build();
 
         try {
             orchestrator.send("WORKFLOW_TASK_ARRIVED", event.getBizType(), event.getBizId(),
-                    recipients, vars);
+                    ctx, vars);
         } catch (Exception e) {
             log.warn("orchestrator send WORKFLOW_TASK_ARRIVED failed instance={} node={}: {}",
                     event.getInstanceId(), event.getNodeId(), e.getMessage());

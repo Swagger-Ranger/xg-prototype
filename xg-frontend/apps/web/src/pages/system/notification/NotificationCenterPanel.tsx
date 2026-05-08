@@ -9,6 +9,8 @@ import {
   type NotificationPreferenceRow,
   type NotificationChannel,
   type NotificationLevel,
+  type RecipientType,
+  type RecipientSpec,
 } from '@/api/notificationCenter';
 
 const CHANNEL_LABELS: Record<NotificationChannel, string> = {
@@ -27,6 +29,16 @@ const LEVEL_COLORS: Record<NotificationLevel, string> = {
   normal: 'default',
   important: 'orange',
   urgent: 'red',
+};
+
+const RECIPIENT_LABELS: Record<RecipientType, string> = {
+  applicant: '申请人',
+  current_approver: '当前审批人',
+  applicant_counselor: '申请人辅导员',
+  applicant_class_master: '申请人班主任',
+  applicant_class_monitor: '申请人班长',
+  applicant_dean: '申请人院系负责人',
+  static_user: '指定用户',
 };
 
 /**
@@ -79,6 +91,7 @@ export default function NotificationCenterPanel() {
             <span style={{ color: 'var(--fg-3)' }}>
               ·「把请假驳回通知关掉」<br />
               ·「学生超时未销假改成只发企业微信」<br />
+              ·「请假通过通知抄送辅导员」<br />
               ·「辅导员的任务到达通知不要走小程序」
             </span>
           </>
@@ -146,6 +159,10 @@ function NotificationRow({
         <span style={{ fontWeight: 500 }}>{sceneTitle}</span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--fg-3)', paddingLeft: 6 }}>
+        收件人:
+        <RecipientsTags recipients={tmpl.recipients} />
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--fg-3)', paddingLeft: 6, marginTop: 2 }}>
         渠道:
         {tmpl.default_channels.length === 0
           ? <Tag color="default" style={{ fontSize: 11 }}>未配置</Tag>
@@ -165,6 +182,26 @@ function NotificationRow({
         )}
       </div>
     </div>
+  );
+}
+
+function RecipientsTags({ recipients }: { recipients: RecipientSpec[] | undefined }) {
+  if (!recipients || recipients.length === 0) {
+    return <Tag color="default" style={{ fontSize: 11 }}>未配置</Tag>;
+  }
+  return (
+    <>
+      {recipients.map((r, idx) => {
+        const label = RECIPIENT_LABELS[r.type] ?? r.type;
+        const color = r.cc ? 'default' : 'blue';
+        const suffix = r.cc ? '(抄送)' : '';
+        return (
+          <Tag key={`${r.type}-${idx}`} color={color} style={{ fontSize: 11 }}>
+            {label}{suffix}
+          </Tag>
+        );
+      })}
+    </>
   );
 }
 
