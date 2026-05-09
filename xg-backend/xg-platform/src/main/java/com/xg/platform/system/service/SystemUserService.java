@@ -42,6 +42,9 @@ public class SystemUserService {
     private final SysRoleMapper sysRoleMapper;
     private final SysUserRoleMapper sysUserRoleMapper;
 
+    /** 列表默认隐藏的"非教职工"角色码：学生 + 班长身份。 */
+    private static final List<String> STUDENT_ROLE_CODES = List.of("student", "class_monitor");
+
     public PageResult<SystemUserView> list(SystemUserQueryRequest query) {
         Page<SysUser> page = query.toPage();
 
@@ -57,9 +60,16 @@ public class SystemUserService {
             }
         }
 
+        // includeStudents=false（缺省）→ 算出学生身份的 user_id 全 NOT IN 掉，避免几万行学生
+        // 把教职工列表淹没。前端"按学号查学生账号"兜底入口才传 includeStudents=true。
+        Set<Long> excludeUserIds = query.isIncludeStudents()
+                ? Collections.emptySet()
+                : new HashSet<>(sysUserRoleMapper.findUserIdsByRoleCodes(STUDENT_ROLE_CODES));
+
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
                 .eq(query.getStatus() != null, SysUser::getStatus, query.getStatus())
                 .in(userIdFilter != null, SysUser::getId, userIdFilter == null ? Collections.emptySet() : userIdFilter)
+                .notIn(!excludeUserIds.isEmpty(), SysUser::getId, excludeUserIds)
                 .and(query.getKeyword() != null && !query.getKeyword().isBlank(), w -> w
                         .like(SysUser::getUsername, query.getKeyword())
                         .or().like(SysUser::getRealName, query.getKeyword())

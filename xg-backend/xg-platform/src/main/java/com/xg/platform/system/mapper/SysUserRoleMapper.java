@@ -25,6 +25,17 @@ public interface SysUserRoleMapper extends BaseMapper<SysUserRole> {
     })
     List<Long> findUserIdsByRoleCode(@Param("code") String code);
 
+    /** 用于"用户管理列表排除学生"等批量场景。codes 为空时返回空列表（避免 IN ()）。 */
+    @Select({
+            "<script>",
+            "SELECT DISTINCT ur.user_id FROM sys_user_role ur",
+            "JOIN sys_role r ON r.id = ur.role_id",
+            "WHERE r.deleted_at IS NULL AND r.code IN",
+            "<foreach item='c' collection='codes' open='(' separator=',' close=')'>#{c}</foreach>",
+            "</script>"
+    })
+    List<Long> findUserIdsByRoleCodes(@Param("codes") List<String> codes);
+
     @Select({
             "SELECT DISTINCT p.code",
             "FROM sys_user_role ur",

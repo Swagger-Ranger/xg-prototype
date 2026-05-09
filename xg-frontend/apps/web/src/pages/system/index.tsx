@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Table, Tag, Select, Button, Input, Modal, Form, Tabs } from 'antd';
+import { Table, Tag, Select, Button, Input, Modal, Form, Tabs, Switch } from 'antd';
 import { message } from '@/utils/antdApp';
 import type { ColumnsType } from 'antd/es/table';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -60,6 +60,9 @@ export default function SystemManagement() {
   const [keyword, setKeyword] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  // 默认 false：列表呈现教职工 + 外部账号；学生量级（数千～数万）和教职工不一样,
+  // 默认混着列会把表格淹没。需要查特定学生（忘密码、毕业归档）时把 toggle 打开。
+  const [includeStudents, setIncludeStudents] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<SystemUser | null>(null);
 
@@ -74,6 +77,7 @@ export default function SystemManagement() {
     keyword: keyword || undefined,
     status: filterStatus || undefined,
     roleCode: filterRole || undefined,
+    includeStudents: includeStudents || undefined,
   };
 
   const { data, isFetching } = useQuery({
@@ -252,7 +256,12 @@ export default function SystemManagement() {
   const userManagement = (
     <>
       <div className={styles.header}>
-        <h1 className={styles.title} style={{ marginTop: 0 }}>用户管理</h1>
+        <div>
+          <h1 className={styles.title} style={{ marginTop: 0, marginBottom: 4 }}>用户管理</h1>
+          <div style={{ color: 'var(--fg-3)', fontSize: 12 }}>
+            {includeStudents ? '当前包含学生账号' : '仅教职工与外部账号（学生在「学生信息」管理）'}
+          </div>
+        </div>
         <Button type="primary" onClick={() => setCreateOpen(true)}>
           添加用户
         </Button>
@@ -260,9 +269,9 @@ export default function SystemManagement() {
 
       <div className={styles.filterBar}>
         <Input.Search
-          placeholder="搜索用户名或姓名"
+          placeholder={includeStudents ? '按用户名 / 姓名 / 学号搜索' : '搜索用户名或姓名'}
           allowClear
-          style={{ width: 220 }}
+          style={{ width: 240 }}
           onSearch={(v) => { setKeyword(v); setPage(1); }}
           onChange={(e) => { if (!e.target.value) { setKeyword(''); setPage(1); } }}
         />
@@ -278,6 +287,14 @@ export default function SystemManagement() {
           onChange={(v) => { setFilterStatus(v); setPage(1); }}
           options={STATUS_OPTIONS}
         />
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--fg-3)' }}>
+          包含学生
+          <Switch
+            size="small"
+            checked={includeStudents}
+            onChange={(v) => { setIncludeStudents(v); setPage(1); }}
+          />
+        </span>
       </div>
 
       <div className={styles.tableCard}>

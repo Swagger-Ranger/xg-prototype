@@ -21,6 +21,11 @@ export interface UserQueryParams {
   // Camel-cased to match the Java DTO field name — Spring's query-param
   // binding is field-name exact, so role_code (snake) was silently ignored.
   roleCode?: string;
+  /**
+   * 缺省 false → 列表只显示非学生。设 true 用于"按学号查学生账号"兜底
+   * （2 万学生默认不应混进教职工列表）。
+   */
+  includeStudents?: boolean;
 }
 
 export interface CreateUserData {
