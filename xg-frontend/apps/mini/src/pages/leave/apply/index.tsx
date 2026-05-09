@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Picker, Text, Textarea, View, Input } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import {
   applyLeave,
   calculateDurationDays,
+  getLeaveNoticeConfig,
   getLeaveTypes,
   previewLeaveImpact,
   type LeaveExtraField,
   type LeaveImpactView,
+  type LeaveNoticeConfig,
   type LeaveTypeConfig,
 } from '../../../api/leave';
+import type { MiniUser } from '../../../api/auth';
 import styles from './index.module.css';
 
 /* 申请请假 — Apple 玻璃感 × Form archetype。
@@ -46,6 +49,21 @@ export default function ApplyLeavePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // 「请假须知」配置 —— 只对学生角色生效;老师/辅导员代请假不弹。
+  // 当前 mini 端只有学生走这个 apply 页(辅导员代请假在 web/审批后台),
+  // 但仍按角色判定一次,避免后续路由扩展踩坑。
+  const isStudent = useMemo(() => {
+    const u = Taro.getStorageSync('user') as MiniUser | undefined;
+    return Array.isArray(u?.roleCodes) && u!.roleCodes.includes('student');
+  }, []);
+  const [noticeCfg, setNoticeCfg] = useState<LeaveNoticeConfig | null>(null);
+  const [showNotice, setShowNotice] = useState(false);
+  const [showCommitment, setShowCommitment] = useState(false);
+  const [commitmentChecked, setCommitmentChecked] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const noticeShownRef = useRef(false);
+
   const initial = todayISO();
   const [form, setForm] = useState<FormState>({
     leave_type_code: '',
@@ -76,6 +94,21 @@ export default function ApplyLeavePage() {
         end_date: ed ?? sd ?? p.end_date,  // 单日时 end 跟 start
         reason: rs ?? p.reason,
       }));
+    }
+
+    // 仅学生身份拉「请假须知」配置;非学生跳过整套弹窗。
+    if (isStudent) {
+      getLeaveNoticeConfig()
+        .then((cfg) => {
+          setNoticeCfg(cfg);
+          if (cfg.notice_enabled && !noticeShownRef.current) {
+            noticeShownRef.current = true;
+            setShowNotice(true);
+          }
+        })
+        .catch(() => {
+          // 拉配置失败 -> 走零打扰路径,不阻断请假流程
+        });
     }
 
     setLoading(true);
@@ -186,12 +219,7 @@ export default function ApplyLeavePage() {
       });
     });
 
-  const onSubmit = async () => {
-    const err = validate();
-    if (err) {
-      Taro.showToast({ title: err, icon: 'none' });
-      return;
-    }
+  const doSubmit = async () => {
     const start = combineDateTime(form.start_date, form.start_time)!;
     const end = combineDateTime(form.end_date, form.end_time)!;
     setSubmitting(true);
@@ -222,6 +250,58 @@ export default function ApplyLeavePage() {
       setSubmitting(false);
     }
   };
+
+  const onSubmit = () => {
+    const err = validate();
+    if (err) {
+      Taro.showToast({ title: err, icon: 'none' });
+      return;
+    }
+    // 学生 + 启用承诺书 -> 先弹承诺书,签字后再调真正的提交
+    if (isStudent && noticeCfg?.commitment_enabled) {
+      const sec = Math.max(0, noticeCfg.commitment_countdown_sec ?? 3);
+      setCommitmentChecked(false);
+      setCountdown(sec);
+      setShowCommitment(true);
+      if (countdownTimer.current) clearInterval(countdownTimer.current);
+      if (sec > 0) {
+        countdownTimer.current = setInterval(() => {
+          setCountdown((n) => {
+            if (n <= 1) {
+              if (countdownTimer.current) {
+                clearInterval(countdownTimer.current);
+                countdownTimer.current = null;
+              }
+              return 0;
+            }
+            return n - 1;
+          });
+        }, 1000);
+      }
+      return;
+    }
+    void doSubmit();
+  };
+
+  const onConfirmCommitment = () => {
+    if (countdown > 0 || !commitmentChecked) return;
+    setShowCommitment(false);
+    void doSubmit();
+  };
+
+  const onCancelCommitment = () => {
+    setShowCommitment(false);
+    if (countdownTimer.current) {
+      clearInterval(countdownTimer.current);
+      countdownTimer.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (countdownTimer.current) clearInterval(countdownTimer.current);
+    };
+  }, []);
 
   const typeIdx = Math.max(0, types.findIndex((t) => t.code === form.leave_type_code));
   const typeRange = types.map((t) => t.name);
@@ -360,6 +440,86 @@ export default function ApplyLeavePage() {
           <Text className={styles.submitLabel}>{submitting ? '提交中…' : '提交申请'}</Text>
         </View>
       </View>
+
+      {/* ── 进入请假页一次性「说明」 ─────────────────────── */}
+      {showNotice && noticeCfg?.notice_enabled && (
+        <View className={styles.modalMask} catchMove>
+          <View className={styles.modalCard}>
+            <View className={styles.modalHeader}>
+              <Text className={`${styles.modalTitle} display`}>请假说明</Text>
+            </View>
+            <View className={styles.modalBody}>
+              <Text className={styles.modalText}>{noticeCfg.notice_text}</Text>
+            </View>
+            <View className={styles.modalFooter}>
+              <View className={styles.modalActions}>
+                <View
+                  className={`${styles.modalBtn} ${styles.modalBtnPrimary} tap-min`}
+                  onClick={() => setShowNotice(false)}
+                >
+                  <Text>我知道了</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ── 提交前「承诺书」(复选框 + 倒计时) ─────────────── */}
+      {showCommitment && noticeCfg?.commitment_enabled && (
+        <View className={styles.modalMask} catchMove>
+          <View className={styles.modalCard}>
+            <View className={styles.modalHeader}>
+              <Text className={`${styles.modalTitle} display`}>请假承诺书</Text>
+            </View>
+            <View className={styles.modalBody}>
+              <Text className={styles.modalText}>{noticeCfg.commitment_text}</Text>
+            </View>
+            <View className={styles.modalFooter}>
+              <View
+                className={`${styles.modalCheckRow} ${
+                  countdown > 0 ? styles.modalCheckRowDisabled : ''
+                }`}
+                onClick={() => {
+                  if (countdown > 0) return;
+                  setCommitmentChecked((v) => !v);
+                }}
+              >
+                <View
+                  className={`${styles.modalCheckBox} ${
+                    commitmentChecked ? styles.modalCheckBoxChecked : ''
+                  }`}
+                >
+                  {commitmentChecked && <Text className={styles.modalCheckMark}>✓</Text>}
+                </View>
+                <Text>本人已阅读并同意全部内容</Text>
+              </View>
+              {countdown > 0 && (
+                <Text className={styles.modalCountdownHint}>
+                  请认真阅读,
+                  <Text className="num"> {countdown} </Text>秒后可勾选确认
+                </Text>
+              )}
+              <View className={styles.modalActions}>
+                <View
+                  className={`${styles.modalBtn} ${styles.modalBtnGhost} tap-min`}
+                  onClick={onCancelCommitment}
+                >
+                  <Text>取消</Text>
+                </View>
+                <View
+                  className={`${styles.modalBtn} ${styles.modalBtnPrimary} tap-min ${
+                    countdown > 0 || !commitmentChecked ? styles.modalBtnDisabled : ''
+                  }`}
+                  onClick={onConfirmCommitment}
+                >
+                  <Text>同意并提交</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

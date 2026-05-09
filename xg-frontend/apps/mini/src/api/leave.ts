@@ -251,6 +251,19 @@ export function previewLeaveImpact(start: string, end: string) {
   return get<LeaveImpactView>('/leaves/impact/preview', { start, end });
 }
 
+/** 「请假须知」配置 —— 仅学生端请假页消费,缺值时后端会返回内置默认文案。
+ *  字段命名跟后端 Jackson SNAKE_CASE 全局策略对齐。 */
+export interface LeaveNoticeConfig {
+  notice_enabled: boolean;
+  notice_text: string;
+  commitment_enabled: boolean;
+  commitment_text: string;
+  commitment_countdown_sec: number;
+}
+export function getLeaveNoticeConfig() {
+  return get<LeaveNoticeConfig>('/leaves/notice/config');
+}
+
 /**
  * Mirror backend LeaveService.calculateDurationDays:
  *   ceil(seconds / 86400) — any partial day counts as a full day so that the

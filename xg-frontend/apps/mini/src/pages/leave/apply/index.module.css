@@ -221,3 +221,144 @@
   font-weight: 600;
   letter-spacing: -0.01em;
 }
+
+/* ── 须知 / 承诺书弹窗 ──────────────────────────────────── */
+.modalMask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,20,33,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 48rpx 32rpx;
+}
+
+.modalCard {
+  width: 100%;
+  max-width: 640rpx;
+  max-height: 80vh;
+  background: #ffffff;
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20rpx 60rpx rgba(0,0,0,0.25);
+  overflow: hidden;
+}
+
+.modalHeader {
+  padding: 32rpx 36rpx 20rpx;
+  border-bottom: 1rpx solid var(--bd);
+}
+
+.modalTitle {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.modalBody {
+  flex: 1;
+  padding: 24rpx 36rpx;
+  overflow-y: auto;
+}
+
+.modalText {
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modalFooter {
+  padding: 20rpx 36rpx 28rpx;
+  border-top: 1rpx solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.modalCheckRow {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  min-height: var(--tap-min);
+  font-size: 28rpx;
+  color: var(--fg);
+}
+
+.modalCheckRowDisabled {
+  opacity: 0.5;
+}
+
+.modalCheckBox {
+  width: 36rpx;
+  height: 36rpx;
+  border: 2rpx solid var(--fg-4);
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.modalCheckBoxChecked {
+  background: var(--ac);
+  border-color: var(--ac);
+}
+
+.modalCheckMark {
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.modalActions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.modalBtn {
+  flex: 1;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.modalBtnGhost {
+  background: var(--bd);
+  color: var(--fg-2);
+}
+
+.modalBtnGhost:active {
+  filter: brightness(0.95);
+}
+
+.modalBtnPrimary {
+  background: var(--ac);
+  color: #ffffff;
+  box-shadow: 0 4rpx 16rpx var(--ac-glow);
+}
+
+.modalBtnPrimary:active {
+  background: var(--ac-deep);
+}
+
+.modalBtnDisabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.modalCountdownHint {
+  font-size: 24rpx;
+  color: var(--fg-3);
+}

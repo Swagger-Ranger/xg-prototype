@@ -128,6 +128,24 @@ export function updateLeaveImpactConfig(enabled: boolean): Promise<{ enabled: bo
   return api.put('/leaves/impact/config', { enabled }).then((res) => res.data);
 }
 
+/** 「请假须知」配置 —— 进入请假页弹「说明」+ 提交前弹「承诺书」(仅学生端)。
+ *  字段命名跟后端 Jackson SNAKE_CASE 全局策略对齐。 */
+export interface LeaveNoticeConfig {
+  notice_enabled: boolean;
+  notice_text: string;
+  commitment_enabled: boolean;
+  commitment_text: string;
+  commitment_countdown_sec: number;
+}
+export function getLeaveNoticeConfig(): Promise<LeaveNoticeConfig> {
+  return api.get('/leaves/notice/config').then((res) => res.data);
+}
+export function updateLeaveNoticeConfig(
+  patch: Partial<LeaveNoticeConfig>,
+): Promise<LeaveNoticeConfig> {
+  return api.put('/leaves/notice/config', patch).then((res) => res.data);
+}
+
 /** 辅导员审核学生人工销假申请。approve=true 通过 → cancelled,false 退回 approved。 */
 export function reviewManualReturn(id: string, approve: boolean): Promise<LeaveRequest> {
   return api

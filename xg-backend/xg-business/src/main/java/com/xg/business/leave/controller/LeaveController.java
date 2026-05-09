@@ -28,6 +28,7 @@ public class LeaveController {
     private final LeaveService leaveService;
     private final LeaveImpactService leaveImpactService;
     private final com.xg.business.leave.service.LeaveConfigBaseService leaveConfigBaseService;
+    private final com.xg.business.leave.service.LeaveNoticeConfigService leaveNoticeConfigService;
 
     @GetMapping("/api/v1/leave-types")
     public R<List<LeaveTypeConfig>> listLeaveTypes() {
@@ -124,6 +125,19 @@ public class LeaveController {
         boolean enabled = !(v instanceof Boolean) || (Boolean) v;
         leaveImpactService.setImpactEnabled(enabled);
         return R.ok(Map.of("enabled", enabled));
+    }
+
+    /** 读「请假须知」配置:进入请假页弹「说明」+ 提交前弹「承诺书」。仅学生端使用,缺省走内置默认文案。 */
+    @GetMapping("/api/v1/leaves/notice/config")
+    public R<com.xg.business.leave.dto.LeaveNoticeConfig> getNoticeConfig() {
+        return R.ok(leaveNoticeConfigService.get());
+    }
+
+    /** 改「请假须知」配置 —— 部分字段更新,未传字段保持原值。 */
+    @PutMapping("/api/v1/leaves/notice/config")
+    public R<com.xg.business.leave.dto.LeaveNoticeConfig> updateNoticeConfig(
+            @RequestBody @Valid com.xg.business.leave.dto.LeaveNoticeConfig req) {
+        return R.ok(leaveNoticeConfigService.update(req));
     }
 
     @PostMapping("/api/v1/leaves/{id}/withdraw")

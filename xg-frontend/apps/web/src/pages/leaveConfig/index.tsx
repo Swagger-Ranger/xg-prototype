@@ -21,6 +21,7 @@ import {
 import { useLayoutStore } from '@/stores/layout.store';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import LeaveReturnSettings from './LeaveReturnSettings';
+import LeaveNoticeSettings from './LeaveNoticeSettings';
 import styles from './index.module.css';
 import type { LeaveTypeConfig } from '@xg1/shared';
 
@@ -38,9 +39,11 @@ import type { LeaveTypeConfig } from '@xg1/shared';
  */
 export default function LeaveConfigPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab: 'leave' | 'leave_return' =
-    searchParams.get('tab') === 'leave_return' ? 'leave_return' : 'leave';
-  const setActiveTab = (k: 'leave' | 'leave_return') => {
+  type TabKey = 'leave' | 'leave_return' | 'notice';
+  const tabParam = searchParams.get('tab');
+  const activeTab: TabKey =
+    tabParam === 'leave_return' ? 'leave_return' : tabParam === 'notice' ? 'notice' : 'leave';
+  const setActiveTab = (k: TabKey) => {
     const next = new URLSearchParams(searchParams);
     if (k === 'leave') next.delete('tab');
     else next.set('tab', k);
@@ -74,7 +77,7 @@ export default function LeaveConfigPage() {
 
       <Tabs
         activeKey={activeTab}
-        onChange={(k) => setActiveTab(k as 'leave' | 'leave_return')}
+        onChange={(k) => setActiveTab(k as TabKey)}
         items={[
           {
             key: 'leave',
@@ -85,6 +88,11 @@ export default function LeaveConfigPage() {
             key: 'leave_return',
             label: '销假',
             children: <LeaveReturnSettings />,
+          },
+          {
+            key: 'notice',
+            label: '请假须知',
+            children: <LeaveNoticeSettings />,
           },
         ]}
       />
