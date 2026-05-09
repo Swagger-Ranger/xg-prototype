@@ -1,5 +1,6 @@
 package com.xg.business.leave.controller;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.xg.business.leave.dto.ApplyYamlRequest;
 import com.xg.business.leave.service.LeaveConfigSummaryService;
 import com.xg.business.leave.service.LeaveConfigSummaryService.ConfigSummary;
@@ -81,6 +82,7 @@ public class WorkflowConfigController {
      * 验证 + 发布新 YAML 作为下一版 published。
      */
     @PostMapping("/apply")
+    @SaCheckPermission("system:manage")
     public R<Map<String, Object>> apply(@RequestBody @Valid ApplyYamlRequest req) {
         if (req.getNewYaml() == null || req.getNewYaml().isBlank()) {
             throw new BizException("YAML_EMPTY", "新 YAML 为空");

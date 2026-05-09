@@ -1,5 +1,7 @@
 package com.xg.platform.auth.service;
 
+import cn.dev33.satoken.stp.StpInterface;
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xg.common.tenant.TenantContext;
@@ -18,12 +20,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.UUID;
 
 /**
- * Demo-grade auth: BCrypt password check against sys_user, returns an opaque
- * token. Identity continues to flow via the X-User-Id / X-Tenant-Id headers
- * already honored by every other controller, so no session store is needed yet.
+ * 登录服务 + 自助 profile/密码。
+ *
+ * <p>P2.0 之前是 demo-grade：返回一个 UUID 拼的 token，后端不校验，所有身份靠
+ * X-User-Id header 流通。P2.0 起接入 Sa-Token：BCrypt 通过后调用
+ * {@code StpUtil.login(userId)} 建真 session，token 用 {@code StpUtil.getTokenValue()}。
+ *
+ * <p>过渡期 X-User-Id header 路径**仍然有效**（兼容现有 Controller 直接 @RequestHeader
+ * 取 userId 的写法），P2.3 全量铺开 @SaCheckPermission 后再废除。
  */
 @Slf4j
 @Service
@@ -34,6 +40,8 @@ public class AuthService {
 
     private final SysUserMapper sysUserMapper;
     private final SysUserRoleMapper sysUserRoleMapper;
+    /** P2.0 起所有"用户的权限码"都走这一条解析（DEFAULTS 别名 + DB 行 + 通配展开）。 */
+    private final StpInterface stpInterface;
 
     @Transactional
     public LoginResponse login(LoginRequest req) {
@@ -59,9 +67,14 @@ public class AuthService {
         user.setLastLoginAt(OffsetDateTime.now());
         sysUserMapper.updateById(user);
 
-        CurrentUserView view = buildView(user, tenantId);
-        String token = "sess-" + UUID.randomUUID().toString().replace("-", "");
+        // P2.0：建立真 Sa-Token session。后续 StpUtil.getLoginIdAsLong() 才能拿到 userId，
+        // @SaCheckPermission 才能把这条会话当作"已登录"。tenant_id 顺带丢到 session
+        // attributes 里，给后台异步任务恢复 TenantContext 用。
+        StpUtil.login(user.getId());
+        StpUtil.getSession().set("tenantId", tenantId);
+        String token = StpUtil.getTokenValue();
 
+        CurrentUserView view = buildView(user, tenantId);
         LoginResponse resp = new LoginResponse();
         resp.setToken(token);
         resp.setRefreshToken(token);
@@ -89,7 +102,10 @@ public class AuthService {
 
     private CurrentUserView buildView(SysUser user, String tenantId) {
         List<String> roleCodes = sysUserRoleMapper.findRoleCodesByUserId(user.getId());
-        List<String> permissions = sysUserRoleMapper.findPermissionCodesByUserId(user.getId());
+        // 走 StpInterface 而不是直查 sys_role_permission：让 DEFAULTS 别名（如 class_master
+        // → teacher 同款权限）和 super_admin 的通配展开都生效。否则前端拿到的 perms 跟
+        // /auth/me/perms 不一致，菜单会显示残缺。
+        List<String> permissions = stpInterface.getPermissionList(user.getId(), "login");
 
         CurrentUserView view = new CurrentUserView();
         view.setId(String.valueOf(user.getId()));

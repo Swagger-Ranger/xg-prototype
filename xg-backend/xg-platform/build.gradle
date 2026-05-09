@@ -3,6 +3,9 @@ dependencies {
     api 'org.springframework.boot:spring-boot-starter-data-redis'
     api 'cn.dev33:sa-token-spring-boot3-starter'
     api 'cn.dev33:sa-token-redis-jackson'
+    // 开启 @SaCheckPermission / @SaCheckRole / @SaCheckLogin 注解处理（AOP 切面）。
+    // 不加这个 dep，注解会被静默忽略。
+    api 'cn.dev33:sa-token-spring-aop'
     api 'org.flywaydb:flyway-core'
     api 'org.flywaydb:flyway-database-postgresql'
     api 'org.postgresql:postgresql'

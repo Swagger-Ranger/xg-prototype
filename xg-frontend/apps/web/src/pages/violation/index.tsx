@@ -87,12 +87,15 @@ type Tab = 'violations' | 'punishments' | 'approvals' | 'appeals';
 
 export default function ViolationManagement() {
   const queryClient = useQueryClient();
-  const { user, isStudent, isCounselor, isDean, isAdmin } = useAuth();
+  const { user, isStudent, hasPermission } = useAuth();
+  // discipline 模块当前只有一个粒度的权限码 discipline:manage：能进这个页面就
+  // 同时具备「记录违纪」和「审批申诉」的能力。NavRail 已用相同权限码 gate /violation
+  // 入口，所以未授权角色根本走不到这里。
+  const canManage = hasPermission('discipline:manage');
+  const canApprove = canManage;
+  const canRecord = canManage;
 
-  const canApprove = isDean || isAdmin;
-  const canRecord = isCounselor || isDean || isAdmin;
-
-  const defaultTab: Tab = isStudent ? 'violations' : 'violations';
+  const defaultTab: Tab = 'violations';
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [page, setPage] = useState(1);
 

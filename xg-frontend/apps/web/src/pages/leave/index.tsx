@@ -47,7 +47,11 @@ const STATUS_OPTIONS = [
 ];
 
 export default function LeaveManagement() {
-  const { isStudent, user } = useAuth();
+  const { isStudent, user, hasPermission } = useAuth();
+  // 能力门：用权限码而非角色 boolean，配置层只需调 sys_role_permission
+  // 即可改变行为，无需重新发版。视角类判断（标题、column 集）继续看 isStudent。
+  const canSubmitOwn = hasPermission('leave:submit');
+  const canApprove = hasPermission('leave:approve');
   const [searchParams] = useSearchParams();
   const initialStatus = STATUS_OPTIONS.some((o) => o.value === searchParams.get('status'))
     ? searchParams.get('status') ?? ''
@@ -95,25 +99,25 @@ export default function LeaveManagement() {
   const { data: myLeavesData, isFetching: myLeavesFetching } = useQuery({
     queryKey: ['myLeaves', queryParams],
     queryFn: () => getMyLeaves(queryParams),
-    enabled: isStudent,
+    enabled: canSubmitOwn,
   });
 
   const { data: allData, isFetching: allFetching } = useQuery({
     queryKey: ['classLeaves', queryParams],
     queryFn: () => getClassLeaves(queryParams),
-    enabled: !isStudent && tab === 'all',
+    enabled: canApprove && tab === 'all',
   });
 
   const { data: uncancelledData, isFetching: uncancelledFetching } = useQuery({
     queryKey: ['uncancelledLeaves', queryParams],
     queryFn: () => getUncancelledLeaves(queryParams),
-    enabled: !isStudent && tab === 'uncancelled',
+    enabled: canApprove && tab === 'uncancelled',
   });
 
   const { data: pendingManualData, isFetching: pendingManualFetching } = useQuery({
     queryKey: ['pendingManualReturns', queryParams],
     queryFn: () => getPendingManualReturns(queryParams),
-    enabled: !isStudent && tab === 'pending_manual_return',
+    enabled: canApprove && tab === 'pending_manual_return',
   });
 
   const reviewManualMutation = useMutation({
@@ -179,7 +183,7 @@ export default function LeaveManagement() {
   const { data: pendingTaskData } = useQuery({
     queryKey: ['leavePendingTasks', user?.id],
     queryFn: () => getPendingEnriched({ page: 1, size: 200, assigneeId: String(user!.id) }),
-    enabled: !isStudent && !!user?.id,
+    enabled: canApprove && !!user?.id,
     staleTime: 30 * 1000,
   });
   const myLeaveTaskByBizId = useMemo(() => {
@@ -326,14 +330,16 @@ export default function LeaveManagement() {
     queryClient.invalidateQueries({ queryKey: ['uncancelledLeaves'] });
   };
 
-  const currentData = isStudent
+  // canSubmitOwn 优先：拥有"提交自己请假"能力时默认呈现自己的列表（学生 + 任何被
+  // 授权 leave:submit 的老师）。同时拥有 canApprove 时由 tab 切到全班/未销假/人工销假视图。
+  const currentData = canSubmitOwn && !canApprove
     ? myLeavesData
     : tab === 'uncancelled'
       ? uncancelledData
       : tab === 'pending_manual_return'
         ? pendingManualData
         : allData;
-  const isLoading = isStudent
+  const isLoading = canSubmitOwn && !canApprove
     ? myLeavesFetching
     : tab === 'uncancelled'
       ? uncancelledFetching
@@ -602,14 +608,14 @@ export default function LeaveManagement() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>{isStudent ? '我的请假' : '请销假管理'}</h1>
-        {isStudent && (
+        {canSubmitOwn && (
           <Button type="primary" onClick={() => setApplyOpen(true)}>
             申请请假
           </Button>
         )}
       </div>
 
-      {!isStudent && (
+      {canApprove && (
         <Segmented
           className={styles.segmented}
           options={[

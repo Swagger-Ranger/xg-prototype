@@ -140,7 +140,13 @@ const STUDENT_STEPS: StepDef<Tab>[] = [
 
 export default function WorkStudyManagement() {
   const queryClient = useQueryClient();
-  const { isStudent, isEmployer } = useAuth();
+  const { isStudent, isEmployer, hasPermission } = useAuth();
+  // 多 persona 页：isStudent/isEmployer 决定步骤集 / 数据 scope（视角层），
+  // 实际动作按钮按权限码 gate（能力层）。校院级 college_admin 只有 umbrella
+  // workstudy:manage 而无 granular 码，新逻辑下不会再误显「发布/关闭/处理」按钮。
+  const canSetupPos = hasPermission('workstudy:position:setup');
+  const canManagePos = hasPermission('workstudy:position:manage');
+  const canApproveApp = hasPermission('workstudy:position:approve');
 
   // Pending-count badges on approval steps. Backend already scopes results by
   // role (employer sees only their unit's apps, etc.), so the same queries
@@ -414,7 +420,7 @@ export default function WorkStudyManagement() {
       render: (_, r) => (
         <>
           <button className={styles.actionLink} onClick={() => setPositionDetail(r)}>查看</button>
-          {!isStudent && (
+          {canApproveApp && (
             <AskAIChip
               size="small"
               className={styles.actionAskAi}
@@ -439,7 +445,7 @@ export default function WorkStudyManagement() {
               申请
             </button>
           )}
-          {!isStudent && r.status === 'open' && (
+          {canManagePos && r.status === 'open' && (
             <Popconfirm
               title="关闭后不再接受新申请，确认？"
               onConfirm={() => closeMutation.mutate(r.id)}
@@ -491,7 +497,7 @@ export default function WorkStudyManagement() {
       key: 'actions',
       width: 100,
       render: (_, r) =>
-        !isStudent && (r.status === 'pending' || r.status === 'recommended') ? (
+        canApproveApp && (r.status === 'pending' || r.status === 'recommended') ? (
           <button
             className={styles.actionLink}
             onClick={() => {
@@ -521,7 +527,7 @@ export default function WorkStudyManagement() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>勤工助学</h1>
-        {!isStudent && (
+        {canSetupPos && (
           <Button type="primary" onClick={() => setCreateOpen(true)}>发布岗位</Button>
         )}
       </div>

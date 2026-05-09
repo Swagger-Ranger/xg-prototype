@@ -33,4 +33,12 @@ public interface SysUserRoleMapper extends BaseMapper<SysUserRole> {
             "WHERE ur.user_id = #{userId}"
     })
     List<String> findPermissionCodesByUserId(@Param("userId") Long userId);
+
+    /**
+     * 全租户的权限码总集 —— super_admin 把这一整套都拿到，就不用维护"新增 perm 时
+     * 同步更新 super_admin DEFAULTS"。{@link com.xg.platform.auth.StpInterfaceImpl}
+     * 在检测到 wildcard 时调用。
+     */
+    @Select("SELECT code FROM sys_permission")
+    List<String> findAllPermissionCodes();
 }

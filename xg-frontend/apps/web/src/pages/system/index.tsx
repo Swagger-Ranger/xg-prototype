@@ -13,6 +13,7 @@ import { describeApiError } from '@/utils/api-error';
 import AiMetricsPanel from './AiMetricsPanel';
 import KnowledgePanel from './KnowledgePanel';
 import OrgAssignmentPanel from './OrgAssignmentPanel';
+import RolePermissionPanel from './RolePermissionPanel';
 import SettingsPanel from './settings/SettingsPanel';
 import NotificationCenterPanel from './notification/NotificationCenterPanel';
 
@@ -438,6 +439,7 @@ function SystemTabs({ userManagement }: { userManagement: React.ReactNode }) {
       }}
       items={[
         { key: 'users', label: '用户管理', children: userManagement },
+        { key: 'roles', label: '角色权限', children: <RolePermissionPanel /> },
         { key: 'org', label: '组织派班', children: <OrgAssignmentPanel /> },
         { key: 'settings', label: '基础设置', children: <SettingsPanel /> },
         { key: 'notif', label: '通知管理', children: <NotificationCenterPanel /> },
