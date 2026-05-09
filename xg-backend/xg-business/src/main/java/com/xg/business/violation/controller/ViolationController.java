@@ -14,6 +14,7 @@ import com.xg.business.violation.model.ViolationRecord;
 import com.xg.business.violation.service.ViolationService;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -28,8 +29,8 @@ public class ViolationController {
 
     @PostMapping("/api/v1/violations")
     public R<ViolationRecord> recordViolation(
-            @RequestBody @Validated ViolationCreateRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated ViolationCreateRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(violationService.recordViolation(req, userId));
     }
 
@@ -45,30 +46,30 @@ public class ViolationController {
 
     @PostMapping("/api/v1/violations/{id}/submit")
     public R<ViolationRecord> submitForApproval(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
+            @PathVariable Long id) {
+        Long userId = CurrentUser.id();
         return R.ok(violationService.submitForApproval(id, userId));
     }
 
     @PostMapping("/api/v1/violations/{id}/approve")
     public R<ViolationRecord> approve(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
+            @PathVariable Long id) {
+        Long userId = CurrentUser.id();
         return R.ok(violationService.approve(id, userId));
     }
 
     @PostMapping("/api/v1/violations/{id}/reject")
     public R<ViolationRecord> reject(
             @PathVariable Long id,
-            @RequestBody @Validated ViolationRejectRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated ViolationRejectRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(violationService.reject(id, req, userId));
     }
 
     @PostMapping("/api/v1/punishments")
     public R<Punishment> issuePunishment(
-            @RequestBody @Validated PunishmentCreateRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated PunishmentCreateRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(violationService.issuePunishment(req, userId));
     }
 
@@ -84,8 +85,8 @@ public class ViolationController {
 
     @PostMapping("/api/v1/violations/appeals")
     public R<ViolationAppeal> submitAppeal(
-            @RequestBody @Validated ViolationAppealCreateRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated ViolationAppealCreateRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(violationService.submitAppeal(req, userId));
     }
 
@@ -102,8 +103,8 @@ public class ViolationController {
     @PostMapping("/api/v1/violations/appeals/{id}/resolve")
     public R<ViolationAppeal> resolveAppeal(
             @PathVariable Long id,
-            @RequestBody @Validated ViolationAppealResolveRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated ViolationAppealResolveRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(violationService.resolveAppeal(id, req, userId));
     }
 }

@@ -15,10 +15,8 @@ interface ApiEnvelope<T> {
 
 function authHeaders(): Record<string, string> {
   const token = Taro.getStorageSync('token') || '';
-  const userId = Taro.getStorageSync('userId') || '';
   const tenantId = Taro.getStorageSync('tenantId') || 'default';
   const headers: Record<string, string> = {
-    'X-User-Id': String(userId),
     'X-Tenant-Id': String(tenantId),
   };
   if (token) headers.Authorization = `Bearer ${token}`;

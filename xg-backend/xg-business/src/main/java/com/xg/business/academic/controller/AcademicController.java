@@ -13,6 +13,7 @@ import com.xg.business.academic.service.AcademicEventService;
 import com.xg.business.academic.service.AcademicTermService;
 import com.xg.business.academic.service.ClassScheduleService;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +23,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -120,16 +120,16 @@ public class AcademicController {
      *  given term. Resolves the class from the caller's student_profile.
      *  Returns null when the caller isn't a student or no schedule exists. */
     @GetMapping("/api/v1/academic/class-schedules/me")
-    public R<ClassSchedule> myClassSchedule(@RequestHeader("X-User-Id") Long userId,
-                                              @RequestParam String termCode) {
+    public R<ClassSchedule> myClassSchedule(@RequestParam String termCode) {
+        Long userId = CurrentUser.id();
         return R.ok(scheduleService.getMine(userId, termCode));
     }
 
     /** Upsert by (classId, termCode) — same input creates or replaces. Used
      *  by both the manual admin editor and (eventually) the external sync. */
     @PostMapping("/api/v1/academic/class-schedules")
-    public R<ClassSchedule> upsertSchedule(@RequestHeader("X-User-Id") Long userId,
-                                             @RequestBody @Valid ClassScheduleUpsert req) {
+    public R<ClassSchedule> upsertSchedule(@RequestBody @Valid ClassScheduleUpsert req) {
+        Long userId = CurrentUser.id();
         return R.ok(scheduleService.upsert(req, userId));
     }
 

@@ -5,7 +5,6 @@ export interface ClientConfig {
   baseURL: string;
   getToken: () => string | null;
   getTenantId: () => string | null;
-  getUserId: () => string | null;
   onUnauthorized: () => void;
 }
 
@@ -25,10 +24,6 @@ export function createApiClient(config: ClientConfig): AxiosInstance {
     const tenantId = config.getTenantId();
     if (tenantId) {
       req.headers['X-Tenant-Id'] = tenantId;
-    }
-    const userId = config.getUserId();
-    if (userId) {
-      req.headers['X-User-Id'] = userId;
     }
     return req;
   });

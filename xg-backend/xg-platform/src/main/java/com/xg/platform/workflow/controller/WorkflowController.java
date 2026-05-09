@@ -27,6 +27,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import com.xg.platform.auth.CurrentUser;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -93,8 +94,8 @@ public class WorkflowController {
      */
     @PostMapping("/definitions/author")
     @SuppressWarnings("unchecked")
-    public R<Map<String, Object>> authorDefinition(@RequestBody Map<String, Object> req,
-                                                    @RequestHeader("X-User-Id") Long userId) {
+    public R<Map<String, Object>> authorDefinition(@RequestBody Map<String, Object> req) {
+        Long userId = CurrentUser.id();
         requireDefinitionAdmin(userId);
         Map<String, Object> body = new LinkedHashMap<>();
         // Accept both camelCase and snake_case so the endpoint is tolerant of
@@ -166,8 +167,8 @@ public class WorkflowController {
     // ---------------------- Definitions ----------------------
 
     @PostMapping("/definitions")
-    public R<WorkflowDefinition> createDefinition(@RequestBody @Valid CreateDefinitionRequest req,
-                                                   @RequestHeader("X-User-Id") Long userId) {
+    public R<WorkflowDefinition> createDefinition(@RequestBody @Valid CreateDefinitionRequest req) {
+        Long userId = CurrentUser.id();
         requireDefinitionAdmin(userId);
         Map<String, Object> parsed = parseYaml(req.getConfigYaml());
         validateAssigneeRoles(parsed);
@@ -191,8 +192,8 @@ public class WorkflowController {
      */
     @PutMapping("/definitions/{id}")
     public R<WorkflowDefinition> updateDefinition(@PathVariable Long id,
-                                                   @RequestBody @Valid UpdateDefinitionRequest req,
-                                                   @RequestHeader("X-User-Id") Long userId) {
+                                                   @RequestBody @Valid UpdateDefinitionRequest req) {
+        Long userId = CurrentUser.id();
         requireDefinitionAdmin(userId);
         WorkflowDefinition base = definitionMapper.selectById(id);
         if (base == null) {
@@ -230,8 +231,8 @@ public class WorkflowController {
      */
     @PostMapping("/definitions/{id}/publish")
     @Transactional
-    public R<WorkflowDefinition> publishDefinition(@PathVariable Long id,
-                                                    @RequestHeader("X-User-Id") Long userId) {
+    public R<WorkflowDefinition> publishDefinition(@PathVariable Long id) {
+        Long userId = CurrentUser.id();
         requireDefinitionAdmin(userId);
         WorkflowDefinition target = definitionMapper.selectById(id);
         if (target == null) {
@@ -290,8 +291,8 @@ public class WorkflowController {
     @SuppressWarnings("unchecked")
     @PutMapping("/definitions/{id}/form-fields")
     public R<WorkflowDefinition> updateFormFields(@PathVariable Long id,
-                                                   @RequestBody @Valid UpdateFormFieldsRequest req,
-                                                   @RequestHeader("X-User-Id") Long userId) {
+                                                   @RequestBody @Valid UpdateFormFieldsRequest req) {
+        Long userId = CurrentUser.id();
         requireDefinitionAdmin(userId);
         WorkflowDefinition base = definitionMapper.selectById(id);
         if (base == null) {
@@ -492,8 +493,8 @@ public class WorkflowController {
     }
 
     @GetMapping("/instances/{id}/timeline")
-    public R<InstanceTimelineVO> getInstanceTimeline(@PathVariable Long id,
-                                                      @RequestHeader("X-User-Id") Long userId) {
+    public R<InstanceTimelineVO> getInstanceTimeline(@PathVariable Long id) {
+        Long userId = CurrentUser.id();
         return R.ok(timelineService.buildTimeline(id, userId));
     }
 
@@ -511,8 +512,8 @@ public class WorkflowController {
      */
     @PostMapping("/instances/{id}/appeal")
     public R<Void> appeal(@PathVariable Long id,
-                          @RequestBody @Valid AppealRequest req,
-                          @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+                          @RequestBody @Valid AppealRequest req) {
+        Long userId = CurrentUser.idOrNull();
         workflowEngine.handleAppeal(id, userId, req.getReason());
         return R.ok();
     }

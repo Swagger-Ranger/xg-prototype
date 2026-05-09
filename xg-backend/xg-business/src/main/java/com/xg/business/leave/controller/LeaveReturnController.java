@@ -7,6 +7,7 @@ import com.xg.business.leave.dto.UpdateCampusGeofenceRequest;
 import com.xg.business.leave.model.LeaveRequest;
 import com.xg.business.leave.service.LeaveReturnService;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,8 +41,8 @@ public class LeaveReturnController {
     @PostMapping("/leaves/{id}/return/by-location")
     public R<LeaveReturnService.ReturnByLocationResult> returnByLocation(
             @PathVariable Long id,
-            @Valid @RequestBody ReturnByLocationRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @Valid @RequestBody ReturnByLocationRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveReturnService.submitByLocation(
                 id, userId, req.getLatitude(), req.getLongitude(), req.getCapturedAt()));
     }
@@ -49,8 +50,8 @@ public class LeaveReturnController {
     @PostMapping("/leaves/{id}/return/manual-apply")
     public R<LeaveRequest> applyManualReturn(
             @PathVariable Long id,
-            @Valid @RequestBody ManualReturnApplyRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @Valid @RequestBody ManualReturnApplyRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveReturnService.applyManualReturn(
                 id, userId, req.getReason(), req.getAttachments()));
     }
@@ -58,8 +59,8 @@ public class LeaveReturnController {
     @PostMapping("/leaves/{id}/return/manual-review")
     public R<LeaveRequest> reviewManualReturn(
             @PathVariable Long id,
-            @Valid @RequestBody ManualReturnReviewRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @Valid @RequestBody ManualReturnReviewRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveReturnService.reviewManualReturn(
                 id, userId, Boolean.TRUE.equals(req.getApprove())));
     }

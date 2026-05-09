@@ -1,6 +1,7 @@
 package com.xg.platform.workflow.controller;
 
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import com.xg.platform.workflow.mapper.AiRecommendationLogMapper;
 import com.xg.platform.workflow.model.AiRecommendationLog;
 import jakarta.validation.Valid;
@@ -31,8 +32,8 @@ public class AiRecommendationLogController {
     @PostMapping("/log")
     public R<Void> log(
             @RequestBody @Valid LogRequest req,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "X-Tenant-Id", required = false) String tenantId) {
+        Long userId = CurrentUser.idOrNull();
         AiRecommendationLog row = new AiRecommendationLog();
         row.setTenantId(tenantId != null ? tenantId : "default");
         row.setTaskId(req.getTaskId());

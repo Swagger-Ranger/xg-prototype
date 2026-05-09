@@ -1,6 +1,7 @@
 package com.xg.platform.file.controller;
 
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import com.xg.platform.file.model.FileMetadata;
 import com.xg.platform.file.service.FileService;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +31,8 @@ public class FileController {
     public R<FileMetadata> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam("bizType") String bizType,
-            @RequestParam("bizId") Long bizId,
-            @RequestHeader("X-User-Id") Long uploaderId) {
-        FileMetadata metadata = fileService.upload(file, uploaderId, bizType, bizId);
+            @RequestParam("bizId") Long bizId) {
+        FileMetadata metadata = fileService.upload(file, CurrentUser.id(), bizType, bizId);
         return R.ok(metadata);
     }
 
@@ -73,9 +73,9 @@ public class FileController {
     }
 
     @DeleteMapping("/{id}")
-    public R<Void> deleteFile(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long operatorId) {
+    public R<Void> deleteFile(@PathVariable Long id) {
+        // operatorId 当前未传给 service，但调用 CurrentUser.id() 兜门确保未登录请求被拒。
+        CurrentUser.id();
         fileService.deleteFile(id);
         return R.ok();
     }

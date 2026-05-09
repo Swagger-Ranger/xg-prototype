@@ -6,6 +6,7 @@ import com.xg.business.counselortalk.model.CounselorTalk;
 import com.xg.business.counselortalk.service.CounselorTalkService;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -21,8 +22,8 @@ public class CounselorTalkController {
     @PostMapping("/api/v1/counselor-talks")
     public R<CounselorTalk> create(
             @RequestBody @Validated CounselorTalkCreateRequest req,
-            @RequestHeader("X-User-Id") Long userId,
             @RequestHeader(value = "X-User-Name", defaultValue = "Unknown") String userName) {
+        Long userId = CurrentUser.id();
         return R.ok(counselorTalkService.create(req, userId, userName));
     }
 

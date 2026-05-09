@@ -13,18 +13,14 @@ const api = createApiClient({
     } catch {}
     return null;
   },
-  getUserId: () => {
-    try {
-      const u = localStorage.getItem('xg_user');
-      if (u) {
-        const user = JSON.parse(u);
-        return user.id ?? null;
-      }
-    } catch {}
-    return null;
-  },
   onUnauthorized: () => {
-    window.location.href = '/login';
+    // 先清 token/user,否则 LoginRoute 看到旧 token 又跳回主页 ->
+    // 主页 API 仍 401 -> 又跳 /login -> F5 死循环。
+    localStorage.removeItem('xg_token');
+    localStorage.removeItem('xg_user');
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
   },
 });
 

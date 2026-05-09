@@ -6,6 +6,7 @@ import com.xg.business.worklog.model.WorkLog;
 import com.xg.business.worklog.service.WorkLogService;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -21,15 +22,15 @@ public class WorkLogController {
     @PostMapping("/api/v1/work-logs")
     public R<WorkLog> create(
             @RequestBody @Validated WorkLogCreateRequest req,
-            @RequestHeader("X-User-Id") Long userId,
             @RequestHeader(value = "X-User-Name", defaultValue = "Unknown") String userName) {
+        Long userId = CurrentUser.id();
         return R.ok(workLogService.create(req, userId, userName));
     }
 
     @GetMapping("/api/v1/work-logs")
     public R<PageResult<WorkLog>> listMy(
-            @RequestHeader("X-User-Id") Long userId,
             @Validated WorkLogQueryRequest query) {
+        Long userId = CurrentUser.id();
         return R.ok(workLogService.list(query, userId));
     }
 
@@ -40,8 +41,8 @@ public class WorkLogController {
 
     @DeleteMapping("/api/v1/work-logs/{id}")
     public R<Void> delete(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
+            @PathVariable Long id) {
+        Long userId = CurrentUser.id();
         workLogService.delete(id, userId);
         return R.ok();
     }

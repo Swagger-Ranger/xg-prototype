@@ -3,6 +3,7 @@ package com.xg.platform.alert.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import com.xg.platform.alert.dsl.AlertRuleDsl;
 import com.xg.platform.alert.engine.AlertRuleEngine;
 import com.xg.platform.alert.mapper.AlertRuleMapper;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
@@ -88,8 +88,8 @@ public class AlertRuleController {
     }
 
     @PostMapping("/api/v1/alert/rules")
-    public R<?> create(@RequestBody CreateRequest req,
-                       @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+    public R<?> create(@RequestBody CreateRequest req) {
+        Long userId = CurrentUser.id();
         if (req == null || req.dsl() == null) {
             return R.ok(Map.of("ok", false, "error_message", "dsl required"));
         }
@@ -136,8 +136,8 @@ public class AlertRuleController {
     }
 
     @PatchMapping("/api/v1/alert/rules/{id}")
-    public R<?> patch(@PathVariable Long id, @RequestBody PatchRequest req,
-                      @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+    public R<?> patch(@PathVariable Long id, @RequestBody PatchRequest req) {
+        Long userId = CurrentUser.id();
         AlertRule rule = alertRuleMapper.selectById(id);
         if (rule == null) return R.ok(Map.of("ok", false, "error_message", "not found"));
         if (req.enabled() != null) rule.setEnabled(req.enabled());

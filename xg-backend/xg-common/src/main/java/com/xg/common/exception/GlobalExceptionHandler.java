@@ -17,12 +17,21 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BizException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public R<Void> handleBizException(BizException e) {
+    public org.springframework.http.ResponseEntity<R<Void>> handleBizException(BizException e) {
         // Log at WARN so the error is visible in dev logs without a stack trace
         // (BizException is "expected" — bad input / validation / etc.).
         log.warn("BizException [{}]: {}", e.getCode(), e.getMessage());
-        return R.fail(e.getCode(), e.getMessage());
+        // Map well-known auth/perm codes to RFC-aligned HTTP status so frontend
+        // axios interceptor can branch by status (401 → redirect login, 403 → toast).
+        HttpStatus status = switch (e.getCode()) {
+            case "UNAUTHORIZED" -> HttpStatus.UNAUTHORIZED;
+            case "FORBIDDEN" -> HttpStatus.FORBIDDEN;
+            case "NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "CONFLICT" -> HttpStatus.CONFLICT;
+            case "RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;
+            default -> HttpStatus.BAD_REQUEST;
+        };
+        return org.springframework.http.ResponseEntity.status(status).body(R.fail(e.getCode(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -11,6 +11,7 @@ import com.xg.business.leave.service.LeaveImpactService;
 import com.xg.business.leave.service.LeaveService;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,8 +45,8 @@ public class LeaveController {
     @PutMapping("/api/v1/leave-types/{code}/extra-fields")
     public R<LeaveTypeConfig> updateLeaveTypeFields(
             @PathVariable String code,
-            @RequestBody @Valid UpdateLeaveTypeFieldsRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Valid UpdateLeaveTypeFieldsRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveService.updateLeaveTypeFields(code, req.getFields(), userId));
     }
 
@@ -58,29 +59,28 @@ public class LeaveController {
     @PutMapping("/api/v1/leave-types/{code}/term-max-days")
     public R<LeaveTypeConfig> updateTermMaxDays(
             @PathVariable String code,
-            @RequestBody @Valid com.xg.business.leave.dto.UpdateTermMaxDaysRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Valid com.xg.business.leave.dto.UpdateTermMaxDaysRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveConfigBaseService.updateTermMaxDays(code, req.getTermMaxDays(), userId));
     }
 
     @PostMapping("/api/v1/leaves")
     public R<LeaveRequest> apply(
-            @RequestBody @Validated LeaveApplyRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated LeaveApplyRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveService.apply(req, userId));
     }
 
     @PostMapping("/api/v1/leaves/proxy")
     public R<LeaveRequest> proxyApply(
-            @RequestBody @Validated LeaveProxyRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated LeaveProxyRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveService.proxyApply(req, userId));
     }
 
     @GetMapping("/api/v1/leaves/my")
-    public R<PageResult<LeaveRequest>> myLeaves(
-            @RequestHeader("X-User-Id") Long userId,
-            @Validated LeaveQueryRequest query) {
+    public R<PageResult<LeaveRequest>> myLeaves(@Validated LeaveQueryRequest query) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveService.myLeaves(userId, query));
     }
 
@@ -105,9 +105,9 @@ public class LeaveController {
      */
     @GetMapping("/api/v1/leaves/impact/preview")
     public R<LeaveImpactView> impactPreview(
-            @RequestHeader("X-User-Id") Long userId,
             @RequestParam("start") java.time.OffsetDateTime start,
             @RequestParam("end") java.time.OffsetDateTime end) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveImpactService.computeFor(userId, start, end));
     }
 
@@ -141,41 +141,36 @@ public class LeaveController {
     }
 
     @PostMapping("/api/v1/leaves/{id}/withdraw")
-    public R<Void> withdraw(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
+    public R<Void> withdraw(@PathVariable Long id) {
+        Long userId = CurrentUser.id();
         leaveService.withdraw(id, userId);
         return R.ok();
     }
 
     @PostMapping("/api/v1/leaves/{id}/cancel")
-    public R<Void> cancelLeave(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
+    public R<Void> cancelLeave(@PathVariable Long id) {
+        Long userId = CurrentUser.id();
         leaveService.cancelLeave(id, userId);
         return R.ok();
     }
 
     @PostMapping("/api/v1/leaves/{id}/cancel-confirm")
-    public R<Void> confirmCancel(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
+    public R<Void> confirmCancel(@PathVariable Long id) {
+        Long userId = CurrentUser.id();
         leaveService.confirmCancel(id, userId);
         return R.ok();
     }
 
     @PostMapping("/api/v1/leaves/{id}/force-cancel")
-    public R<Void> forceCancel(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
+    public R<Void> forceCancel(@PathVariable Long id) {
+        Long userId = CurrentUser.id();
         leaveService.forceCancel(id, userId);
         return R.ok();
     }
 
     @GetMapping("/api/v1/leaves/class")
-    public R<PageResult<LeaveRequest>> classLeaves(
-            @RequestHeader("X-User-Id") Long userId,
-            @Validated LeaveQueryRequest query) {
+    public R<PageResult<LeaveRequest>> classLeaves(@Validated LeaveQueryRequest query) {
+        Long userId = CurrentUser.id();
         return R.ok(leaveService.classLeaves(userId, query));
     }
 

@@ -8,6 +8,7 @@ import com.xg.business.student.service.StudentInsightService;
 import com.xg.business.student.service.StudentService;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
@@ -62,7 +63,8 @@ public class StudentController {
     }
 
     @GetMapping("/api/v1/counselor/class-roster")
-    public R<List<ClassRosterEntry>> classRoster(@RequestHeader("X-User-Id") Long userId) {
+    public R<List<ClassRosterEntry>> classRoster() {
+        Long userId = CurrentUser.id();
         return R.ok(studentService.classRoster(userId));
     }
 
@@ -72,7 +74,8 @@ public class StudentController {
      * 路径变量冲突——同样的考虑见 listClasses 的注释。
      */
     @GetMapping("/api/v1/students-me/extended-info")
-    public R<Map<String, Object>> myExtendedInfo(@RequestHeader("X-User-Id") Long userId) {
+    public R<Map<String, Object>> myExtendedInfo() {
+        Long userId = CurrentUser.id();
         return R.ok(studentService.myExtendedInfo(userId));
     }
 
@@ -81,7 +84,8 @@ public class StudentController {
      * 非学生角色调用会拿到 null（前端应据此隐藏卡片），不抛错。
      */
     @GetMapping("/api/v1/students-me")
-    public R<StudentView> myProfile(@RequestHeader("X-User-Id") Long userId) {
+    public R<StudentView> myProfile() {
+        Long userId = CurrentUser.id();
         return R.ok(studentService.selfDetail(userId));
     }
 }

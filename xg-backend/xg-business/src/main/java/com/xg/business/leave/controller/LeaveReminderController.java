@@ -3,10 +3,10 @@ package com.xg.business.leave.controller;
 import com.xg.business.leave.scheduler.LeaveReminderScheduler;
 import com.xg.common.base.R;
 import com.xg.common.exception.BizException;
+import com.xg.platform.auth.CurrentUser;
 import com.xg.platform.workflow.mapper.AssigneeLookupMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -27,7 +27,8 @@ public class LeaveReminderController {
     private final AssigneeLookupMapper roleLookup;
 
     @PostMapping("/api/v1/admin/leave-reminder/run-once")
-    public R<Integer> runOnce(@RequestHeader("X-User-Id") Long userId) {
+    public R<Integer> runOnce() {
+        Long userId = CurrentUser.id();
         List<String> roles = roleLookup.findRoleCodesByUserId(userId);
         if (roles.stream().noneMatch(ADMIN_ROLES::contains)) {
             throw new BizException("FORBIDDEN", "仅学工处 / 校级管理员可手动触发请假提醒扫描");

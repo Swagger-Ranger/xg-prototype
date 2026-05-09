@@ -5,6 +5,7 @@ import com.xg.business.workstudy.model.WorkStudyYearSetting;
 import com.xg.business.workstudy.service.YearSettingService;
 import com.xg.common.base.R;
 import com.xg.common.exception.BizException;
+import com.xg.platform.auth.CurrentUser;
 import com.xg.platform.workflow.mapper.AssigneeLookupMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -35,8 +36,8 @@ public class YearSettingController {
 
     @PostMapping("/api/v1/work-study/year-settings")
     public R<WorkStudyYearSetting> upsert(
-            @RequestBody @Validated YearSettingUpsertRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated YearSettingUpsertRequest req) {
+        Long userId = CurrentUser.id();
         requireAdmin(userId);
         return R.ok(yearSettingService.upsert(req));
     }
@@ -47,8 +48,8 @@ public class YearSettingController {
     @PostMapping("/api/v1/work-study/year-settings/{toYear}/sync-positions")
     public R<Map<String, Object>> syncPositions(
             @PathVariable String toYear,
-            @RequestParam String fromYear,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestParam String fromYear) {
+        Long userId = CurrentUser.id();
         requireAdmin(userId);
         int copied = yearSettingService.syncPositionsFromYear(toYear, fromYear);
         return R.ok(Map.of("copied", copied, "fromYear", fromYear, "toYear", toYear));

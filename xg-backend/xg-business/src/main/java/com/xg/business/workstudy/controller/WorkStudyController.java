@@ -21,6 +21,7 @@ import com.xg.business.workstudy.service.WorkStudyService;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
 import com.xg.common.exception.BizException;
+import com.xg.platform.auth.CurrentUser;
 import com.xg.platform.workflow.mapper.AssigneeLookupMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,15 +49,15 @@ public class WorkStudyController {
 
     @PostMapping("/api/v1/work-study/positions")
     public R<WorkStudyPosition> createPosition(
-            @RequestBody @Validated PositionCreateRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated PositionCreateRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(workStudyService.createPosition(req, userId));
     }
 
     @GetMapping("/api/v1/work-study/positions")
     public R<PageResult<WorkStudyPosition>> listPositions(
-            @Validated PositionQueryRequest query,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+            @Validated PositionQueryRequest query) {
+        Long userId = CurrentUser.idOrNull();
         return R.ok(workStudyService.listPositions(query, userId));
     }
 
@@ -78,8 +79,8 @@ public class WorkStudyController {
     public R<Void> decidePosition(
             @PathVariable Long id,
             @RequestParam String action,
-            @RequestParam(required = false) String note,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestParam(required = false) String note) {
+        Long userId = CurrentUser.id();
         workStudyService.decidePosition(id, action, note, userId);
         return R.ok();
     }
@@ -88,8 +89,8 @@ public class WorkStudyController {
 
     @PostMapping("/api/v1/work-study/applications")
     public R<WorkStudyApplication> apply(
-            @RequestBody @Validated ApplicationCreateRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated ApplicationCreateRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(workStudyService.apply(req, userId));
     }
 
@@ -106,8 +107,8 @@ public class WorkStudyController {
     @PutMapping("/api/v1/work-study/applications/{id}/decide")
     public R<Void> decide(
             @PathVariable Long id,
-            @RequestBody @Validated ApplicationDecisionRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated ApplicationDecisionRequest req) {
+        Long userId = CurrentUser.id();
         workStudyService.decideApplication(id, req, userId);
         return R.ok();
     }
@@ -116,8 +117,8 @@ public class WorkStudyController {
 
     @PostMapping("/api/v1/work-study/timesheets")
     public R<WorkStudyTimesheet> reportTimesheet(
-            @RequestBody @Validated TimesheetReportRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated TimesheetReportRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(workStudyService.reportTimesheet(req, userId));
     }
 
@@ -139,8 +140,8 @@ public class WorkStudyController {
 
     @PostMapping("/api/v1/work-study/timesheets/{id}/student-confirm")
     public R<Void> studentConfirmTimesheet(
-            @PathVariable Long id,
-            @RequestHeader("X-User-Id") Long userId) {
+            @PathVariable Long id) {
+        Long userId = CurrentUser.id();
         workStudyService.studentConfirmTimesheet(id, userId);
         return R.ok();
     }
@@ -148,8 +149,8 @@ public class WorkStudyController {
     @PostMapping("/api/v1/work-study/timesheets/{id}/dispute")
     public R<Void> disputeTimesheet(
             @PathVariable Long id,
-            @RequestBody @Validated TimesheetDisputeRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated TimesheetDisputeRequest req) {
+        Long userId = CurrentUser.id();
         workStudyService.disputeTimesheet(id, req, userId);
         return R.ok();
     }
@@ -157,8 +158,8 @@ public class WorkStudyController {
     @PostMapping("/api/v1/work-study/timesheets/{id}/finalize")
     public R<Void> finalizeTimesheet(
             @PathVariable Long id,
-            @RequestBody @Validated TimesheetFinalizeRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated TimesheetFinalizeRequest req) {
+        Long userId = CurrentUser.id();
         workStudyService.finalizeTimesheet(id, req, userId);
         return R.ok();
     }
@@ -169,7 +170,8 @@ public class WorkStudyController {
      * Intended for ops/demo; the scheduled run is authoritative in production.
      */
     @PostMapping("/api/v1/work-study/salary/settle")
-    public R<Integer> settleSalary(@RequestHeader("X-User-Id") Long userId) {
+    public R<Integer> settleSalary() {
+        Long userId = CurrentUser.id();
         List<String> roles = roleLookup.findRoleCodesByUserId(userId);
         if (roles.stream().noneMatch(SALARY_OPS_ROLES::contains)) {
             throw new BizException("FORBIDDEN", "仅学工处 / 校级管理员可触发工资结算");
@@ -182,8 +184,8 @@ public class WorkStudyController {
     /** 用工单位申报某学生在某月的薪资。月内可多次申报。 */
     @PostMapping("/api/v1/work-study/salaries")
     public R<WorkStudySalary> submitSalary(
-            @RequestBody @Validated SalarySubmitRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated SalarySubmitRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(salaryService.submit(req, userId));
     }
 
@@ -201,8 +203,8 @@ public class WorkStudyController {
     @PutMapping("/api/v1/work-study/salaries/{id}/decide")
     public R<Void> decideSalary(
             @PathVariable Long id,
-            @RequestBody @Validated SalaryDecisionRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated SalaryDecisionRequest req) {
+        Long userId = CurrentUser.id();
         List<String> roles = roleLookup.findRoleCodesByUserId(userId);
         if (roles.stream().noneMatch(AID_CENTER_ROLES::contains)) {
             throw new BizException("FORBIDDEN", "仅资助中心 / 学工处 / 校级管理员可审批薪资");

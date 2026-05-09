@@ -4,11 +4,11 @@ import com.xg.business.workstudy.dto.WorkStudyPreferenceUpsertRequest;
 import com.xg.business.workstudy.model.StudentWorkStudyPreference;
 import com.xg.business.workstudy.service.WorkStudyPreferenceService;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -22,14 +22,15 @@ public class WorkStudyPreferenceController {
     private final WorkStudyPreferenceService preferenceService;
 
     @GetMapping("/api/v1/work-study/me/preference")
-    public R<StudentWorkStudyPreference> mine(@RequestHeader("X-User-Id") Long userId) {
+    public R<StudentWorkStudyPreference> mine() {
+        Long userId = CurrentUser.id();
         return R.ok(preferenceService.findByStudent(userId));
     }
 
     @PutMapping("/api/v1/work-study/me/preference")
     public R<StudentWorkStudyPreference> save(
-            @RequestHeader("X-User-Id") Long userId,
             @RequestBody WorkStudyPreferenceUpsertRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(preferenceService.upsert(userId, req));
     }
 }

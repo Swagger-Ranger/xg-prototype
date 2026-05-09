@@ -8,13 +8,13 @@ import com.xg.common.tenant.TenantContext;
 import com.xg.platform.event.mapper.StudentEventLogMapper;
 import com.xg.platform.event.model.StudentEventLog;
 import com.xg.platform.event.scheduler.NotificationUnconfirmedScanScheduler;
+import com.xg.platform.auth.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -56,17 +56,11 @@ public class StudentEventController {
     @GetMapping("/api/v1/student-stats/top-late")
     public R<List<Map<String, Object>>> topLate(
             @RequestParam(defaultValue = "7") int days,
-            @RequestParam(defaultValue = "10") int limit,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        if (userId == null || userId.isBlank()) return R.ok(List.of());
+            @RequestParam(defaultValue = "10") int limit) {
+        Long counselorId = CurrentUser.idOrNull();
+        if (counselorId == null) return R.ok(List.of());
         int safeDays = Math.max(1, Math.min(days, 90));
         int safeLimit = Math.max(1, Math.min(limit, 50));
-        Long counselorId;
-        try {
-            counselorId = Long.valueOf(userId);
-        } catch (NumberFormatException e) {
-            return R.ok(List.of());
-        }
         String schema = TenantContext.getSchemaName();
         if (schema == null || !schema.matches("[a-zA-Z0-9_]+")) return R.ok(List.of());
         String sql = "SELECT sp.user_id AS student_id, u.real_name AS student_name, sp.class_id AS class_id, COUNT(e.id) AS late_count "

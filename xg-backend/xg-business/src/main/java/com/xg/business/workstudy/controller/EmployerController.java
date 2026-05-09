@@ -8,6 +8,7 @@ import com.xg.business.workstudy.service.EmployerService;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
 import com.xg.common.exception.BizException;
+import com.xg.platform.auth.CurrentUser;
 import com.xg.platform.workflow.mapper.AssigneeLookupMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -37,8 +38,8 @@ public class EmployerController {
 
     @PostMapping("/api/v1/work-study/employers")
     public R<Employer> create(
-            @RequestBody @Validated EmployerCreateRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated EmployerCreateRequest req) {
+        Long userId = CurrentUser.id();
         requireAdmin(userId);
         return R.ok(employerService.create(req));
     }
@@ -46,8 +47,8 @@ public class EmployerController {
     @PutMapping("/api/v1/work-study/employers/{id}")
     public R<Employer> update(
             @PathVariable Long id,
-            @RequestBody @Validated EmployerUpdateRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Validated EmployerUpdateRequest req) {
+        Long userId = CurrentUser.id();
         requireAdmin(userId);
         return R.ok(employerService.update(id, req));
     }
@@ -55,8 +56,8 @@ public class EmployerController {
     @PutMapping("/api/v1/work-study/employers/{id}/status")
     public R<Void> setStatus(
             @PathVariable Long id,
-            @RequestParam String status,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestParam String status) {
+        Long userId = CurrentUser.id();
         requireAdmin(userId);
         employerService.setStatus(id, status);
         return R.ok();
