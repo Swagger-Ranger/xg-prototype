@@ -129,4 +129,49 @@ public interface OrgAssignmentMapper {
             """)
     long countByCounselorAndOrg(@Param("counselorId") Long counselorId,
                                 @Param("orgId") Long orgId);
+
+    /**
+     * 列出"缺班主任"的班级。collegeId=null 时返回全校；非 null 时只返回 parent_id=collegeId 的班。
+     * AI 派班 UI 会按这个结果生成建议表。
+     */
+    @Select("""
+            <script>
+            SELECT o.id, o.name
+              FROM org_unit o
+             WHERE o.type = 'class'
+               AND o.status = 'active'
+               AND o.deleted_at IS NULL
+               AND o.leader_id IS NULL
+            <if test="collegeId != null">
+               AND o.parent_id = #{collegeId}
+            </if>
+             ORDER BY o.sort_order NULLS LAST, o.id
+            </script>
+            """)
+    List<Map<String, Object>> listClassesMissingLeader(@Param("collegeId") Long collegeId);
+
+    /**
+     * 列出指定角色的全部候选用户，附带"当前已是几个班的 leader_id"作为负载。
+     * 没带任何班的人 load=0，前端按 load 升序、id 升序排。AI 推荐取 load 最低者。
+     */
+    @Select("""
+            SELECT u.id, u.real_name, u.username,
+                   COALESCE(cnt.c, 0) AS load
+              FROM sys_user u
+              JOIN sys_user_role ur ON ur.user_id = u.id
+              JOIN sys_role r       ON r.id = ur.role_id AND r.code = #{roleCode}
+              LEFT JOIN (
+                  SELECT leader_id, COUNT(*) AS c
+                    FROM org_unit
+                   WHERE type = 'class'
+                     AND status = 'active'
+                     AND deleted_at IS NULL
+                     AND leader_id IS NOT NULL
+                   GROUP BY leader_id
+              ) cnt ON cnt.leader_id = u.id
+             WHERE u.status = 'active'
+               AND u.deleted_at IS NULL
+             ORDER BY load ASC, u.id ASC
+            """)
+    List<Map<String, Object>> listCandidatesWithLeaderLoad(@Param("roleCode") String roleCode);
 }

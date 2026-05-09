@@ -74,3 +74,39 @@ export function updateMappingPrimary(id: string, isPrimary: boolean): Promise<vo
 export function deleteCounselorMapping(id: string): Promise<void> {
   return api.delete(`/org/counselor-mappings/${id}`).then(() => undefined);
 }
+
+// ---------- AI 派班（班主任补缺） ----------
+
+export type AiLeaderScope = 'missing_leader_global' | 'missing_leader_college';
+
+export interface AiLeaderSuggestion {
+  class_id: string;
+  class_name: string;
+  recommended_leader_id: string | null;
+  recommended_leader_name: string | null;
+  reason: string;
+}
+
+/** 仅生成推荐，不写库。 */
+export function aiSuggestLeaders(req: {
+  scope: AiLeaderScope;
+  collegeId?: string;
+}): Promise<AiLeaderSuggestion[]> {
+  return api
+    .post('/org/ai-suggest-leaders', {
+      scope: req.scope,
+      college_id: req.collegeId ?? null,
+    })
+    .then((res) => res.data);
+}
+
+/** 批量设置班主任。单事务：任一失败整体回滚，前端 invalidate 后整张表会与库一致。 */
+export function batchApplyLeaders(
+  items: { classId: string; leaderId: string }[],
+): Promise<void> {
+  return api
+    .post('/org/batch-apply-leaders', {
+      items: items.map((i) => ({ class_id: i.classId, leader_id: i.leaderId })),
+    })
+    .then(() => undefined);
+}

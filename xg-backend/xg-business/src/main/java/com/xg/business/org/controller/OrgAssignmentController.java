@@ -1,6 +1,10 @@
 package com.xg.business.org.controller;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.xg.business.org.dto.AiLeaderSuggestRequest;
+import com.xg.business.org.dto.AiLeaderSuggestion;
 import com.xg.business.org.dto.AssignableUser;
+import com.xg.business.org.dto.BatchLeaderApplyRequest;
 import com.xg.business.org.dto.CounselorMappingRequest;
 import com.xg.business.org.dto.CounselorMappingView;
 import com.xg.business.org.dto.LeaderUpdateRequest;
@@ -8,6 +12,7 @@ import com.xg.business.org.dto.MappingPrimaryUpdateRequest;
 import com.xg.business.org.dto.OrgTreeNode;
 import com.xg.business.org.service.OrgAssignmentService;
 import com.xg.common.base.R;
+import com.xg.platform.auth.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +22,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -55,6 +59,7 @@ public class OrgAssignmentController {
 
     /** 设/清班主任。leaderId=null 即清空。 */
     @PutMapping("/{classId}/leader")
+    @SaCheckPermission("system:org:manage")
     public R<Void> updateLeader(@PathVariable Long classId,
                                 @RequestBody LeaderUpdateRequest req) {
         service.updateLeader(classId, req.getLeaderId());
@@ -62,13 +67,15 @@ public class OrgAssignmentController {
     }
 
     @PostMapping("/counselor-mappings")
+    @SaCheckPermission("system:org:manage")
     public R<CounselorMappingView> createMapping(
-            @RequestBody @Valid CounselorMappingRequest req,
-            @RequestHeader("X-User-Id") Long userId) {
+            @RequestBody @Valid CounselorMappingRequest req) {
+        Long userId = CurrentUser.id();
         return R.ok(service.createMapping(req, userId));
     }
 
     @PutMapping("/counselor-mappings/{id}")
+    @SaCheckPermission("system:org:manage")
     public R<Void> updatePrimary(@PathVariable Long id,
                                  @RequestBody @Valid MappingPrimaryUpdateRequest req) {
         service.updateMappingPrimary(id, req.getIsPrimary());
@@ -76,8 +83,24 @@ public class OrgAssignmentController {
     }
 
     @DeleteMapping("/counselor-mappings/{id}")
+    @SaCheckPermission("system:org:manage")
     public R<Void> deleteMapping(@PathVariable Long id) {
         service.deleteMapping(id);
+        return R.ok();
+    }
+
+    /** AI 班主任推荐：给 scope 内每个缺班主任的班配一个候选。仅生成方案，不写库。 */
+    @PostMapping("/ai-suggest-leaders")
+    @SaCheckPermission("system:org:manage")
+    public R<List<AiLeaderSuggestion>> aiSuggestLeaders(@RequestBody AiLeaderSuggestRequest req) {
+        return R.ok(service.aiSuggestLeaders(req));
+    }
+
+    /** 批量应用班主任指派。单事务，任一失败整体回滚。 */
+    @PostMapping("/batch-apply-leaders")
+    @SaCheckPermission("system:org:manage")
+    public R<Void> batchApplyLeaders(@RequestBody BatchLeaderApplyRequest req) {
+        service.batchApplyLeaders(req);
         return R.ok();
     }
 }

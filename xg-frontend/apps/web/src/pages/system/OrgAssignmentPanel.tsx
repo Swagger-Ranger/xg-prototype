@@ -11,7 +11,12 @@ import {
   Tree,
   message,
 } from 'antd';
-import { StarFilled, StarOutlined, DeleteOutlined } from '@ant-design/icons';
+import {
+  StarFilled,
+  StarOutlined,
+  DeleteOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type AssignableUser,
@@ -25,6 +30,7 @@ import {
   updateLeader,
   updateMappingPrimary,
 } from '@/api/orgAssignment';
+import OrgAiAssignModal from './OrgAiAssignModal';
 
 /**
  * 「组织派班」tab。左侧组织树（college / class），选中节点后右侧根据类型展示
@@ -38,6 +44,7 @@ import {
 export default function OrgAssignmentPanel() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const { data: tree = [], isFetching: treeLoading } = useQuery({
     queryKey: ['org.tree'],
@@ -67,7 +74,68 @@ export default function OrgAssignmentPanel() {
     queryClient.invalidateQueries({ queryKey: ['leaveConfig.health'] });
   }
 
+  // 缺班主任的班数 —— 给 AI 入口按钮加个角标，让"该派班了"这件事有信号。
+  const missingLeaderCount = useMemo(
+    () => tree.filter((n) => n.type === 'class' && n.leader_id == null).length,
+    [tree],
+  );
+
   return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>
+          {missingLeaderCount > 0 ? (
+            <span>
+              当前共有{' '}
+              <b style={{ color: '#fa8c16' }}>{missingLeaderCount}</b> 个班缺班主任，
+              建议用 AI 一键补齐
+            </span>
+          ) : (
+            <span>所有班级均已配齐班主任 🎉</span>
+          )}
+        </div>
+        <Button
+          type="primary"
+          icon={<ThunderboltOutlined />}
+          onClick={() => setAiOpen(true)}
+          disabled={treeLoading || tree.length === 0}
+          style={{
+            background: 'linear-gradient(90deg, #faad14 0%, #fa8c16 100%)',
+            borderColor: 'transparent',
+            boxShadow: '0 2px 6px rgba(250, 173, 20, 0.35)',
+          }}
+        >
+          AI 派班建议
+          {missingLeaderCount > 0 && (
+            <span
+              style={{
+                marginLeft: 6,
+                padding: '0 6px',
+                background: 'rgba(255,255,255,0.25)',
+                borderRadius: 10,
+                fontSize: 12,
+              }}
+            >
+              {missingLeaderCount}
+            </span>
+          )}
+        </Button>
+      </div>
+      <OrgAiAssignModal
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        tree={tree}
+        classMasters={classMasters}
+      />
     <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
       <Card
         size="small"
@@ -107,6 +175,7 @@ export default function OrgAssignmentPanel() {
           />
         )}
       </div>
+    </div>
     </div>
   );
 }

@@ -1,7 +1,10 @@
 package com.xg.business.org.service;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.xg.business.org.dto.AiLeaderSuggestRequest;
+import com.xg.business.org.dto.AiLeaderSuggestion;
 import com.xg.business.org.dto.AssignableUser;
+import com.xg.business.org.dto.BatchLeaderApplyRequest;
 import com.xg.business.org.dto.CounselorMappingRequest;
 import com.xg.business.org.dto.CounselorMappingView;
 import com.xg.business.org.dto.OrgTreeNode;
@@ -152,6 +155,119 @@ public class OrgAssignmentService {
         if (affected == 0) {
             throw new BizException(GlobalErrorCode.NOT_FOUND.getCode(), "未找到该辅导员映射");
         }
+    }
+
+    // ---------- AI 派班（班主任补缺） ----------
+
+    private static final String SCOPE_MISSING_GLOBAL = "missing_leader_global";
+    private static final String SCOPE_MISSING_COLLEGE = "missing_leader_college";
+
+    /**
+     * 给 scope 内每个缺班主任的班级推荐一名候选 class_master。
+     *
+     * <p>算法：贪心负载均衡。候选池 = 全部 class_master 角色用户，初始 load = 该用户当前
+     * 已是几个班的 leader_id。按 (load asc, id asc) 选最低者，选完把 load+1 再迭代下一班。
+     * 这样推荐的方案天然均衡：3 个候选 vs 6 个班 → 每人各分 2 个，而不是某个人吃 6 个。
+     */
+    public List<AiLeaderSuggestion> aiSuggestLeaders(AiLeaderSuggestRequest req) {
+        Long collegeId = resolveCollegeScope(req);
+
+        List<Map<String, Object>> classes = mapper.listClassesMissingLeader(collegeId);
+        if (classes.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Map<String, Object>> candidatesRaw = mapper.listCandidatesWithLeaderLoad(ROLE_CLASS_MASTER);
+
+        List<AiLeaderSuggestion> out = new ArrayList<>(classes.size());
+        if (candidatesRaw.isEmpty()) {
+            // 没人有 class_master 角色，照样把缺人班级返回，让前端能看到全貌。
+            for (Map<String, Object> c : classes) {
+                AiLeaderSuggestion s = new AiLeaderSuggestion();
+                s.setClassId(asLong(c.get("id")));
+                s.setClassName(asString(c.get("name")));
+                s.setReason("无可派人选：当前没有任何用户拥有「班主任」角色，请先到用户管理给老师挂上角色");
+                out.add(s);
+            }
+            return out;
+        }
+
+        // 候选池转成可变结构，模拟"分配后 load+1"的状态。Mapper 已按 (load asc, id asc) 排过。
+        List<long[]> candidatePool = new ArrayList<>(candidatesRaw.size());
+        Map<Long, String> nameById = new HashMap<>();
+        for (Map<String, Object> r : candidatesRaw) {
+            long id = asLong(r.get("id"));
+            long load = asLong(r.get("load"));
+            candidatePool.add(new long[]{id, load});
+            nameById.put(id, asString(r.get("real_name")));
+        }
+
+        for (Map<String, Object> c : classes) {
+            // 在剩余候选里挑 load 最低的（id 升序 tiebreak）。
+            int pickIdx = 0;
+            long[] pick = candidatePool.get(0);
+            for (int i = 1; i < candidatePool.size(); i++) {
+                long[] cand = candidatePool.get(i);
+                if (cand[1] < pick[1] || (cand[1] == pick[1] && cand[0] < pick[0])) {
+                    pick = cand;
+                    pickIdx = i;
+                }
+            }
+
+            AiLeaderSuggestion s = new AiLeaderSuggestion();
+            s.setClassId(asLong(c.get("id")));
+            s.setClassName(asString(c.get("name")));
+            s.setRecommendedLeaderId(pick[0]);
+            s.setRecommendedLeaderName(nameById.get(pick[0]));
+            s.setReason(buildReason(pick[1]));
+            out.add(s);
+
+            // 模拟分配：让该候选 load+1，下一班就轮其他人。
+            candidatePool.set(pickIdx, new long[]{pick[0], pick[1] + 1});
+        }
+
+        return out;
+    }
+
+    /**
+     * 批量设置班主任。整批一个事务，任一条失败整体回滚（前端拿到错误后整张推荐表
+     * 状态都不变，避免"半成功"留烂账）。
+     */
+    @Transactional
+    public void batchApplyLeaders(BatchLeaderApplyRequest req) {
+        if (req == null || req.getItems() == null || req.getItems().isEmpty()) {
+            throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(), "未选择任何要应用的班级");
+        }
+        for (BatchLeaderApplyRequest.Item item : req.getItems()) {
+            if (item.getClassId() == null || item.getLeaderId() == null) {
+                throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(), "批量派班不允许 classId / leaderId 为空");
+            }
+            // 复用单条 updateLeader 的角色校验 + not-found 检查；任一抛出会触发事务回滚。
+            updateLeader(item.getClassId(), item.getLeaderId());
+        }
+    }
+
+    private Long resolveCollegeScope(AiLeaderSuggestRequest req) {
+        String scope = req == null ? null : req.getScope();
+        if (SCOPE_MISSING_GLOBAL.equals(scope)) {
+            return null;
+        }
+        if (SCOPE_MISSING_COLLEGE.equals(scope)) {
+            if (req.getCollegeId() == null) {
+                throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(),
+                        "选定学院范围时必须提供 collegeId");
+            }
+            return req.getCollegeId();
+        }
+        throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(),
+                "未知的派班范围：" + scope);
+    }
+
+    private static String buildReason(long currentLoad) {
+        if (currentLoad == 0) {
+            return "尚未带班，负载最低";
+        }
+        return "当前带 " + currentLoad + " 个班，候选中负载最低";
     }
 
     // ---------- helpers ----------
