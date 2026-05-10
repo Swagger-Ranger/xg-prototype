@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -72,6 +74,62 @@ public class WorkflowConfigController {
         }
         out.put("version", def.getVersion());
         out.put("yaml", def.getConfigYaml());
+        return R.ok(out);
+    }
+
+    /**
+     * GET /api/v1/workflow-config/versions?biz_type=leave[&college_id=]
+     * 历史版本时间轴。每行带 version + status + name + change_summary + updated_at + updated_by。
+     * 顺序按 version DESC,前端做时间轴。
+     */
+    @GetMapping("/versions")
+    @SaCheckPermission("system:manage")
+    public R<List<Map<String, Object>>> versions(
+            @RequestParam("biz_type") String bizType,
+            @RequestParam(value = "college_id", required = false) Long collegeId) {
+        List<WorkflowDefinition> rows = editService.listVersions(bizType, collegeId);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (WorkflowDefinition d : rows) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("version", d.getVersion());
+            row.put("status", d.getStatus());           // published / disabled
+            row.put("name", d.getName());
+            row.put("change_summary", d.getChangeSummary());
+            row.put("updated_at", d.getUpdatedAt());
+            row.put("updated_by", d.getUpdatedBy());
+            out.add(row);
+        }
+        return R.ok(out);
+    }
+
+    /**
+     * POST /api/v1/workflow-config/rollback
+     * Body: {biz_type, college_id?, to_version}
+     *
+     * 前向回滚:目标版本的 yaml 拷成 version+1 重新 published。
+     * 历史不删,可继续往前回滚。失败原因(目标==当前 / 找不到等)走 BizException。
+     */
+    @PostMapping("/rollback")
+    @SaCheckPermission("system:manage")
+    public R<Map<String, Object>> rollback(@RequestBody Map<String, Object> body) {
+        String bizType = (String) body.get("biz_type");
+        if (bizType == null || bizType.isBlank()) {
+            throw new BizException("BIZ_TYPE_EMPTY", "biz_type 不能为空");
+        }
+        Object collegeIdObj = body.get("college_id");
+        Long collegeId = collegeIdObj instanceof Number n ? n.longValue() : null;
+        Object toVerObj = body.get("to_version");
+        if (!(toVerObj instanceof Number)) {
+            throw new BizException("TO_VERSION_INVALID", "to_version 必须是数字");
+        }
+        int toVer = ((Number) toVerObj).intValue();
+        WorkflowDefinition next = editService.rollbackTo(bizType, collegeId, toVer);
+        Map<String, Object> out = new HashMap<>();
+        out.put("biz_type", next.getBizType());
+        out.put("college_id", next.getCollegeId());
+        out.put("version", next.getVersion());
+        out.put("name", next.getName());
+        out.put("change_summary", next.getChangeSummary());
         return R.ok(out);
     }
 

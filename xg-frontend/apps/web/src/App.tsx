@@ -6,7 +6,7 @@ import { useAuthStore } from './stores/auth.store';
 
 const Login = lazy(() => import('./pages/login'));
 const Workspace = lazy(() => import('./pages/workspace'));
-const LeaveManagement = lazy(() => import('./pages/leave'));
+const LeaveAppPage = lazy(() => import('./pages/leave/LeaveAppPage'));
 const CollectionManagement = lazy(() => import('./pages/collection'));
 const CheckinManagement = lazy(() => import('./pages/checkin'));
 const NotificationManagement = lazy(() => import('./pages/notification'));
@@ -21,7 +21,6 @@ const AlertManagement = lazy(() => import('./pages/alert'));
 const CounselorTalkManagement = lazy(() => import('./pages/counselorTalk'));
 const WorkflowManagement = lazy(() => import('./pages/workflow'));
 const FormManagement = lazy(() => import('./pages/forms'));
-const LeaveConfigPage = lazy(() => import('./pages/leaveConfig'));
 const ProfilePage = lazy(() => import('./pages/profile'));
 
 const Loading = () => (
@@ -46,6 +45,17 @@ function ProtectedRoute() {
   return <AppLayout />;
 }
 
+// 老 /leave-config 链接重定向到合并后的 /leave?tab=...,保留 tab 参数。
+// leave/leave_return/notice → list/rule/return/notice 的映射在 LeaveAppPage 内。
+function LeaveConfigRedirect() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const oldTab = params.get('tab');
+  const map: Record<string, string> = { leave: 'rule', leave_return: 'return', notice: 'notice' };
+  const newTab = oldTab ? map[oldTab] ?? 'rule' : 'rule';
+  return <Navigate to={`/leave?tab=${newTab}`} replace />;
+}
+
 // employer 没有工作台权限，所有 fallback 都得改路由到唯一开放的页面。
 function DefaultLanding() {
   const user = useAuthStore((s) => s.user);
@@ -67,7 +77,7 @@ export default function App() {
         <Route path="/" element={<ProtectedRoute />}>
           <Route index element={<DefaultLanding />} />
           <Route path="workspace" element={<Workspace />} />
-          <Route path="leave" element={<LeaveManagement />} />
+          <Route path="leave" element={<LeaveAppPage />} />
           <Route path="collection" element={<CollectionManagement />} />
           <Route path="checkin" element={<CheckinManagement />} />
           <Route path="notification" element={<NotificationManagement />} />
@@ -81,7 +91,7 @@ export default function App() {
           <Route path="counselor-talks" element={<CounselorTalkManagement />} />
           <Route path="workflows" element={<WorkflowManagement />} />
           <Route path="forms" element={<FormManagement />} />
-          <Route path="leave-config" element={<LeaveConfigPage />} />
+          <Route path="leave-config" element={<LeaveConfigRedirect />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="system/*" element={<SystemManagement />} />
           <Route path="*" element={<DefaultLanding />} />

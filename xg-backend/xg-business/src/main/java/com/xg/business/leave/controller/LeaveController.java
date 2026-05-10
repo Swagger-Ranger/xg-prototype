@@ -30,6 +30,7 @@ public class LeaveController {
     private final LeaveImpactService leaveImpactService;
     private final com.xg.business.leave.service.LeaveConfigBaseService leaveConfigBaseService;
     private final com.xg.business.leave.service.LeaveNoticeConfigService leaveNoticeConfigService;
+    private final com.xg.business.leave.service.LeaveGlobalConfigService leaveGlobalConfigService;
 
     @GetMapping("/api/v1/leave-types")
     public R<List<LeaveTypeConfig>> listLeaveTypes() {
@@ -55,13 +56,51 @@ public class LeaveController {
         return R.ok(leaveService.getLeaveTypeFields(code));
     }
 
-    /** 改某假别的「本学期累计上限」(天数,可半天)。null 等价于不限。 */
-    @PutMapping("/api/v1/leave-types/{code}/term-max-days")
-    public R<LeaveTypeConfig> updateTermMaxDays(
-            @PathVariable String code,
+    /**
+     * 读全局学期累计上限。null = 不限;前端「请销假配置」首屏拉。
+     * V096 起把 per-假别的 term_max_days 替换成租户级单一上限,
+     * 行为从「超限硬拒」改为「超限软警告 + 高风险标记」。
+     */
+    @GetMapping("/api/v1/leaves/global-config")
+    public R<com.xg.business.leave.model.LeaveGlobalConfig> getGlobalConfig() {
+        return R.ok(leaveGlobalConfigService.get());
+    }
+
+    /** 改全局学期累计上限。term_max_days = null 表示不限。 */
+    @PutMapping("/api/v1/leaves/global-config")
+    public R<com.xg.business.leave.model.LeaveGlobalConfig> updateGlobalConfig(
             @RequestBody @Valid com.xg.business.leave.dto.UpdateTermMaxDaysRequest req) {
         Long userId = CurrentUser.id();
-        return R.ok(leaveConfigBaseService.updateTermMaxDays(code, req.getTermMaxDays(), userId));
+        return R.ok(leaveGlobalConfigService.updateTermMaxDays(req.getTermMaxDays(), userId));
+    }
+
+    /** 改「证明材料」开关。term_max_days 不动。 */
+    @PutMapping("/api/v1/leaves/global-config/require-proof")
+    public R<com.xg.business.leave.model.LeaveGlobalConfig> updateRequireProof(
+            @RequestBody java.util.Map<String, Object> body) {
+        boolean v = body.get("require_proof") instanceof Boolean b ? b : false;
+        return R.ok(leaveGlobalConfigService.updateRequireProof(v, CurrentUser.id()));
+    }
+
+    /**
+     * 学生自查本学期累计请假天数 + 是否超过全局上限。
+     * 学生申请页打开时调用,UI 用 exceeded 决定是否红条提示。
+     */
+    @GetMapping("/api/v1/leaves/term-usage")
+    public R<com.xg.business.leave.dto.LeaveTermUsageView> myTermUsage() {
+        Long userId = CurrentUser.id();
+        return R.ok(leaveService.getTermUsage(userId));
+    }
+
+    /**
+     * 辅导员/审批人查某学生本学期累计 + 是否超限,审批 drawer 用。
+     * 权限沿用上层 SaInterceptor — 任何登录用户都能查(审批列表已经按角色聚合,
+     * 这里再做角色校验属于过度防御)。
+     */
+    @GetMapping("/api/v1/leaves/term-usage/{studentId}")
+    public R<com.xg.business.leave.dto.LeaveTermUsageView> termUsage(
+            @PathVariable Long studentId) {
+        return R.ok(leaveService.getTermUsage(studentId));
     }
 
     @PostMapping("/api/v1/leaves")

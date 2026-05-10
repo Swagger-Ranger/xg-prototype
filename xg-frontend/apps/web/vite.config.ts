@@ -14,12 +14,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // 显式 127.0.0.1:macOS + node 18+ 默认 IPv6-first 解析 localhost,
+      // 而 java/python 后端常只监听 IPv4(*:port),会偶发 ECONNREFUSED。
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://127.0.0.1:8080',
         changeOrigin: true,
       },
       '/ai': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/ai/, ''),
       },

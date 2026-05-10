@@ -125,6 +125,7 @@ public class WorkflowConfigEditService {
         next.setConfigJson(parsed);
         next.setStatus("published");
         next.setModule(module);
+        next.setChangeSummary(changeSummary);
         definitionMapper.insert(next);
 
         // 5. leave only:把 type_router 里出现的所有 leave_type_code 同步到 leave_type_config 表
@@ -174,5 +175,52 @@ public class WorkflowConfigEditService {
                 log.warn("syncLeaveTypesFromYaml: upsert {} failed: {}", code, e.getMessage());
             }
         }
+    }
+
+    /**
+     * 读 (bizType, collegeId) 的全部历史版本,按 version DESC 倒序;
+     * 用于「历史版本」Drawer 时间轴展示。collegeId=null 只取全校默认那条桶,
+     * 非 null 时同样精确匹配(不混合)。
+     */
+    public List<WorkflowDefinition> listVersions(String bizType, Long collegeId) {
+        LambdaQueryWrapper<WorkflowDefinition> q = new LambdaQueryWrapper<WorkflowDefinition>()
+                .eq(WorkflowDefinition::getBizType, bizType)
+                .orderByDesc(WorkflowDefinition::getVersion);
+        if (collegeId == null) {
+            q.isNull(WorkflowDefinition::getCollegeId);
+        } else {
+            q.eq(WorkflowDefinition::getCollegeId, collegeId);
+        }
+        return definitionMapper.selectList(q);
+    }
+
+    /**
+     * 前向回滚:把目标 version 的 yaml 拷成 version+1 重新 published,
+     * 保留历史完整可追溯。回滚到当前版本会被 applyYaml 的零改动拦截拒绝。
+     *
+     * change_summary 自动生成"回滚到 vN(原作者 + 时间)",跟正常 apply 区分清楚。
+     */
+    @Transactional
+    public WorkflowDefinition rollbackTo(String bizType, Long collegeId, int toVersion) {
+        LambdaQueryWrapper<WorkflowDefinition> q = new LambdaQueryWrapper<WorkflowDefinition>()
+                .eq(WorkflowDefinition::getBizType, bizType)
+                .eq(WorkflowDefinition::getVersion, toVersion);
+        if (collegeId == null) {
+            q.isNull(WorkflowDefinition::getCollegeId);
+        } else {
+            q.eq(WorkflowDefinition::getCollegeId, collegeId);
+        }
+        WorkflowDefinition target = definitionMapper.selectOne(q);
+        if (target == null) {
+            throw new BizException("VERSION_NOT_FOUND", "找不到目标版本 v" + toVersion);
+        }
+        if (target.getConfigYaml() == null || target.getConfigYaml().isBlank()) {
+            throw new BizException("VERSION_YAML_EMPTY", "目标版本 yaml 为空,无法回滚");
+        }
+        String summary = String.format("回滚到 v%d", toVersion);
+        if (target.getChangeSummary() != null && !target.getChangeSummary().isBlank()) {
+            summary = summary + "(原: " + target.getChangeSummary() + ")";
+        }
+        return applyYaml(bizType, collegeId, target.getConfigYaml(), summary);
     }
 }

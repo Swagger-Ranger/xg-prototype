@@ -1,3 +1,4 @@
+import re
 import uuid
 import logging
 from datetime import date
@@ -13,6 +14,32 @@ router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
 
 llm = DeepSeekProvider()
+
+
+# 「看 X 配置 / 规则 / 工作流」意图直接 short-circuit 出 navigate action。
+# 不进 LLM,不走 RAG — 否则 RAG 经常召回「请假管理办法」让 LLM 改答规章而不是跳页。
+LEAVE_TYPE_CN_TO_CODE = {
+    "事假": "personal",
+    "病假": "sick",
+    "婚假": "marriage",
+    "公假": "official_business",
+    "因公外出": "official",
+    "本科生外出实习": "internship",
+    "实习": "internship",
+    "晚归申请": "late_return",
+    "晚归": "late_return",
+}
+# 拼接时长名优先放前面,避免 "本科生外出实习" 被先匹配到 "实习" 截短。
+_LEAVE_NAME_RE = "|".join(
+    sorted(LEAVE_TYPE_CN_TO_CODE.keys(), key=len, reverse=True)
+)
+VIEW_LEAVE_RULE_RE = re.compile(
+    r"(?:看|查看|我看一下|我看|定位|打开|展示)\s*(?:一下\s*)?"
+    rf"(?P<name>{_LEAVE_NAME_RE})"
+    r"\s*(?:的)?\s*(?:工作流|流程|配置|规则|审批|分档|审批链)"
+)
+# 仅这些角色能看「请假规则」tab,其余角色发"看 X 配置"指令应反问 / 由 LLM 兜底
+_LEAVE_RULE_VIEWER_ROLES = {"school_admin", "super_admin", "student_affairs_director"}
 
 
 # Confirmation-word gate for open_leave_form. The LLM's prompt says it must
@@ -67,7 +94,24 @@ _SYSTEM_PROMPT_ZH = (
     "### 信息收集流程\n"
     "收集需要：标题。缺少时追问，齐全后确认再调用 open_collection_form。\n\n"
     "### 导航\n"
-    "用户明确说去某个页面时，直接调用 navigate，无需确认。\n\n"
+    "用户明确说去某个页面时，直接调用 navigate，无需确认。\n"
+    "### 查看具体假别配置(只看不改)\n"
+    "用户说「看 / 查看 / 我看一下 X 的工作流 / X 的配置 / X 的规则」(X 是具体假别名),"
+    "**直接调 navigate，三个参数全填:page=leave, tab=rule, focus=对应假别 code**。"
+    "前端会自动切到请假规则 tab + 滚到那张卡 + 高亮闪烁。\n"
+    "**禁止用知识库回答 / 禁止说「无法查看」/ 禁止反问** — 只要识别出假别名就直接 navigate。\n"
+    "假别 中文 → code 映射(注意公假和因公外出 code 是反过来的):\n"
+    "  - 事假 → personal\n"
+    "  - 病假 → sick\n"
+    "  - 婚假 → marriage\n"
+    "  - 公假 → official_business\n"
+    "  - 因公外出 → official\n"
+    "  - 本科生外出实习 → internship\n"
+    "  - 晚归申请 → late_return\n"
+    "示例:\n"
+    "  - 「看一下事假工作流」→ navigate(page=leave, tab=rule, focus=personal)\n"
+    "  - 「看公假规则」    → navigate(page=leave, tab=rule, focus=official_business)\n"
+    "假别名不在以上列表 → 反问「想看哪个假别?目前有事假/病假/婚假/公假/因公外出/本科生外出实习/晚归申请」。\n\n"
     "### 改请假/销假规则(管理员场景)\n"
     "**前置权限**:只有 user_role 是 school_admin / super_admin / student_affairs_director 才能改配置。\n"
     "其他角色(student / counselor / dean / 等)说「改请假配置/规则」时,**禁止调 propose_workflow_config_change**"
@@ -96,10 +140,12 @@ _SYSTEM_PROMPT_ZH = (
     "  - 「改 XX 通知的文案」\n"
     "仅当用户**只说「改通知」**(没指定哪条)时才在 chat 直接反问。\n\n"
     "### 学生信息库 过滤（只在 current_page=student 时触发）\n"
-    "当用户在 学生信息库 页面说「过滤 / 筛选 / 找 …级 …学院 …专业 …班 / 在读/休学/毕业/退学」"
+    "当用户在 学生信息库 页面说「过滤 / 筛选 / 找 …级 …学院 …专业 …班 / …书院 / …楼栋 / 在读/休学/毕业/退学」"
     "或给出学号/姓名要搜，本轮直接调 filter_students 工具，把识别到的条件作为参数传入。\n"
     "- 只填用户明确说的字段，没说的不要填；填了 null 等同于「清掉这一项」。\n"
-    "- 「人工智能专业」→ major=人工智能；「计算机学院」→ college=计算机学院；「2024级」→ grade=2024级（带「级」）。\n"
+    "- 学术线：「人工智能专业」→ major=人工智能；「计算机学院」→ college=计算机学院；「2024级」→ grade=2024级（带「级」）。\n"
+    "- 生活线（双轨制学校才有）：「博雅书院」→ academy=博雅书院；「南二楼」→ dormBlock=南二楼。\n"
+    "- 当用户问「X 书院有哪些专业 / 学生 / 班级」这类问题时，调 filter_students(academy=X)，让前端列表呈现，用户从专业列肉眼看。\n"
     "- 状态映射：在读→active，休学→suspended，毕业→graduated，退学→withdrawn。\n"
     "- 不要为了过滤先 query_students；这是 UI 操作，工具会让前端直接套筛选。\n\n"
     "### 其他\n"
@@ -189,10 +235,13 @@ UI_TOOLS = [
         "name": "navigate",
         "description": (
             "导航到系统的指定功能页面。当用户明确说要去某页面时调用。"
-            "leave=请销假申请页;leave-config=请销假配置(老师管理规则);"
+            "leave=请销假应用(含请假列表 + 请假/销假/请假须知配置三 tab);"
+            "leave-config=旧路径,自动重定向到 leave 页;"
             "notification=通知任务(辅导员/管理员给学生发通知的工具);"
             "notification-center=通知管理(管理员配通知规则,在系统管理下);"
             "其他业务页同名。"
+            "tab/focus 可选:用户说「看 X 假别配置」时填 page=leave + tab=rule + focus={假别 code}, "
+            "前端会切到请假规则 tab 并滚动到对应卡片高亮闪烁。"
         ),
         "input_schema": {
             "type": "object",
@@ -206,7 +255,19 @@ UI_TOOLS = [
                         "workflows", "work-study", "alerts",
                     ],
                     "description": "目标页面",
-                }
+                },
+                "tab": {
+                    "type": "string",
+                    "description": "(可选) 子 tab key,如 leave 页的 list/rule/return/notice",
+                },
+                "focus": {
+                    "type": "string",
+                    "description": (
+                        "(可选) 假别 code 用于滚动 + 高亮命中卡。仅在 page=leave + tab=rule 时有意义。"
+                        "事假=personal,病假=sick,婚假=marriage,公假=official_business,"
+                        "因公外出=official,本科生外出实习=internship,晚归申请=late_return"
+                    ),
+                },
             },
             "required": ["page"],
         },
@@ -305,25 +366,14 @@ UI_TOOLS = [
         "description": (
             "在 学生信息库 页面按用户给的条件筛选学生列表。"
             "当用户在 current_page=student 的语境下明确说"
-            "「过滤/筛选/找/查 …级 / …学院 / …专业 / …班 / 在读/休学/毕业/退学 / 学号/姓名」时调用。"
-            "只填用户明确给出的字段，未提到的字段不要填（这些字段会原样替换页面当前过滤值）。"
-            "本工具不查询任何数据，只是把过滤条件交给前端。"
+            "「过滤/筛选/找/查 …级 / …学院 / …专业 / …班 / …书院 / …楼栋 / 在读/休学/毕业/退学 / 学号/姓名」时调用。"
+            "也包括「X 书院有哪些专业/学生/班级」这种由 UI 列表答的问题:填 academy 让列表收敛后用户肉眼看。"
+            "只填用户明确给出的字段,未提到的字段不要填(这些字段会原样替换页面当前过滤值)。"
+            "本工具不查询任何数据,只是把过滤条件交给前端。"
         ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "keyword": {"type": "string", "description": "学号或姓名模糊匹配；只在用户给出具体学号/姓名时填。"},
-                "grade": {"type": "string", "description": "年级，例如 2024级、2023级；带「级」字。"},
-                "college": {"type": "string", "description": "学院全称，例如 计算机学院、人文学院。"},
-                "major": {"type": "string", "description": "专业全称，例如 人工智能、软件工程。"},
-                "class_name": {"type": "string", "description": "班级，例如 软件2301班。"},
-                "status": {
-                    "type": "string",
-                    "enum": ["active", "suspended", "graduated", "withdrawn"],
-                    "description": "在读=active，休学=suspended，毕业=graduated，退学=withdrawn。",
-                },
-            },
-        },
+        # input_schema 在 _build_tools 里按字段目录 (field-catalog/student.yaml) 动态注入。
+        # 占位空 schema 让模块加载时 tool 仍是合法形状,catalog 拉取失败时也能 fallback 到空 props。
+        "input_schema": {"type": "object", "properties": {}},
         "allowed_roles": {"counselor", "dean", "school_admin", "student_affairs_officer"},
     },
     {
@@ -408,11 +458,54 @@ UI_TOOLS = [
 ]
 
 
+def _build_filter_students_schema(catalog: dict | None) -> dict:
+    """把后端 field-catalog/student 转成 filter_students 的 JSON Schema。
+    catalog 拉不到时返回空 properties — LLM 看到 0 字段就不会乱调。"""
+    if not catalog or not catalog.get("fields"):
+        return {"type": "object", "properties": {}}
+    properties: dict[str, dict] = {}
+    for f in catalog["fields"]:
+        key = f.get("key")
+        if not key:
+            continue
+        prop: dict = {"type": "string"}
+        # 描述优先级:yaml description > label > key
+        prop["description"] = f.get("description") or f.get("label") or key
+        opts = f.get("options")
+        if opts:
+            values = [o.get("value") for o in opts if o.get("value") is not None]
+            if values:
+                prop["enum"] = values
+        properties[key] = prop
+    return {"type": "object", "properties": properties}
+
+
+def _format_catalog_aliases(catalog: dict | None) -> str:
+    """
+    把 catalog 里有 aliases 的字段渲染成 system prompt 里的一段:
+        - 性别：「男生」→ gender=male；「女生」→ gender=female
+
+    没 aliases 的字段不出现 (它们的值是用户原话直接当 value,LLM 不需要别名表)。
+    """
+    if not catalog or not catalog.get("fields"):
+        return ""
+    lines: list[str] = []
+    for f in catalog["fields"]:
+        aliases = f.get("aliases") or []
+        if not aliases:
+            continue
+        bits = [f"「{a['phrase']}」→ {f['key']}={a['value']}" for a in aliases]
+        lines.append(f"- {f.get('label', f['key'])}：" + "；".join(bits))
+    return "\n".join(lines)
+
+
 async def _build_tools(role: str) -> list[dict]:
     """Merge UI tools (role-filtered) with query tools (role-filtered per
-    registry). The leave_type enum on open_leave_form is patched at request
-    time from the live LeaveTypeConfig table so admins adding new leave types
-    don't need a sidecar redeploy."""
+    registry). Two enums are patched at request time so backend changes don't
+    require a sidecar redeploy:
+      - open_leave_form.leave_type:从 LeaveTypeConfig 表拉
+      - filter_students.input_schema:从 field-catalog/student.yaml 拉
+    """
     import copy
 
     leave_types = await query_tools.fetch_leave_types()
@@ -420,6 +513,9 @@ async def _build_tools(role: str) -> list[dict]:
     leave_type_desc = "假别 code，从下列可用值中选择：" + ", ".join(
         f"{t['code']}={t['name']}" for t in leave_types
     )
+
+    student_catalog = await query_tools.fetch_field_catalog("student")
+    filter_students_schema = _build_filter_students_schema(student_catalog)
 
     # Role header arrives comma-separated for multi-role users (see
     # _split_roles in query_tools); UI tool gating uses the same any-match rule.
@@ -436,6 +532,9 @@ async def _build_tools(role: str) -> list[dict]:
             if isinstance(lt, dict):
                 lt["enum"] = leave_type_codes
                 lt["description"] = leave_type_desc
+        elif cleaned.get("name") == "filter_students":
+            cleaned = copy.deepcopy(cleaned)
+            cleaned["input_schema"] = filter_students_schema
         ui.append(cleaned)
 
     return ui + query_tools.tools_for_role(role)
@@ -490,6 +589,23 @@ async def global_chat(
     lang = (req.user_lang or x_user_lang or "zh").lower()
     if lang not in ("zh", "en"):
         lang = "zh"
+
+    # Short-circuit:看 X 假别配置 → 直接 navigate,不进 LLM/RAG。
+    # RAG 命中"请假管理办法"等知识库时 LLM 会忍不住答规章,跳转就失败 — 用规则强制路由。
+    if (req.user_role in _LEAVE_RULE_VIEWER_ROLES):
+        m = VIEW_LEAVE_RULE_RE.search(req.message or "")
+        if m:
+            name = m.group("name")
+            code = LEAVE_TYPE_CN_TO_CODE.get(name)
+            if code:
+                return ChatResponse(
+                    reply=f"好的,已为你定位到「{name}」配置卡。",
+                    conversation_id=conv_id,
+                    action=ActionPayload(
+                        type="navigate",
+                        data={"page": "leave", "tab": "rule", "focus": code},
+                    ),
+                )
 
     base = _pick(_SYSTEM_PROMPT_ZH, _SYSTEM_PROMPT_EN, lang)
     system_prompt = base.format(today=date.today().isoformat())
@@ -549,6 +665,18 @@ async def global_chat(
             if req.current_modal:
                 system_prompt += f"，打开的弹窗：{req.current_modal}"
             system_prompt += "。\n- 若用户要执行的操作正是当前页面的功能，直接调用对应表单工具（如 open_*_form），不用再 navigate。\n- 若用户明显在换话题，按正常流程处理。\n"
+
+        # Catalog-driven field aliases:学生页加一段从 yaml 自动生成的别名映射,
+        # 让"加新字段 (含 aliases) → LLM 自动学会自然语言映射"成立。
+        if req.current_page == "student":
+            student_catalog = await query_tools.fetch_field_catalog("student")
+            alias_block = _format_catalog_aliases(student_catalog)
+            if alias_block:
+                system_prompt += _pick(
+                    f"\n## 字段别名 (来自 field-catalog/student)\n{alias_block}\n",
+                    f"\n## Field aliases (from field-catalog/student)\n{alias_block}\n",
+                    lang,
+                )
 
     # Pinned refs — objects the user explicitly marked as the target of this turn.
     # When the user says 「这个学生 / 这条洞察 / 那条请假」, treat those as references
@@ -791,6 +919,10 @@ def _action_reply(action: ActionPayload, lang: str = "zh") -> str:
         if d.get("major"):
             bits.append(_pick(f"{d['major']}专业", f"{d['major']} major", lang))
         if d.get("class_name"): bits.append(d["class_name"])
+        if d.get("gender"):
+            bits.append(_pick({"male": "男生", "female": "女生"}, {"male": "male", "female": "female"}, lang).get(d["gender"], d["gender"]))
+        if d.get("academy"): bits.append(d["academy"])
+        if d.get("dorm_block"): bits.append(d["dorm_block"])
         status_label = _pick(
             {"active": "在读", "suspended": "休学", "graduated": "毕业", "withdrawn": "退学"},
             {"active": "active", "suspended": "suspended", "graduated": "graduated", "withdrawn": "withdrawn"},

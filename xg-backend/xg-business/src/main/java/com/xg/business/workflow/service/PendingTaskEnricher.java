@@ -1,9 +1,12 @@
 package com.xg.business.workflow.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xg.business.academic.mapper.AcademicTermMapper;
+import com.xg.business.academic.model.AcademicTerm;
 import com.xg.business.checkin.mapper.CheckinRecordMapper;
 import com.xg.business.leave.mapper.LeaveRequestMapper;
 import com.xg.business.leave.model.LeaveRequest;
+import com.xg.business.leave.service.LeaveGlobalConfigService;
 import com.xg.business.violation.mapper.ViolationRecordMapper;
 import com.xg.business.workflow.vo.ApplicantStats;
 import com.xg.business.workflow.vo.PendingTaskVO;
@@ -53,6 +56,8 @@ public class PendingTaskEnricher {
     private final CheckinRecordMapper checkinRecordMapper;
     private final ViolationRecordMapper violationRecordMapper;
     private final StudentAlertMapper studentAlertMapper;
+    private final AcademicTermMapper academicTermMapper;
+    private final LeaveGlobalConfigService leaveGlobalConfigService;
 
     public List<PendingTaskVO> enrich(List<TaskInstance> tasks) {
         if (tasks == null || tasks.isEmpty()) {
@@ -89,11 +94,16 @@ public class PendingTaskEnricher {
 
         Map<Long, String> userNameMap = batchFetchUserNames(userIds);
         Map<Long, ApplicantStats> statsMap = aggregateStats(studentIds);
+        // 全局学期累计上限作为新的 high 触发条件:批量拉每个学生本学期累计天数,
+        // 跟 LeaveGlobalConfig.term_max_days 比较。无 is_current 学期 / cap=null 时
+        // termAccumulated 是空 map,scoreRisk 看到 cap==null 会跳过这条规则。
+        BigDecimal termCap = leaveGlobalConfigService.getTermMaxDays();
+        Map<Long, BigDecimal> termAccumulated = batchFetchTermAccumulated(studentIds, termCap);
 
         List<PendingTaskVO> result = new ArrayList<>(tasks.size());
         for (TaskInstance t : tasks) {
             WorkflowInstance inst = instanceMap.get(t.getWorkflowInstanceId());
-            result.add(buildVO(t, inst, leaveMap, userNameMap, statsMap));
+            result.add(buildVO(t, inst, leaveMap, userNameMap, statsMap, termCap, termAccumulated));
         }
         return result;
     }
@@ -102,7 +112,9 @@ public class PendingTaskEnricher {
                                    WorkflowInstance inst,
                                    Map<Long, LeaveRequest> leaveMap,
                                    Map<Long, String> userNameMap,
-                                   Map<Long, ApplicantStats> statsMap) {
+                                   Map<Long, ApplicantStats> statsMap,
+                                   BigDecimal termCap,
+                                   Map<Long, BigDecimal> termAccumulated) {
         PendingTaskVO vo = new PendingTaskVO();
         vo.setId(t.getId());
         vo.setWorkflowInstanceId(t.getWorkflowInstanceId());
@@ -141,7 +153,8 @@ public class PendingTaskEnricher {
         ApplicantStats stats = studentId == null ? new ApplicantStats() : statsMap.getOrDefault(studentId, new ApplicantStats());
         vo.setApplicantStats(stats);
 
-        RiskAssessment assessment = scoreRisk(stats, leave);
+        BigDecimal accumulated = studentId == null ? null : termAccumulated.get(studentId);
+        RiskAssessment assessment = scoreRisk(stats, leave, termCap, accumulated);
         vo.setRiskLevel(assessment.level);
         vo.setReasons(assessment.reasons);
         return vo;
@@ -226,7 +239,8 @@ public class PendingTaskEnricher {
         return map;
     }
 
-    private RiskAssessment scoreRisk(ApplicantStats stats, LeaveRequest leave) {
+    private RiskAssessment scoreRisk(ApplicantStats stats, LeaveRequest leave,
+                                      BigDecimal termCap, BigDecimal termAccumulated) {
         List<String> reasons = new ArrayList<>();
         boolean high = false;
         boolean medium = false;
@@ -252,6 +266,15 @@ public class PendingTaskEnricher {
             reasons.add("本次请假" + leave.getDurationDays() + "天");
             high = true;
         }
+        // 全局学期累计上限触发的高风险:仅在配置了 cap 且累计 > cap 时点亮。
+        // accumulated 已经把当前 pending 这条算进去了(状态 in {pending, approved}),
+        // 所以审批人在 drawer 里看到的"已累计"包括正在审的这一条。
+        if (termCap != null && termAccumulated != null
+                && termAccumulated.compareTo(termCap) > 0) {
+            reasons.add("本学期累计请假已达 " + stripTrailingZeros(termAccumulated)
+                    + " 天,超出全局上限 " + stripTrailingZeros(termCap) + " 天");
+            high = true;
+        }
 
         if (!high) {
             if (stats.getLeaveCount30d() >= 3) {
@@ -275,6 +298,37 @@ public class PendingTaskEnricher {
             reasons.add("历史记录良好");
         }
         return new RiskAssessment(level, reasons);
+    }
+
+    /**
+     * 一次性拉齐 studentIds 在当前学期内的累计请假天数,空学期/空 cap 时返空 map。
+     * 累计窗口与 LeaveService.getTermUsage 保持一致(start_time 落在 is_current 学期 +
+     * status ∈ {pending, approved})。
+     */
+    private Map<Long, BigDecimal> batchFetchTermAccumulated(Set<Long> studentIds, BigDecimal termCap) {
+        if (termCap == null || studentIds.isEmpty()) return Collections.emptyMap();
+        AcademicTerm term = academicTermMapper.selectOne(
+                new LambdaQueryWrapper<AcademicTerm>()
+                        .eq(AcademicTerm::getIsCurrent, true)
+                        .last("LIMIT 1"));
+        if (term == null || term.getStartDate() == null || term.getEndDate() == null) {
+            return Collections.emptyMap();
+        }
+        List<Map<String, Object>> rows = leaveRequestMapper.sumTermDaysByStudents(
+                new ArrayList<>(studentIds), term.getStartDate(), term.getEndDate());
+        Map<Long, BigDecimal> map = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Long sid = toLong(row.get("student_id"));
+            Object total = row.get("total");
+            if (sid == null || total == null) continue;
+            map.put(sid, total instanceof BigDecimal bd ? bd : new BigDecimal(total.toString()));
+        }
+        return map;
+    }
+
+    private static String stripTrailingZeros(BigDecimal v) {
+        if (v == null) return "0";
+        return v.stripTrailingZeros().toPlainString();
     }
 
     private static Long toLong(Object v) {

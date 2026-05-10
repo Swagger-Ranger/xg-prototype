@@ -74,11 +74,47 @@ export function getPendingManualReturns(params: LeaveQueryParams): Promise<PageR
   return api.get('/leaves/pending-manual-returns', { params }).then((res) => res.data);
 }
 
-/** 改某假别的学期累计上限。null 等价于不限。 */
-export function updateTermMaxDays(code: string, termMaxDays: number | null): Promise<LeaveTypeConfig> {
+/**
+ * 全局学期累计上限(替代原来的 per-假别 term_max_days)。null = 不限,
+ * 行为是软警告 + 高风险标记,不再阻断学生提交;PendingTaskEnricher 也按这个判 high。
+ */
+export interface LeaveGlobalConfig {
+  tenant_id: string | null;
+  term_max_days: number | null;
+  /** 学生提交请假时是否要求上传证明材料(全局开关) */
+  require_proof?: boolean | null;
+  updated_at?: string | null;
+  updated_by?: number | null;
+}
+export function getLeaveGlobalConfig(): Promise<LeaveGlobalConfig> {
+  return api.get('/leaves/global-config').then((res) => res.data);
+}
+export function updateLeaveGlobalConfig(termMaxDays: number | null): Promise<LeaveGlobalConfig> {
   return api
-    .put(`/leave-types/${code}/term-max-days`, { term_max_days: termMaxDays })
+    .put('/leaves/global-config', { term_max_days: termMaxDays })
     .then((res) => res.data);
+}
+export function updateLeaveRequireProof(requireProof: boolean): Promise<LeaveGlobalConfig> {
+  return api
+    .put('/leaves/global-config/require-proof', { require_proof: requireProof })
+    .then((res) => res.data);
+}
+
+/**
+ * 学生 / 辅导员查本学期累计请假天数。学生申请页用 /term-usage,
+ * 辅导员审批 drawer 用 /term-usage/{studentId}。
+ */
+export interface LeaveTermUsage {
+  term_name: string | null;
+  accumulated_days: number;
+  cap_days: number | null;
+  exceeded: boolean;
+}
+export function getMyTermUsage(): Promise<LeaveTermUsage> {
+  return api.get('/leaves/term-usage').then((res) => res.data);
+}
+export function getStudentTermUsage(studentId: string | number): Promise<LeaveTermUsage> {
+  return api.get(`/leaves/term-usage/${studentId}`).then((res) => res.data);
 }
 
 export interface LeaveImpactCourseSlot {

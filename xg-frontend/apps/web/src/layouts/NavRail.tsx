@@ -14,7 +14,6 @@ import {
   ApartmentOutlined,
   FormOutlined,
   MessageOutlined,
-  ControlOutlined,
 } from '@ant-design/icons';
 import { Tooltip } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -39,7 +38,6 @@ const navItems = [
 const bottomItems = [
   { key: '/workflows', icon: <ApartmentOutlined />, label: '工作流定义', permission: 'system:manage' },
   { key: '/forms', icon: <FormOutlined />, label: '表单管理', permission: 'system:manage' },
-  { key: '/leave-config', icon: <ControlOutlined />, label: '请销假配置', permission: 'system:manage' },
   { key: '/system/users', icon: <SettingOutlined />, label: '系统管理', permission: 'system:manage' },
 ];
 

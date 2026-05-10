@@ -58,6 +58,7 @@ public class LeaveService {
     private final SysUserMapper sysUserMapper;
     private final FormDataValidator formDataValidator;
     private final LeaveTypeFieldTranslator leaveTypeFieldTranslator;
+    private final LeaveGlobalConfigService leaveGlobalConfigService;
 
     private String resolveStudentName(Long studentId) {
         SysUser u = sysUserMapper.selectById(studentId);
@@ -101,7 +102,8 @@ public class LeaveService {
 
         BigDecimal durationDays = calculateDurationDays(req.getStartTime(), req.getEndTime(), leaveType.getCode());
         checkTimeOverlap(studentId, req.getStartTime(), req.getEndTime(), null);
-        checkTermCumulativeCap(studentId, leaveType, req.getStartTime(), durationDays, null);
+        // V096 起学期累计上限改为全局软警告:不在 apply 路径里阻断,
+        // 由学生申请页 / 辅导员审批页拉 GET /api/v1/leaves/term-usage 自行展示。
 
         FormSchema schema = buildLeaveFormSchema(leaveType);
         formDataValidator.validate(schema, req.getExtraData());
@@ -158,7 +160,7 @@ public class LeaveService {
 
         BigDecimal durationDays = calculateDurationDays(req.getStartTime(), req.getEndTime(), leaveType.getCode());
         checkTimeOverlap(req.getStudentId(), req.getStartTime(), req.getEndTime(), null);
-        checkTermCumulativeCap(req.getStudentId(), leaveType, req.getStartTime(), durationDays, null);
+        // 学期累计上限同 apply:全局软警告,不在代办这条路上阻断。
 
         FormSchema schema = buildLeaveFormSchema(leaveType);
         formDataValidator.validate(schema, req.getExtraData());
@@ -363,15 +365,16 @@ public class LeaveService {
         }
     }
 
-    /** 单次请假时长上限（天）。计算口径与 calculateDurationDays 一致：ceil(seconds/86400)。*/
+    /** 单次请假时长上限(天)。新口径(工作时段 8h=1天)下,30 仍是合理上限。 */
     private static final BigDecimal MAX_DURATION_DAYS = BigDecimal.valueOf(30);
 
     /**
-     * Compute leave duration in days. P0 简化:不扣节假日(沿用 ceil(seconds/86400))。
-     * P1 把"假别 → 是否扣节假日"挪到 workflow YAML 或独立 leave_type 表后再启用。
+     * 请假天数 = 工作时段(09:00–12:00 + 13:00–18:00)累计秒数 / 28800,
+     * 跳过周末 + holiday_calendar.public_holiday,认 compensatory_workday。
+     * 详细规则见 {@link LeaveCalendarService#calcEffectiveDays}。
      */
     private BigDecimal calculateDurationDays(OffsetDateTime start, OffsetDateTime end, String leaveTypeCode) {
-        BigDecimal result = calendarService.calcEffectiveDays(start, end, false);
+        BigDecimal result = calendarService.calcEffectiveDays(start, end, true);
         if (result.compareTo(MAX_DURATION_DAYS) > 0) {
             throw LeaveErrorCode.LEAVE_DURATION_EXCEEDED.exception();
         }
@@ -392,55 +395,45 @@ public class LeaveService {
     }
 
     /**
-     * 学期累计上限校验。规则:
-     *   1) 假别没设 term_max_days(NULL) → 跳过
-     *   2) 当前没 is_current=true 的学期 → 跳过(放假期间提交不算累计)
-     *   3) 本次申请的 start_time 不落在当前学期内 → 跳过(避免跨学期请假误判)
-     *   4) 该生本学期已批/审中同假别累计 + 本次 > term_max_days → 拒绝
+     * 计算指定学生本学期"全部假别"累计请假天数,以及是否超过全局上限。
+     * 规则:
+     *   1) 没有 is_current=true 的学期 → termName=null,accumulated=0,exceeded=false
+     *   2) 累计口径:status ∈ {pending, approved} 且 start_time 落在当前学期内
+     *   3) capDays = leave_global_config.term_max_days(NULL = 不限,不会判 exceeded)
      */
-    private void checkTermCumulativeCap(Long studentId, LeaveTypeConfig leaveType,
-                                         OffsetDateTime start, BigDecimal thisRequest, Long excludeId) {
-        java.math.BigDecimal cap = leaveType.getTermMaxDays();
-        if (cap == null) return;
+    public com.xg.business.leave.dto.LeaveTermUsageView getTermUsage(Long studentId) {
+        com.xg.business.leave.dto.LeaveTermUsageView view = new com.xg.business.leave.dto.LeaveTermUsageView();
+        BigDecimal cap = leaveGlobalConfigService.getTermMaxDays();
+        view.setCapDays(cap);
+        view.setAccumulatedDays(BigDecimal.ZERO);
+        view.setExceeded(false);
 
         AcademicTerm term = academicTermMapper.selectOne(
                 new LambdaQueryWrapper<AcademicTerm>()
                         .eq(AcademicTerm::getIsCurrent, true)
                         .last("LIMIT 1"));
-        if (term == null || term.getStartDate() == null || term.getEndDate() == null) return;
-
-        OffsetDateTime termStart = term.getStartDate().atStartOfDay().atOffset(start.getOffset());
-        OffsetDateTime termEndExclusive = term.getEndDate().plusDays(1).atStartOfDay().atOffset(start.getOffset());
-        if (start.isBefore(termStart) || !start.isBefore(termEndExclusive)) {
-            // 申请起始日不在本学期内,放过(假期 / 跨学期由策略约定不计入)
-            return;
+        if (term == null || term.getStartDate() == null || term.getEndDate() == null) {
+            return view;
         }
+        view.setTermName(term.getName());
 
-        LambdaQueryWrapper<LeaveRequest> wrapper = new LambdaQueryWrapper<LeaveRequest>()
-                .eq(LeaveRequest::getStudentId, studentId)
-                .eq(LeaveRequest::getLeaveTypeCode, leaveType.getCode())
-                .in(LeaveRequest::getStatus, List.of("pending", "approved"))
-                .ge(LeaveRequest::getStartTime, termStart)
-                .lt(LeaveRequest::getStartTime, termEndExclusive)
-                .ne(excludeId != null, LeaveRequest::getId, excludeId);
-        BigDecimal accumulated = leaveRequestMapper.selectList(wrapper).stream()
+        java.time.ZoneOffset offset = OffsetDateTime.now().getOffset();
+        OffsetDateTime termStart = term.getStartDate().atStartOfDay().atOffset(offset);
+        OffsetDateTime termEndExclusive = term.getEndDate().plusDays(1).atStartOfDay().atOffset(offset);
+
+        BigDecimal accumulated = leaveRequestMapper.selectList(
+                new LambdaQueryWrapper<LeaveRequest>()
+                        .eq(LeaveRequest::getStudentId, studentId)
+                        .in(LeaveRequest::getStatus, List.of("pending", "approved"))
+                        .ge(LeaveRequest::getStartTime, termStart)
+                        .lt(LeaveRequest::getStartTime, termEndExclusive))
+                .stream()
                 .map(LeaveRequest::getDurationDays)
                 .filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (accumulated.add(thisRequest).compareTo(cap) > 0) {
-            throw new BizException("LEAVE_TERM_CAP_EXCEEDED",
-                    String.format("本学期已累计 %s 的「%s」%s 天,本次再请 %s 天将超过学期上限 %s 天",
-                            term.getName(), leaveType.getName(),
-                            stripTrailingZeros(accumulated),
-                            stripTrailingZeros(thisRequest),
-                            stripTrailingZeros(cap)));
-        }
-    }
-
-    private static String stripTrailingZeros(BigDecimal v) {
-        if (v == null) return "0";
-        return v.stripTrailingZeros().toPlainString();
+        view.setAccumulatedDays(accumulated);
+        view.setExceeded(cap != null && accumulated.compareTo(cap) > 0);
+        return view;
     }
 
     /**

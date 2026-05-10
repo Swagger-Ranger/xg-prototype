@@ -21,7 +21,10 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@Service
+// 跟 com.xg.business.fieldcatalog.service.FieldCatalogService 类名重复
+// (业务侧近期新增的同名服务),Spring 默认 bean 名都是 fieldCatalogService 会冲突,
+// 这里显式起名 platformFieldCatalogService 让两边可以共存。
+@Service("platformFieldCatalogService")
 @RequiredArgsConstructor
 public class FieldCatalogService {
 

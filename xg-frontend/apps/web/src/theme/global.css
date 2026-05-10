@@ -92,6 +92,21 @@ button:focus-visible {
   color: var(--ac-deep);
 }
 
+/* AI 提案命中卡:2s 高亮闪烁,提示用户该看哪张卡。
+ *   - outline 而不是 box-shadow:不会被 Antd Card overflow:hidden 裁掉
+ *   - 同步给一点背景色变化,弱视觉用户也能感知 */
+@keyframes ai-focus-flash {
+  0%   { outline: 0 solid transparent;                   background-color: transparent; }
+  10%  { outline: 3px solid rgba(99, 102, 241, 0.85);    background-color: rgba(99, 102, 241, 0.10); }
+  50%  { outline: 3px solid rgba(99, 102, 241, 0.85);    background-color: rgba(99, 102, 241, 0.10); }
+  100% { outline: 0 solid transparent;                   background-color: transparent; }
+}
+.ai-focus-flash {
+  animation: ai-focus-flash 2s ease-out;
+  outline-offset: 2px;
+  border-radius: var(--r-lg, 12px);
+}
+
 /* Reduce motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

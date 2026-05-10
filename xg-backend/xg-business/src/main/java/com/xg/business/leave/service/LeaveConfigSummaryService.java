@@ -258,11 +258,19 @@ public class LeaveConfigSummaryService {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < segmentBounds.size(); i++) {
             int[] b = segmentBounds.get(i);
+            // 工作流引擎语义:duration_days <= threshold 命中本档,自顶向下匹配。
+            // 旧版用 "0-3 天 / 3-5 天" 两边都含 3 看起来歧义;改成纯中文范围,
+            // 起点用"...以上"(不含),终点用"...以内"(含),边界只在一段出现一次。
             String range;
-            if (b[1] < 0) {
+            if (b[0] == 0 && b[1] < 0) {
+                // 单段链不分档:整条链对所有天数生效
+                range = "不限天数";
+            } else if (b[1] < 0) {
                 range = b[0] + " 天以上";
+            } else if (b[0] == 0) {
+                range = b[1] + " 天以内";
             } else {
-                range = b[0] + "-" + b[1] + " 天";
+                range = b[0] + " 天以上," + b[1] + " 天以内";
             }
             String roles = String.join(" → ", segmentRoles.get(i).stream()
                     .map(r -> ROLE_LABELS.getOrDefault(r, r))

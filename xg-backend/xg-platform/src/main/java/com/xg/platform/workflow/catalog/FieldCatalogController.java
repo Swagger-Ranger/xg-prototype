@@ -15,7 +15,9 @@ import java.util.List;
  * {@code /search} during proposal generation; admin tooling can call
  * {@code /bootstrap} to re-scan published workflows after an external import.
  */
-@RestController
+// 同名类已在 com.xg.business.fieldcatalog.controller 出现 (近期业务侧新增),
+// Spring 默认 bean 名都是 fieldCatalogController 会冲突,显式起名共存。
+@RestController("platformFieldCatalogController")
 @RequestMapping("/api/v1/field-catalog")
 @RequiredArgsConstructor
 public class FieldCatalogController {

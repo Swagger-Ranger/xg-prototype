@@ -74,6 +74,8 @@ interface WorkflowProposalMessage {
   ai_message: string;
   /** 后端 apply 用的完整 YAML 文本(老师不可见) */
   new_yaml: string;
+  /** AI 提案涉及的假别 code,用于滚动到 #leave-type-{code} 卡 + 高亮闪烁 */
+  focus_codes?: string[];
   /** 状态:pending=未点确认,applying=正在写库,applied=已成功,cancelled=取消 */
   status: 'pending' | 'applying' | 'applied' | 'cancelled' | 'failed';
   /** 失败时的错误文本 */
@@ -201,6 +203,30 @@ export default function AIPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   /**
+   * AI 提案滚动到目标假别卡 + 闪 1.5s。LeaveTypeCard 渲染了 id="leave-type-{code}";
+   * 找不到 id 静默跳过(LLM 偶尔报错 code,或当前 tab 不在请假规则页都属此类)。
+   *
+   * 250ms 延迟让 setMessages 触发的 React render + 可能的 tab 切换先完成。
+   */
+  function flashFocusCodes(codes: string[] | undefined) {
+    if (!codes || codes.length === 0) return;
+    setTimeout(() => {
+      const els = codes
+        .map((c) => document.getElementById(`leave-type-${c}`))
+        .filter((el): el is HTMLElement => !!el);
+      if (els.length === 0) return;
+      els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      els.forEach((el) => {
+        el.classList.remove('ai-focus-flash');
+        // reflow 触发动画重放(连续两次 propose 同一个 code 也能闪)
+        void el.offsetWidth;
+        el.classList.add('ai-focus-flash');
+        setTimeout(() => el.classList.remove('ai-focus-flash'), 2100);
+      });
+    }, 250);
+  }
+
+  /**
    * 跑 workflow 配置改动建议:调 sidecar /propose 拿到 new_yaml + diff_zh,
    * 落成 workflow_proposal 卡片让老师确认。
    */
@@ -248,6 +274,8 @@ export default function AIPanel() {
             content: data.ai_message || `分析失败:${data.error_code || 'UNKNOWN'}`,
           },
         ]);
+        // NO_CHANGE 等"未改动但定位到了卡"的场景:仍然滚动 + 高亮,让老师自己确认
+        flashFocusCodes(Array.isArray(data.focus_codes) ? data.focus_codes : undefined);
         return;
       }
       // set_term_cap 之类「直接落库不需要二次确认」的 op,sidecar 已经写了
@@ -265,6 +293,7 @@ export default function AIPanel() {
         ]);
         queryClient.invalidateQueries({ queryKey: ['leaveTypes'] });
         setTimeout(scrollToBottom, 50);
+        flashFocusCodes(Array.isArray(data.focus_codes) ? data.focus_codes : undefined);
         return;
       }
       const proposal: WorkflowProposalMessage = {
@@ -278,10 +307,13 @@ export default function AIPanel() {
         change_summary: data.change_summary,
         ai_message: data.ai_message,
         new_yaml: data.new_yaml,
+        focus_codes: Array.isArray(data.focus_codes) ? data.focus_codes : undefined,
         status: 'pending',
       };
       setMessages((prev) => [...prev, proposal]);
       setTimeout(scrollToBottom, 50);
+      // AI 提案落卡同步滚动到目标假别 + 高亮闪 1.5s。延迟 250ms 让卡片先 render。
+      flashFocusCodes(proposal.focus_codes);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
       setMessages((prev) => [
@@ -602,10 +634,15 @@ export default function AIPanel() {
             // notification-center 是「通知管理」配置页 — 实际路由是 /system?tab=notif,
             // 跟其他 enum(同名 URL)的简单拼接处理不一样,在这里做特例映射。
             const page = String(actionData.page);
+            // tab/focus 可选,LLM 在「看 X 假别配置」场景下会带上,前端拼成 query string
+            const params = new URLSearchParams();
+            if (actionData.tab) params.set('tab', String(actionData.tab));
+            if (actionData.focus) params.set('focus', String(actionData.focus));
+            const qs = params.toString() ? `?${params.toString()}` : '';
             if (page === 'notification-center') {
-              navigate('/system?tab=notif');
+              navigate(`/system?tab=notif${qs ? `&${params.toString()}` : ''}`);
             } else {
-              navigate(`/${page}`);
+              navigate(`/${page}${qs}`);
             }
           } else if (type === 'filter_students') {
             // Filter intent on the student page. Navigate there if the user
@@ -625,9 +662,10 @@ export default function AIPanel() {
             // 落成 workflow_proposal 卡片让老师确认。
             // 同时导航到「请销假配置」页让老师在上下文中看到当前规则,
             // 应用后页面自动 invalidate 刷新。biz_type 通过 URL tab 参数传给页面。
-            const tab = String(actionData.biz_type) === 'leave_return' ? 'leave_return' : 'leave';
-            if (location.pathname !== '/leave-config') {
-              navigate(`/leave-config?tab=${tab}`);
+            // /leave-config 已合并到 /leave?tab=...,biz_type 映射:leave→rule,leave_return→return
+            const tab = String(actionData.biz_type) === 'leave_return' ? 'return' : 'rule';
+            if (location.pathname !== '/leave') {
+              navigate(`/leave?tab=${tab}`);
             }
             void runWorkflowProposal(
               String(actionData.biz_type),
@@ -642,10 +680,17 @@ export default function AIPanel() {
           }
         }
       }
-    } catch {
+    } catch (e) {
+      // 把具体错误带出来,定位「连接失败」是 timeout / 500 / parse 还是 reload 撞窗口。
+      const detail = e instanceof Error ? e.message : String(e);
       setMessages((prev) => [
         ...prev,
-        { id: (Date.now() + 1).toString(), role: 'assistant', kind: 'text' as const, content: 'AI 服务连接失败，请稍后重试。' },
+        {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          kind: 'text' as const,
+          content: `AI 服务连接失败:${detail}。请稍后重试。`,
+        },
       ]);
     } finally {
       setLoading(false);

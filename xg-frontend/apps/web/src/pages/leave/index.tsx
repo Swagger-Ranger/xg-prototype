@@ -46,7 +46,9 @@ const STATUS_OPTIONS = [
   { label: '人工销假待审', value: 'pending_manual_return' },
 ];
 
-export default function LeaveManagement() {
+/** embedded=true 时由 LeaveAppPage 包裹的「请假列表」tab — 隐藏 h1,
+ *  避免和外层 Tab "请假列表" 重复标题。 */
+export default function LeaveManagement({ embedded = false }: { embedded?: boolean } = {}) {
   const { isStudent, user, hasPermission } = useAuth();
   // 能力门：用权限码而非角色 boolean，配置层只需调 sys_role_permission
   // 即可改变行为，无需重新发版。视角类判断（标题、column 集）继续看 isStudent。
@@ -606,14 +608,18 @@ export default function LeaveManagement() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>{isStudent ? '我的请假' : '请销假管理'}</h1>
-        {canSubmitOwn && (
-          <Button type="primary" onClick={() => setApplyOpen(true)}>
-            申请请假
-          </Button>
-        )}
-      </div>
+      {(!embedded || canSubmitOwn) && (
+        <div className={styles.header}>
+          {!embedded && (
+            <h1 className={styles.title}>{isStudent ? '我的请假' : '请销假管理'}</h1>
+          )}
+          {canSubmitOwn && (
+            <Button type="primary" onClick={() => setApplyOpen(true)}>
+              申请请假
+            </Button>
+          )}
+        </div>
+      )}
 
       {canApprove && (
         <Segmented

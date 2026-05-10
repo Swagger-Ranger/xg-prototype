@@ -62,15 +62,9 @@ const UI_TYPES: UiType[] = [
   { value: 'select', label: '单选下拉', type: 'string', widget: 'select', needsOptions: true },
   { value: 'radio', label: '单选按钮', type: 'string', widget: 'radio', needsOptions: true },
   { value: 'file', label: '文件上传', type: 'file', widget: '', needsOptions: false, isFile: true },
-  {
-    value: 'signature',
-    label: '手写签名',
-    type: 'file',
-    widget: 'signature',
-    needsOptions: false,
-    isFile: true,
-    isSignature: true,
-  },
+  // 「手写签名」字段已下线 — 学生端真实需求是上传纸质签名照片,统一走「文件上传」即可。
+  // 底层 SignaturePad 组件 + DynamicFormFields 的 signature 分支保留,旧数据仍能渲染,
+  // 但新建表单入口不再暴露这种字段类型。
 ];
 
 function uiTypeOf(type?: string, widget?: string | null, hasOptions?: boolean): string {

@@ -190,13 +190,16 @@ async def propose(
     x_user_id: str = Header(default=""),
     x_tenant_id: str = Header(default="default"),
     x_user_role: str = Header(default="school_admin"),
+    authorization: str = Header(default=""),
 ) -> ProposeResp:
     headers = {
         "X-User-Id": x_user_id or "0",
         "X-Tenant-Id": x_tenant_id or "default",
         "X-User-Role": x_user_role or "school_admin",
-        "Authorization": "",
     }
+    # 透传浏览器登录态 — Sa-Token 全局拦截器要求 Authorization,空 token 一律 401
+    if authorization:
+        headers["Authorization"] = authorization
     # 1) 拉当前 snapshot
     try:
         async with httpx.AsyncClient(base_url=settings.java_base_url, timeout=10.0, trust_env=False) as c:

@@ -245,6 +245,9 @@ class ProposeResp(BaseModel):
     change_summary: str | None = None
     ai_message: str
     error_code: str | None = None
+    # 提案涉及的假别 code(如 ["official"])。前端拿到后滚动到 #leave-type-{code} 卡 + 高亮。
+    # 删除假别 / 新增假别也填,前端找不到 DOM 时静默跳过。
+    focus_codes: list[str] | None = None
 
 
 SYSTEM_PROMPT = """你是工作流配置助手。给定 YAML 工作流定义 + 老师指令,你输出**结构化 op**(JSON),
@@ -272,6 +275,32 @@ Python 代码会拿 op 在 YAML AST 上精确修改。**禁止直接输出 YAML*
     - threshold 是该档**上限天数**(<= 该值落在本档),最后一档 threshold 必须为 null
     - roles 是**累积**的角色列表(包含前面所有 tier 的角色 + 本档新加的)
 
+**关键铁律(违反就是错):**
+
+(1) 新增/修改一档时,必须保留既有所有档的 threshold + roles 不变,不准合并相邻档。
+(2) 老师说"加 X 在 N 天以上",新角色 X 只加在 >N 那档,**绝不倒灌到 ≤N 档**。
+    既有档的 roles 必须跟当前 YAML 一字不差。
+
+例 — 当前: 0-2 辅导员 / 2-7 辅导员+院系领导 / 7+ 辅导员+院系领导
+老师:"加 7 天以上学工处人员,上限 10 天"
+
+✅ 正确 tiers:[
+  {"threshold":2, "roles":["counselor"]},                           ← 跟现状一致
+  {"threshold":7, "roles":["counselor","dean"]},                    ← 跟现状一致
+  {"threshold":10,"roles":["counselor","dean","student_affairs_officer"]}
+]
+
+❌ 错误一(把 2-7 档吃掉,合并成 2-10):[
+  {"threshold":2, "roles":["counselor"]},
+  {"threshold":10,"roles":["counselor","dean","student_affairs_officer"]}
+]
+
+❌ 错误二(把学工处人员倒灌进 2-7 档):[
+  {"threshold":2, "roles":["counselor"]},
+  {"threshold":7, "roles":["counselor","dean","student_affairs_officer"]},  ← 不该加
+  {"threshold":10,"roles":["counselor","dean","student_affairs_officer"]}
+]
+
 举例:"事假改成最多 7 天,0-3 班主任,3-7 加辅导员"
 {
   "op": "set_chain",
@@ -292,18 +321,19 @@ Python 代码会拿 op 在 YAML AST 上精确修改。**禁止直接输出 YAML*
   ]
 }
 
-## 2. set_term_cap — 改某假别的「本学期累计上限」(天数)
-适用:老师说「事假本学期最多 X 天」「公假累计上限改 Y」「去掉病假的学期上限」。
-**这条 op 不动 YAML 流程**,只改 leave_type_config 表的 term_max_days 字段。
+## 2. set_term_cap — 改「全学期累计请假上限」(全部假别合计)
+适用:老师说「全校学期最多请 X 天」「学期累计上限改 Y」「去掉学期上限」。
+V096 起从 per-假别上限改成租户级单一上限,行为是软警告 + 高风险标记,不阻断学生提交。
+**这条 op 不动 YAML 流程**,只改 leave_global_config 表的 term_max_days 字段。
 入参:
-  - leave_type:假别 code(必须在系统里存在)
-  - days:数值,设为该假别本学期累计上限;**0 或 null 表示去掉上限(不限)**
+  - days:数值,全学期累计上限;**0 或 null 表示去掉上限(不限)**
+  - leave_type:可选,若老师按假别说出来仍接受这个字段但**忽略**(全局口径下没有"按假别")
 
-举例:"事假本学期最多 10 天"
-{"op": "set_term_cap", "leave_type": "personal", "days": 10}
+举例:"学期累计请假最多 15 天"
+{"op": "set_term_cap", "days": 15}
 
-举例:"病假学期上限去掉,不限"
-{"op": "set_term_cap", "leave_type": "sick", "days": null}
+举例:"去掉学期上限"
+{"op": "set_term_cap", "days": null}
 
 ## 3. complex_rewrite — 兜底(LLM 自己重写整 YAML)
 适用:新增假别 / 改 form 字段 / 改销假流程 / 改 type_router / 任何 set_chain/set_term_cap 表达不了的。
@@ -317,8 +347,15 @@ Python 代码会拿 op 在 YAML AST 上精确修改。**禁止直接输出 YAML*
   "ops": [{...}, {...}],
   "diff_zh": "<3-5 行中文 bullet,**只用中文角色名**>",
   "change_summary": "<≤30 字中文摘要>",
-  "ai_message": "<≤80 字给老师的中文反馈>"
+  "ai_message": "<≤80 字给老师的中文反馈>",
+  "focus_codes": ["<本次改动涉及的假别 code,如 official / personal / sick>"]
 }
+
+# focus_codes 规则
+- 只填本次 ops 实际改动的假别 code,不要把 YAML 里其它没动的假别也列进来
+- 多个假别一起改时,按改动重要程度从前往后,前端会滚动到第一个
+- 整体改动(如改 form 字段)无明确假别时,留空数组 []
+- 必须用 code(英文),不要中文名
 
 信息不全 / 角色不在系统:
 {
@@ -344,12 +381,41 @@ def _de_role_code(text: str) -> str:
     return text
 
 
+def _render_set_chain_diff(leave_type_zh: str, tiers: list[dict]) -> str:
+    """按 tiers 数组逐档输出中文 diff bullet。不信任 LLM 的 diff_zh,因为 LLM 经常
+    把"0-2 / 2-7 / 7+"描述成"0-2 / 2-7+"等合并形式,误导老师。本函数对每一档单独渲染:
+      - 第 1 档 0-{t1}:roles
+      - 第 i 档 {t(i-1)}-{ti}:roles
+      - 末档 {t_last_threshold}+:roles(threshold=null 时)或 {t_prev}-{t_last}:roles(有 threshold)
+    """
+    if not tiers:
+        return f"- 「{leave_type_zh}」清空了审批链(无任何档)"
+    lines = [f"- 「{leave_type_zh}」分档调整为:"]
+    prev = 0
+    for i, tier in enumerate(tiers):
+        threshold = tier.get("threshold")
+        roles = tier.get("roles") or []
+        roles_zh = " → ".join(ROLE_ZH.get(r, r) for r in roles) or "(无审批人)"
+        # 跟 LeaveConfigSummaryService 对齐:中文范围,边界唯一
+        if threshold is None:
+            label = f"  · {prev} 天以上"
+        elif i == 0:
+            label = f"  · {threshold} 天以内"
+        else:
+            label = f"  · {prev} 天以上,{threshold} 天以内"
+        lines.append(f"{label}:{roles_zh}")
+        if threshold is not None:
+            prev = threshold
+    return "\n".join(lines)
+
+
 @router.post("/propose", response_model=ProposeResp)
 async def propose(
     req: ProposeReq,
     x_user_id: str = Header(default=""),
     x_tenant_id: str = Header(default="default"),
     x_user_role: str = Header(default="school_admin"),
+    authorization: str = Header(default=""),
 ) -> ProposeResp:
     # 销假改造后没有 leave_return YAML — 默认链路是「学生 GPS 销假 + 人工兜底」,
     # 老师能改的就是校园围栏(中心 + 半径)。引导去配置页改即可,本 LLM 路径不接。
@@ -369,6 +435,9 @@ async def propose(
         "X-Tenant-Id": x_tenant_id or "default",
         "X-User-Role": x_user_role or "school_admin",
     }
+    # 透传浏览器登录态 — Sa-Token 全局拦截器要求 Authorization,空 token 一律 401
+    if authorization:
+        headers["Authorization"] = authorization
 
     # 1) 拉当前 YAML + 假别中文 code/name 映射(注入 prompt 防止 LLM 把"因公外出"误猜成 official_business)
     leave_type_map: list[dict] = []
@@ -460,6 +529,24 @@ async def propose(
     change_summary = parsed.get("change_summary") or req.instruction[:30]
     ai_message = parsed.get("ai_message") or "已生成改动建议,请审核后确认。"
 
+    # focus_codes 三级 fallback:LLM 直出 → ops.leave_type → 扫指令文本里的中文假别名
+    valid_codes = {t["code"] for t in leave_type_map} if leave_type_map else set()
+    raw_focus = parsed.get("focus_codes") or []
+    if not isinstance(raw_focus, list):
+        raw_focus = []
+    if not raw_focus:
+        raw_focus = [op.get("leave_type") for op in (parsed.get("ops") or []) if op.get("leave_type")]
+    if not raw_focus and leave_type_map:
+        # 老师指令里若提到"事假/病假/公假"等中文名,定位到对应 code
+        instr = req.instruction or ""
+        for t in leave_type_map:
+            name = t.get("name") or ""
+            if name and name in instr:
+                raw_focus.append(t["code"])
+    focus_codes = [c for c in raw_focus if isinstance(c, str) and (not valid_codes or c in valid_codes)]
+    # 去重保序
+    focus_codes = list(dict.fromkeys(focus_codes))
+
     # 4) 应用 op 到 YAML AST
     try:
         cfg = yaml.safe_load(current_yaml) or {}
@@ -474,43 +561,38 @@ async def propose(
             error_code="NO_OPS",
         )
 
-    # 全部是 set_term_cap → 不动 YAML,直接调 backend 改 leave_type_config 表
+    # 全部是 set_term_cap → 不动 YAML,直接调 backend 改 leave_global_config 表(全局单行)
+    # V096 起从 per-假别 改成租户级一条上限;同一批多条 set_term_cap 时取最后一条的 days,
+    # 因为语义已经不分假别,前面那些会被覆盖。
     if all(op.get("op") == "set_term_cap" for op in ops):
-        valid_codes = {t["code"] for t in leave_type_map} if leave_type_map else None
-        applied: list[str] = []
+        days = ops[-1].get("days")
+        # days=0/null/负数 都视为「去掉上限」
+        payload_days = None if days is None or (isinstance(days, (int, float)) and days <= 0) else days
         async with httpx.AsyncClient(base_url=settings.java_base_url, timeout=10.0, trust_env=False) as c:
-            for op in ops:
-                code = op.get("leave_type")
-                days = op.get("days")
-                if not code:
-                    return ProposeResp(ok=False, ai_message="set_term_cap 缺 leave_type", error_code="OP_BAD")
-                if valid_codes and code not in valid_codes:
-                    return ProposeResp(ok=False, ai_message=f"假别 code {code} 不存在", error_code="OP_BAD")
-                # days=0/null/负数 都视为「去掉上限」
-                payload_days = None if days is None or (isinstance(days, (int, float)) and days <= 0) else days
-                try:
-                    r = await c.put(
-                        f"/api/v1/leave-types/{code}/term-max-days",
-                        headers=headers,
-                        json={"term_max_days": payload_days},
+            try:
+                r = await c.put(
+                    "/api/v1/leaves/global-config",
+                    headers=headers,
+                    json={"term_max_days": payload_days},
+                )
+                if r.status_code != 200:
+                    body = r.text[:200]
+                    return ProposeResp(
+                        ok=False,
+                        ai_message=f"应用失败:{body}",
+                        error_code="BACKEND_REJECT",
                     )
-                    if r.status_code != 200:
-                        body = r.text[:200]
-                        return ProposeResp(
-                            ok=False,
-                            ai_message=f"应用失败({code}):{body}",
-                            error_code="BACKEND_REJECT",
-                        )
-                    applied.append(f"{code}={'不限' if payload_days is None else f'{payload_days} 天'}")
-                except Exception as e:
-                    logger.exception("set_term_cap call failed")
-                    return ProposeResp(ok=False, ai_message=f"调用后端失败:{e}", error_code="BACKEND_FAIL")
+            except Exception as e:
+                logger.exception("set_term_cap call failed")
+                return ProposeResp(ok=False, ai_message=f"调用后端失败:{e}", error_code="BACKEND_FAIL")
+        applied = "不限" if payload_days is None else f"{payload_days} 天"
         return ProposeResp(
             ok=True,
             new_yaml=None,
             diff_zh=diff_zh,
             change_summary=change_summary,
-            ai_message=ai_message or f"✓ 已设置学期上限:{', '.join(applied)}",
+            ai_message=ai_message or f"✓ 已设置全学期累计上限:{applied}",
+            focus_codes=focus_codes or None,
         )
 
     # 检查是不是单 complex_rewrite,如果是直接走整 YAML 路径
@@ -543,18 +625,42 @@ async def propose(
                     error_code="OP_APPLY_FAILED",
                 )
 
-    # 5) 零改动拦截
+    # 5) 零改动拦截 — 但仍然 ok=True 把 focus_codes 给前端,让用户看到"你说的这张卡现在长这样"
+    #    这种情况绝大多数是"当前规则已经满足要求",不是 AI 翻车,文案要让老师能自己判断。
     if cfg == cfg_after:
+        # ops 里能拿到 LLM 实际定位的假别 code(误判时也准 — 老师看到高亮的卡跟自己说的对不上,就会换说法)
+        op_codes = [op.get("leave_type") for op in ops if op.get("leave_type")]
+        focus_no_change = [c for c in op_codes if isinstance(c, str) and (not valid_codes or c in valid_codes)]
+        focus_no_change = list(dict.fromkeys(focus_no_change)) or focus_codes
+        # 用 LLM 给的 change_summary 反推现状,而不是死文案
+        target_zh = ""
+        if focus_no_change and leave_type_map:
+            names = [t["name"] for t in leave_type_map if t["code"] in focus_no_change]
+            if names:
+                target_zh = "「" + " / ".join(names) + "」"
         return ProposeResp(
             ok=False,
             ai_message=(
-                "AI 没真正修改配置(生成的 YAML 跟当前一致)。"
-                "可能是指令太抽象或当前规则已经满足你说的目标。"
-                "请换种说法,例如指明具体新增的天数档、新审批人角色等。"
+                f"看了下当前{target_zh or '该假别'}的规则,似乎已经满足你说的要求,无需改动。"
+                "我已为你定位到对应的卡片,你确认一下是不是这样。"
+                "如果实际想改的不是这个假别(比如公假 vs 因公外出容易混),请直接说假别 code。"
             ),
             change_summary=req.instruction[:30],
             error_code="NO_CHANGE",
+            focus_codes=focus_no_change or None,
         )
+
+    # 5.5) set_chain 类 ops:用 ops.tiers 重建 diff_zh,不信 LLM 描述
+    #      LLM 常把"0-2/2-7/7+"合并成"0-2/2-10",老师读 diff 卡看不出区别就误点应用。
+    #      sidecar 拿同一份 tiers 算出来的 diff 跟实际落地 100% 一致,没法被忽悠。
+    if ops and all(op.get("op") == "set_chain" for op in ops):
+        rendered_lines = []
+        for op in ops:
+            lt = op.get("leave_type")
+            tiers = op.get("tiers") or []
+            lt_zh = next((t["name"] for t in leave_type_map if t["code"] == lt), lt or "未知假别")
+            rendered_lines.append(_render_set_chain_diff(lt_zh, tiers))
+        diff_zh = "\n".join(rendered_lines)
 
     # 6) dump 回 YAML
     try:
@@ -568,4 +674,5 @@ async def propose(
         diff_zh=diff_zh,
         change_summary=change_summary,
         ai_message=ai_message,
+        focus_codes=focus_codes or None,
     )

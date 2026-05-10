@@ -2,28 +2,35 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Empty, InputNumber, Space, Spin, Switch, Tabs, Tag, Tooltip } from 'antd';
 import { message } from '@/utils/antdApp';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateTermMaxDays } from '@/api/leave';
 import { describeApiError } from '@/utils/api-error';
 import {
   ToolOutlined,
   EditOutlined,
   PlusOutlined,
   DeleteOutlined,
+  QuestionCircleOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { type ConfigSummary, getConfigSummary } from '@/api/workflowConfig';
 import {
-  getLeaveTypes,
   getLeaveImpactConfig,
   updateLeaveImpactConfig,
+  getLeaveGlobalConfig,
+  updateLeaveGlobalConfig,
+  updateLeaveRequireProof,
+  getLeaveTypes,
+  type LeaveGlobalConfig,
 } from '@/api/leave';
+import type { LeaveTypeConfig } from '@xg1/shared';
 import { useLayoutStore } from '@/stores/layout.store';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import LeaveReturnSettings from './LeaveReturnSettings';
 import LeaveNoticeSettings from './LeaveNoticeSettings';
+import PolicyHintsBanner from './PolicyHintsBanner';
+import ConfigHistoryDrawer from './ConfigHistoryDrawer';
 import styles from './index.module.css';
-import type { LeaveTypeConfig } from '@xg1/shared';
 
 /**
  * 「请销假配置」简化版页面(A.1 P0)。
@@ -113,35 +120,20 @@ function SummaryPanel({
     staleTime: 30 * 1000,
   });
 
-  // 拉假别字典(含 term_max_days)— 跟 markdown 通过中文 name 关联,显示 +
-  // inline 编辑学期累计上限。markdown 还是从 workflow YAML 渲染,跟
-  // leave_type_config 解耦;这里只做 visual 注入 + 调 PUT API 写表。
   const qc = useQueryClient();
+
+  // 假别字典:中文 name → code 反查,只为 LeaveTypeCard 加 DOM 锚点(AI 提案命中卡时滚动 + 高亮)
   const { data: leaveTypes = [] } = useQuery<LeaveTypeConfig[]>({
     queryKey: ['leaveTypes'],
     queryFn: getLeaveTypes,
     staleTime: 60 * 1000,
     enabled: bizType === 'leave',
   });
-  const typeByName = useMemo(() => {
-    const map = new Map<string, LeaveTypeConfig>();
-    for (const t of leaveTypes) if (t.name) map.set(t.name, t);
-    return map;
+  const codeByName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of leaveTypes) if (t.name && t.code) m.set(t.name, t.code);
+    return m;
   }, [leaveTypes]);
-
-  const saveTermCapMutation = useMutation({
-    mutationFn: ({ code, days }: { code: string; days: number | null }) =>
-      updateTermMaxDays(code, days),
-    onSuccess: (_, variables) => {
-      message.success(
-        variables.days == null
-          ? '已设为不限'
-          : `学期上限已保存为 ${variables.days} 天`,
-      );
-      qc.invalidateQueries({ queryKey: ['leaveTypes'] });
-    },
-    onError: (e: unknown) => message.error(describeApiError(e, '保存失败,请重试')),
-  });
 
   // 「请假影响课程」全局开关。关闭后学生填表 / 辅导员审批 drawer / mini 端
   // detail 页都拿到 zero 视图自动隐藏。
@@ -187,75 +179,70 @@ function SummaryPanel({
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={12}>
+      {bizType === 'leave' && <PolicyHintsBanner />}
+
       {bizType === 'leave' && (
-        <Card size="small" style={{ borderRadius: 'var(--r-lg)' }}>
+        <Card
+          size="small"
+          style={{ borderRadius: 'var(--r-lg)' }}
+          title={
+            <span>
+              {data.name}
+              <Tag color="blue" style={{ marginLeft: 8 }}>
+                v{data.version}
+              </Tag>
+            </span>
+          }
+        >
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
-              padding: '4px 4px',
+              gap: 24,
               flexWrap: 'wrap',
+              rowGap: 12,
             }}
           >
-            <Switch
-              checked={impactEnabled}
-              loading={impactToggleMutation.isPending}
-              onChange={(v) => impactToggleMutation.mutate(v)}
-              checkedChildren="开"
-              unCheckedChildren="关"
-            />
-            <span style={{ fontWeight: 600, fontSize: 14 }}>请假影响课程</span>
-            {impactEnabled ? (
-              <Tag color="success" style={{ margin: 0 }}>已打开</Tag>
-            ) : (
-              <Tag style={{ margin: 0 }}>已关闭</Tag>
-            )}
-            <span style={{ color: 'var(--fg-3)', fontSize: 12 }}>
-              {impactEnabled
-                ? '学生填表时会看到该时段缺的课程数;辅导员审批 drawer 也会显示。'
-                : '已隐藏:学生填表 / 辅导员审批 / 学生详情都不再显示影响课程。'}
-            </span>
+            {/* 影响课程开关 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>请假影响课程</span>
+              <Tooltip
+                title={
+                  impactEnabled
+                    ? '学生填表时会看到该时段缺的课程数;辅导员审批 drawer 也会显示。'
+                    : '已隐藏:学生填表 / 辅导员审批 / 学生详情都不再显示影响课程。'
+                }
+              >
+                <QuestionCircleOutlined style={{ color: 'var(--fg-3)', cursor: 'help' }} />
+              </Tooltip>
+              <Switch
+                size="small"
+                checked={impactEnabled}
+                loading={impactToggleMutation.isPending}
+                onChange={(v) => impactToggleMutation.mutate(v)}
+                checkedChildren="开"
+                unCheckedChildren="关"
+              />
+            </div>
+
+            <div style={{ width: 1, height: 24, background: 'var(--bd-3)' }} />
+
+            {/* 全学期累计上限(说明在 ? 图标上) */}
+            <GlobalTermCapCard bare />
+
+            <div style={{ width: 1, height: 24, background: 'var(--bd-3)' }} />
+
+            {/* 学生填写区域:V098 起只暴露「证明材料」一个全局开关。
+                旧的 form fields(目的地 / 紧急联系人等)是工作流 form schema 字段,
+                由 AI 助手通过工作流配置改,不再在请假规则页平铺展示。 */}
+            <RequireProofToggle />
           </div>
         </Card>
       )}
 
-      <Card
-        size="small"
-        style={{ borderRadius: 'var(--r-lg)' }}
-        title={
-          <span>
-            {data.name}
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              v{data.version}
-            </Tag>
-          </span>
-        }
-      >
-        {parsed.formFields.length > 0 && (
-          <div style={{ marginBottom: 4 }}>
-            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 6 }}>
-              学生提交时需填字段
-            </div>
-            <Space size={8} wrap>
-              {parsed.formFields.map((f) => (
-                <Tag
-                  key={f.label}
-                  color={f.required ? 'orange' : 'default'}
-                  style={{ margin: 0 }}
-                >
-                  {f.label}
-                  {f.required ? ' *' : ''}
-                </Tag>
-              ))}
-            </Space>
-          </div>
-        )}
-      </Card>
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 14, fontWeight: 600 }}>
-          假别 + 审批链({parsed.types.length})
+          请假配置({parsed.types.length})
         </div>
         {bizType === 'leave' && (
           <Button
@@ -275,28 +262,166 @@ function SummaryPanel({
       {parsed.types.length === 0 ? (
         <Empty description="（未解析到假别)" />
       ) : (
-        parsed.types.map((t) => {
-          const cfg = typeByName.get(t.name);
-          return (
-            <LeaveTypeCard
-              key={t.name}
-              typeInfo={t}
-              bizType={bizType}
-              askAI={askAI}
-              code={cfg?.code}
-              termMaxDays={cfg?.term_max_days ?? null}
-              onSaveTermCap={
-                cfg
-                  ? (days) =>
-                      saveTermCapMutation.mutateAsync({ code: cfg.code, days })
-                  : undefined
-              }
-              saving={saveTermCapMutation.isPending}
-            />
-          );
-        })
+        parsed.types.map((t) => (
+          <LeaveTypeCard
+            key={t.name}
+            typeInfo={t}
+            bizType={bizType}
+            askAI={askAI}
+            code={codeByName.get(t.name)}
+          />
+        ))
       )}
     </Space>
+  );
+}
+
+/**
+ * 全学期累计上限(替代原 per-假别 term_max_days)。
+ *
+ * 行为:学生申请页 / 辅导员审批 drawer 都会拉本学期累计天数,**超过这里设的
+ * 总数时只做软警告**(不阻断提交),并把这条状态喂给 PendingTaskEnricher 作为
+ * 高风险触发条件。null = 不限,UI 全部隐藏。
+ */
+function GlobalTermCapCard({ bare = false }: { bare?: boolean } = {}) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery<LeaveGlobalConfig>({
+    queryKey: ['leaveGlobalConfig'],
+    queryFn: getLeaveGlobalConfig,
+    staleTime: 60 * 1000,
+  });
+  // term_max_days 后端虽然是 NUMERIC,前端只让填整数 — 半天颗粒度由 duration_days
+  // 一侧负责,这里强制取整避免「累计 7.5 天 vs 上限 8 天」这种半天残值带来的歧义。
+  const serverDays = data?.term_max_days != null ? Math.round(data.term_max_days) : null;
+  const [unlimited, setUnlimited] = useState(serverDays == null);
+  const [draft, setDraft] = useState<number | null>(serverDays ?? 15);
+  useEffect(() => {
+    setUnlimited(serverDays == null);
+    setDraft(serverDays ?? 15);
+  }, [serverDays]);
+
+  const saveMutation = useMutation({
+    mutationFn: (days: number | null) => updateLeaveGlobalConfig(days),
+    onSuccess: (saved) => {
+      message.success(
+        saved.term_max_days == null
+          ? '已设为不限'
+          : `全学期累计上限已保存为 ${saved.term_max_days} 天`,
+      );
+      qc.setQueryData(['leaveGlobalConfig'], saved);
+    },
+    onError: (e: unknown) => message.error(describeApiError(e, '保存失败,请重试')),
+  });
+
+  const target = unlimited ? null : draft;
+  const dirty =
+    target !== serverDays && (unlimited || (typeof draft === 'number' && draft > 0));
+
+  const inner = isLoading ? (
+    <Spin />
+  ) : (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: bare ? 0 : '4px 4px',
+        flexWrap: 'wrap',
+      }}
+    >
+      <span style={{ fontWeight: 600, fontSize: 14 }}>全学期累计上限</span>
+      <Tooltip title="学生本学期所有假别累计超过这个总数时:学生申请页和辅导员审批页都会显示软警告,并被自动标记为高风险,不会阻断提交。">
+        <QuestionCircleOutlined style={{ color: 'var(--fg-3)', cursor: 'help' }} />
+      </Tooltip>
+      <Switch
+        size="small"
+        checked={!unlimited}
+        onChange={(v) => setUnlimited(!v)}
+        checkedChildren="限"
+        unCheckedChildren="不限"
+      />
+      {unlimited ? (
+        <Tag style={{ margin: 0 }}>不限</Tag>
+      ) : (
+        <InputNumber
+          size="small"
+          min={1}
+          max={365}
+          step={1}
+          precision={0}
+          value={draft ?? undefined}
+          onChange={(v) => setDraft(typeof v === 'number' ? Math.round(v) : null)}
+          style={{ width: 96 }}
+          addonAfter="天"
+        />
+      )}
+      {dirty ? (
+        <Button
+          size="small"
+          type="primary"
+          loading={saveMutation.isPending}
+          onClick={() => {
+            if (!unlimited && (draft == null || draft <= 0 || !Number.isInteger(draft))) {
+              message.warning('请输入大于 0 的整数天数,或切到「不限」');
+              return;
+            }
+            saveMutation.mutate(unlimited ? null : (draft as number));
+          }}
+        >
+          保存
+        </Button>
+      ) : (
+        <span style={{ color: 'var(--fg-3)', fontSize: 12 }}>
+          {serverDays != null ? `已生效:${serverDays} 天` : '当前不限'}
+        </span>
+      )}
+    </div>
+  );
+  if (bare) return inner;
+  return (
+    <Card size="small" style={{ borderRadius: 'var(--r-lg)' }}>
+      {inner}
+    </Card>
+  );
+}
+
+/**
+ * 「证明材料」全局开关。开 = 学生提交请假表单时必须上传证明文件;关 = 不强制(默认)。
+ * 后端落表 leave_global_config.require_proof,前端开关绑这一列。
+ * 学生提交端的「实际生效」逻辑(根据这个开关决定 LeaveApplyModal 是否加 file 字段)
+ * 由后续迭代接入,本组件只负责配置位的读写。
+ */
+function RequireProofToggle() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery<LeaveGlobalConfig>({
+    queryKey: ['leaveGlobalConfig'],
+    queryFn: getLeaveGlobalConfig,
+    staleTime: 60 * 1000,
+  });
+  const checked = !!data?.require_proof;
+  const mutation = useMutation({
+    mutationFn: updateLeaveRequireProof,
+    onSuccess: (saved) => {
+      qc.setQueryData(['leaveGlobalConfig'], saved);
+      message.success(saved.require_proof ? '已开启「证明材料」要求' : '已关闭「证明材料」要求');
+    },
+    onError: (e: unknown) => message.error(describeApiError(e, '保存失败,请重试')),
+  });
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontWeight: 600, fontSize: 14 }}>证明材料</span>
+      <Tooltip title="开启后,学生提交请假表单时必须上传证明文件;关闭则不强制(默认关)。">
+        <QuestionCircleOutlined style={{ color: 'var(--fg-3)', cursor: 'help' }} />
+      </Tooltip>
+      <Switch
+        size="small"
+        checked={checked}
+        loading={isLoading || mutation.isPending}
+        onChange={(v) => mutation.mutate(v)}
+        checkedChildren="必传"
+        unCheckedChildren="可选"
+      />
+    </div>
   );
 }
 
@@ -305,48 +430,18 @@ function LeaveTypeCard({
   bizType,
   askAI,
   code,
-  termMaxDays,
-  onSaveTermCap,
-  saving,
 }: {
   typeInfo: ParsedLeaveType;
   bizType: 'leave' | 'leave_return';
   askAI: (prompt: string) => void;
+  /** 假别 code,用于 AI 提案命中卡时滚动 + 高亮锚点 #leave-type-{code} */
   code?: string;
-  termMaxDays?: number | null;
-  onSaveTermCap?: (days: number | null) => Promise<unknown>;
-  saving?: boolean;
 }) {
   const isLeave = bizType === 'leave';
-
-  // inline 编辑状态:服务器值 → 本地 draft
-  const [unlimited, setUnlimited] = useState(termMaxDays == null);
-  const [draftDays, setDraftDays] = useState<number | null>(termMaxDays ?? 5);
-  useEffect(() => {
-    setUnlimited(termMaxDays == null);
-    setDraftDays(termMaxDays ?? 5);
-  }, [termMaxDays]);
-
-  const targetDays = unlimited ? null : draftDays;
-  const dirty =
-    targetDays !== (termMaxDays ?? null) &&
-    (unlimited || (typeof draftDays === 'number' && draftDays > 0));
-
-  const onSaveClick = async () => {
-    if (!onSaveTermCap || !dirty || saving) return;
-    if (!unlimited && (draftDays == null || draftDays <= 0)) {
-      message.warning('请输入大于 0 的天数,或切到「不限」');
-      return;
-    }
-    try {
-      await onSaveTermCap(unlimited ? null : (draftDays as number));
-    } catch {
-      // mutation 已 onError 提示
-    }
-  };
   return (
     <Card
       size="small"
+      id={code ? `leave-type-${code}` : undefined}
       style={{ borderRadius: 'var(--r-lg)' }}
       title={<span style={{ fontWeight: 600 }}>{typeInfo.name}</span>}
       extra={
@@ -395,79 +490,6 @@ function LeaveTypeCard({
             </div>
           ))}
         </Space>
-      )}
-      {isLeave && (
-        <div
-          style={{
-            marginTop: 10,
-            paddingTop: 10,
-            borderTop: '1px dashed var(--border-1, #eee)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            flexWrap: 'wrap',
-            fontSize: 13,
-          }}
-        >
-          <span style={{ color: 'var(--fg-2)', minWidth: 92 }}>本学期累计上限</span>
-
-          {code ? (
-            <>
-              <Switch
-                size="small"
-                checked={!unlimited}
-                onChange={(v) => setUnlimited(!v)}
-                checkedChildren="限"
-                unCheckedChildren="不限"
-              />
-              {unlimited ? (
-                <Tag style={{ margin: 0 }}>不限</Tag>
-              ) : (
-                <InputNumber
-                  size="small"
-                  min={0.5}
-                  max={365}
-                  step={0.5}
-                  precision={1}
-                  value={draftDays ?? undefined}
-                  onChange={(v) => setDraftDays(typeof v === 'number' ? v : null)}
-                  style={{ width: 96 }}
-                  addonAfter="天"
-                />
-              )}
-
-              {dirty ? (
-                <Button
-                  size="small"
-                  type="primary"
-                  loading={saving}
-                  onClick={onSaveClick}
-                >
-                  保存
-                </Button>
-              ) : (
-                <span style={{ color: 'var(--fg-3)', fontSize: 12 }}>
-                  {termMaxDays != null ? `已生效:${termMaxDays} 天` : '当前不限'}
-                </span>
-              )}
-            </>
-          ) : (
-            // 边缘情况:markdown 解析出来的假别名跟 leave_type_config 表对不上
-            // (一般是 AI 新建假别但 sync 没追上)。给个降级的灰提示 + AI 入口。
-            <>
-              <Tag>未关联</Tag>
-              <Button
-                size="small"
-                type="link"
-                onClick={() =>
-                  askAI(`帮我把"${typeInfo.name}"的本学期累计上限设成 N 天`)
-                }
-              >
-                通过 AI 助手配置
-              </Button>
-            </>
-          )}
-        </div>
       )}
     </Card>
   );
@@ -553,4 +575,76 @@ function parseSummaryMd(md: string): ParsedSummary {
   }
   if (currentType) types.push(currentType);
   return { formFields, types };
+}
+
+/**
+ * 不含 Tabs / page header 的「请假规则」面板,供 LeaveAppPage 当作一个 tab 嵌入。
+ * 内部仍然只渲染 leave 分支的 SummaryPanel(销假/请假须知由外层兄弟 tab 负责)。
+ */
+export function LeaveRulesPanel() {
+  const setAiPanelOpen = useLayoutStore((s) => s.setAiPanelOpen);
+  const seedAiInput = useAIActionStore((s) => s.seedInput);
+  const navigate = useNavigate();
+  const askAI = (prompt: string) => {
+    setAiPanelOpen(true);
+    seedAiInput(prompt);
+  };
+
+  // ?focus={code} 触发滚动 + 高亮:AI 助手「看一下事假配置」会 navigate 到带这个参数的 URL,
+  // SummaryPanel 渲染完卡片后,这里 setTimeout 找锚点滚到屏幕中央 + 加闪烁 class,然后清掉
+  // 参数避免下次刷新或回退又触发。
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focusCode = searchParams.get('focus');
+  useEffect(() => {
+    if (!focusCode) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`leave-type-${focusCode}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.remove('ai-focus-flash');
+        void el.offsetWidth;
+        el.classList.add('ai-focus-flash');
+        setTimeout(() => el.classList.remove('ai-focus-flash'), 2100);
+      }
+      // 清掉 focus 参数,保留 tab=rule
+      const next = new URLSearchParams(searchParams);
+      next.delete('focus');
+      setSearchParams(next, { replace: true });
+    }, 400);
+    return () => clearTimeout(timer);
+    // 仅依赖 focusCode — searchParams/setSearchParams 是 router hook 引用稳定,不参与依赖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusCode]);
+
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 12,
+        }}
+      >
+        <span style={{ color: 'var(--fg-3)', fontSize: 13 }}>
+          点假别上的「编辑/停用」或「新增假别」会唤起 AI 助手,告诉它你想怎么改即可。
+        </span>
+        <Button
+          size="small"
+          icon={<HistoryOutlined />}
+          onClick={() => setHistoryOpen(true)}
+        >
+          历史版本
+        </Button>
+      </div>
+      <SummaryPanel bizType="leave" askAI={askAI} />
+      <ConfigHistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        bizType="leave"
+      />
+    </div>
+  );
 }

@@ -40,4 +40,8 @@ public class WorkflowDefinition extends BaseEntity {
      */
     @TableField("college_id")
     private Long collegeId;
+
+    /** 中文改动摘要,V099 起记录到表。每次 applyYaml 都会写,前端历史版本 UI 用此字段做时间轴标签。 */
+    @TableField("change_summary")
+    private String changeSummary;
 }
