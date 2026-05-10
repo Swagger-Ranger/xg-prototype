@@ -54,3 +54,23 @@ export function rollbackConfig(
   if (collegeId != null) body.college_id = collegeId;
   return api.post('/workflow-config/rollback', body).then((res) => res.data);
 }
+
+/**
+ * 就地编辑指定版本的 change_summary(摘要 / 变更记录)。空串清空。
+ * 用于:补录 AI 早期发布或老数据缺失的摘要,或老师事后修订一句话说明。
+ */
+export function updateConfigSummary(
+  bizType: 'leave' | 'leave_return',
+  version: number,
+  changeSummary: string,
+  collegeId?: number,
+): Promise<{ version: number; change_summary: string | null }> {
+  const body: Record<string, unknown> = {
+    biz_type: bizType,
+    change_summary: changeSummary,
+  };
+  if (collegeId != null) body.college_id = collegeId;
+  return api
+    .patch(`/workflow-config/versions/${version}/summary`, body)
+    .then((res) => res.data);
+}

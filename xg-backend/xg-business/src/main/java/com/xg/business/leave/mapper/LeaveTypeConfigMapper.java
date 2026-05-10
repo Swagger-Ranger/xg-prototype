@@ -87,6 +87,21 @@ public interface LeaveTypeConfigMapper {
                           @Param("operatorId") Long operatorId);
 
     /**
+     * 翻 enabled 开关:停用后 listEnabledLeaveTypes 不再返回该 code,
+     * 学生端 /leave-types 列表自动不见;YAML 工作流不动,管理端可继续看到卡。
+     */
+    @Update("""
+            UPDATE leave_type_config
+               SET enabled = #{enabled},
+                   updated_at = NOW(),
+                   updated_by = #{operatorId}
+             WHERE code = #{code} AND deleted_at IS NULL
+            """)
+    int updateEnabled(@Param("code") String code,
+                      @Param("enabled") boolean enabled,
+                      @Param("operatorId") Long operatorId);
+
+    /**
      * 兜底插入新假别。当 AI 助手在 workflow YAML 里加一个 type_router 分支但
      * leave_type_config 表里没有对应行时,WorkflowConfigEditService 调本方法
      * 同步一行,name 暂用 code 回退,后续老师可以编辑改成中文。

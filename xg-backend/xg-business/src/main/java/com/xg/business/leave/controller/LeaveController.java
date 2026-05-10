@@ -33,8 +33,26 @@ public class LeaveController {
     private final com.xg.business.leave.service.LeaveGlobalConfigService leaveGlobalConfigService;
 
     @GetMapping("/api/v1/leave-types")
-    public R<List<LeaveTypeConfig>> listLeaveTypes() {
-        return R.ok(leaveService.listLeaveTypes());
+    public R<List<LeaveTypeConfig>> listLeaveTypes(
+            @RequestParam(value = "include_disabled", required = false, defaultValue = "false")
+                    boolean includeDisabled) {
+        // 默认只返回 enabled(学生端 / 通用调用方);管理端「请假规则」页传 true 拿全量,
+        // 用于 codeByName 锚点 + 已停用 tag 显示。停用类型不影响在 YAML 里的存在性。
+        return R.ok(includeDisabled
+                ? leaveConfigBaseService.listAllLeaveTypes()
+                : leaveService.listLeaveTypes());
+    }
+
+    /**
+     * 翻 enabled 开关。停用后 listEnabled 拿不到,学生端不再看到该假别;
+     * 工作流 YAML 不动,管理端卡仍展示(渲染 已停用 tag)。
+     */
+    @PutMapping("/api/v1/leave-types/{code}/enabled")
+    public R<LeaveTypeConfig> setLeaveTypeEnabled(
+            @PathVariable String code,
+            @RequestBody java.util.Map<String, Object> body) {
+        boolean enabled = body.get("enabled") instanceof Boolean b ? b : false;
+        return R.ok(leaveConfigBaseService.setEnabled(code, enabled, CurrentUser.id()));
     }
 
     /**

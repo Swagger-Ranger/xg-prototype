@@ -35,6 +35,13 @@ public class LeaveConfigBaseService {
                 .toList();
     }
 
+    /** 列出所有假别(含已停用),按 sortOrder 升序。仅管理端用,学生端始终走 listEnabled。 */
+    public List<LeaveTypeConfig> listAllLeaveTypes() {
+        return leaveTypeMapper.listAll().stream()
+                .sorted(Comparator.comparing(t -> t.getSortOrder() == null ? Integer.MAX_VALUE : t.getSortOrder()))
+                .toList();
+    }
+
     /** 按 code 找假别(不管 enabled),不存在抛 NOT_FOUND。 */
     public LeaveTypeConfig findLeaveType(String code) {
         LeaveTypeConfig t = leaveTypeMapper.findByCode(code);
@@ -84,6 +91,20 @@ public class LeaveConfigBaseService {
             }
         }
         int affected = leaveTypeMapper.updateTermMaxDays(code, termMaxDays, operatorId);
+        if (affected == 0) {
+            throw new BizException("NOT_FOUND", "假别不存在或已删除: " + code);
+        }
+        return findLeaveType(code);
+    }
+
+    /**
+     * 翻 enabled 开关。停用 → 学生端 listEnabled 拿不到,提交时找不到对应假别;
+     * YAML 工作流不动,管理端 summary 卡仍渲染(用 enabled=false 加灰显/已停用 tag)。
+     */
+    @Transactional
+    public LeaveTypeConfig setEnabled(String code, boolean enabled, Long operatorId) {
+        findLeaveType(code);
+        int affected = leaveTypeMapper.updateEnabled(code, enabled, operatorId);
         if (affected == 0) {
             throw new BizException("NOT_FOUND", "假别不存在或已删除: " + code);
         }

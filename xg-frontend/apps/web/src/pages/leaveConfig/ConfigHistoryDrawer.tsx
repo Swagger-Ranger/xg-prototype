@@ -1,8 +1,14 @@
-import { useMemo } from 'react';
-import { Drawer, Empty, Modal, Spin, Tag, Timeline, Button, Tooltip } from 'antd';
+import { useMemo, useState } from 'react';
+import { Drawer, Empty, Input, Modal, Spin, Tag, Timeline, Button, Tooltip } from 'antd';
+import { EditOutlined } from '@ant-design/icons';
 import { message } from '@/utils/antdApp';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listConfigVersions, rollbackConfig, type ConfigVersion } from '@/api/workflowConfig';
+import {
+  listConfigVersions,
+  rollbackConfig,
+  updateConfigSummary,
+  type ConfigVersion,
+} from '@/api/workflowConfig';
 import { describeApiError } from '@/utils/api-error';
 
 interface Props {
@@ -55,6 +61,32 @@ export default function ConfigHistoryDrawer({
     },
     onError: (e: unknown) => message.error(describeApiError(e, '回滚失败')),
   });
+
+  // 行内编辑状态:同时只允许编辑一行,避免多行未保存丢失。
+  const [editingVersion, setEditingVersion] = useState<number | null>(null);
+  const [editingDraft, setEditingDraft] = useState('');
+  const summaryMutation = useMutation({
+    mutationFn: (args: { version: number; summary: string }) =>
+      updateConfigSummary(bizType, args.version, args.summary),
+    onSuccess: () => {
+      message.success('已保存');
+      qc.invalidateQueries({ queryKey: ['configVersions', bizType] });
+      setEditingVersion(null);
+      setEditingDraft('');
+    },
+    onError: (e: unknown) => message.error(describeApiError(e, '保存失败')),
+  });
+  const startEdit = (v: ConfigVersion) => {
+    setEditingVersion(v.version);
+    setEditingDraft(v.change_summary ?? '');
+  };
+  const cancelEdit = () => {
+    setEditingVersion(null);
+    setEditingDraft('');
+  };
+  const saveEdit = (version: number) => {
+    summaryMutation.mutate({ version, summary: editingDraft });
+  };
 
   const triggerRollback = (v: ConfigVersion) => {
     Modal.confirm({
@@ -130,9 +162,57 @@ export default function ConfigHistoryDrawer({
                     </Tooltip>
                   )}
                 </div>
-                <div style={{ color: 'var(--fg-2)', fontSize: 13, marginTop: 4 }}>
-                  {v.change_summary || <span style={{ color: 'var(--fg-3)' }}>(无摘要)</span>}
-                </div>
+                {editingVersion === v.version ? (
+                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <Input.TextArea
+                      autoSize={{ minRows: 1, maxRows: 4 }}
+                      maxLength={200}
+                      showCount
+                      value={editingDraft}
+                      onChange={(e) => setEditingDraft(e.target.value)}
+                      placeholder="一句话变更记录(最多 200 字)"
+                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button
+                        size="small"
+                        type="primary"
+                        loading={summaryMutation.isPending}
+                        onClick={() => saveEdit(v.version)}
+                      >
+                        保存
+                      </Button>
+                      <Button size="small" onClick={cancelEdit}>
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      color: 'var(--fg-2)',
+                      fontSize: 13,
+                      marginTop: 4,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 6,
+                    }}
+                  >
+                    <span style={{ flex: 1 }}>
+                      {v.change_summary || (
+                        <span style={{ color: 'var(--fg-3)' }}>(无摘要)</span>
+                      )}
+                    </span>
+                    <Tooltip title={v.change_summary ? '修改摘要' : '补一句话变更记录'}>
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={() => startEdit(v)}
+                        style={{ padding: '0 4px', height: 22 }}
+                      />
+                    </Tooltip>
+                  </div>
+                )}
                 <div style={{ color: 'var(--fg-3)', fontSize: 11, marginTop: 2 }}>
                   {formatTime(v.updated_at)}
                   {v.updated_by != null && ` · 操作人 #${v.updated_by}`}

@@ -20,7 +20,7 @@ import {
   getLeaveGlobalConfig,
   updateLeaveGlobalConfig,
   updateLeaveRequireProof,
-  getLeaveTypes,
+  getAllLeaveTypes,
   type LeaveGlobalConfig,
 } from '@/api/leave';
 import type { LeaveTypeConfig } from '@xg1/shared';
@@ -122,16 +122,23 @@ function SummaryPanel({
 
   const qc = useQueryClient();
 
-  // 假别字典:中文 name → code 反查,只为 LeaveTypeCard 加 DOM 锚点(AI 提案命中卡时滚动 + 高亮)
+  // 假别字典:中文 name → code + enabled 反查。管理端拿全量(含已停用),
+  // 用于 LeaveTypeCard 的 DOM 锚点(AI 命中后滚动 + 高亮)+ 「已停用」tag 渲染。
+  // 如果只拿 enabled 列表,停用后的卡会丢锚点,后续重新启用提案找不到 DOM。
   const { data: leaveTypes = [] } = useQuery<LeaveTypeConfig[]>({
-    queryKey: ['leaveTypes'],
-    queryFn: getLeaveTypes,
+    queryKey: ['leaveTypes', 'all'],
+    queryFn: getAllLeaveTypes,
     staleTime: 60 * 1000,
     enabled: bizType === 'leave',
   });
   const codeByName = useMemo(() => {
     const m = new Map<string, string>();
     for (const t of leaveTypes) if (t.name && t.code) m.set(t.name, t.code);
+    return m;
+  }, [leaveTypes]);
+  const enabledByCode = useMemo(() => {
+    const m = new Map<string, boolean>();
+    for (const t of leaveTypes) if (t.code) m.set(t.code, !!t.enabled);
     return m;
   }, [leaveTypes]);
 
@@ -185,14 +192,6 @@ function SummaryPanel({
         <Card
           size="small"
           style={{ borderRadius: 'var(--r-lg)' }}
-          title={
-            <span>
-              {data.name}
-              <Tag color="blue" style={{ marginLeft: 8 }}>
-                v{data.version}
-              </Tag>
-            </span>
-          }
         >
           <div
             style={{
@@ -262,15 +261,20 @@ function SummaryPanel({
       {parsed.types.length === 0 ? (
         <Empty description="（未解析到假别)" />
       ) : (
-        parsed.types.map((t) => (
-          <LeaveTypeCard
-            key={t.name}
-            typeInfo={t}
-            bizType={bizType}
-            askAI={askAI}
-            code={codeByName.get(t.name)}
-          />
-        ))
+        parsed.types.map((t) => {
+          const code = codeByName.get(t.name);
+          const enabled = code ? enabledByCode.get(code) ?? true : true;
+          return (
+            <LeaveTypeCard
+              key={t.name}
+              typeInfo={t}
+              bizType={bizType}
+              askAI={askAI}
+              code={code}
+              enabled={enabled}
+            />
+          );
+        })
       )}
     </Space>
   );
@@ -430,20 +434,32 @@ function LeaveTypeCard({
   bizType,
   askAI,
   code,
+  enabled = true,
 }: {
   typeInfo: ParsedLeaveType;
   bizType: 'leave' | 'leave_return';
   askAI: (prompt: string) => void;
   /** 假别 code,用于 AI 提案命中卡时滚动 + 高亮锚点 #leave-type-{code} */
   code?: string;
+  /** false 时卡灰显 + 显示「已停用」tag,「停用」按钮变成「启用」 */
+  enabled?: boolean;
 }) {
   const isLeave = bizType === 'leave';
   return (
     <Card
       size="small"
       id={code ? `leave-type-${code}` : undefined}
-      style={{ borderRadius: 'var(--r-lg)' }}
-      title={<span style={{ fontWeight: 600 }}>{typeInfo.name}</span>}
+      style={{ borderRadius: 'var(--r-lg)', opacity: enabled ? 1 : 0.65 }}
+      title={
+        <span style={{ fontWeight: 600 }}>
+          {typeInfo.name}
+          {!enabled && (
+            <Tag color="default" style={{ marginLeft: 8, fontWeight: 400 }}>
+              已停用
+            </Tag>
+          )}
+        </span>
+      }
       extra={
         <Space size={4}>
           <Button
@@ -456,7 +472,7 @@ function LeaveTypeCard({
           >
             编辑
           </Button>
-          {isLeave && (
+          {isLeave && enabled && (
             <Button
               size="small"
               type="text"
@@ -465,6 +481,15 @@ function LeaveTypeCard({
               onClick={() => askAI(`停用"${typeInfo.name}"假别`)}
             >
               停用
+            </Button>
+          )}
+          {isLeave && !enabled && (
+            <Button
+              size="small"
+              type="text"
+              onClick={() => askAI(`重新启用"${typeInfo.name}"假别`)}
+            >
+              启用
             </Button>
           )}
         </Space>

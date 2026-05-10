@@ -223,4 +223,33 @@ public class WorkflowConfigEditService {
         }
         return applyYaml(bizType, collegeId, target.getConfigYaml(), summary);
     }
+
+    /**
+     * 补/改某个历史(或当前)版本的 change_summary,不改 yaml、不开新版本。
+     * 用于:(1) AI/早期发布留下的空摘要补录;(2) 老师事后修订一句话说明。
+     * 长度按列定义 200 字截断,空串视为清空(写 NULL)。
+     */
+    @Transactional
+    public WorkflowDefinition updateChangeSummary(
+            String bizType, Long collegeId, int version, String changeSummary) {
+        LambdaQueryWrapper<WorkflowDefinition> q = new LambdaQueryWrapper<WorkflowDefinition>()
+                .eq(WorkflowDefinition::getBizType, bizType)
+                .eq(WorkflowDefinition::getVersion, version);
+        if (collegeId == null) {
+            q.isNull(WorkflowDefinition::getCollegeId);
+        } else {
+            q.eq(WorkflowDefinition::getCollegeId, collegeId);
+        }
+        WorkflowDefinition row = definitionMapper.selectOne(q);
+        if (row == null) {
+            throw new BizException("VERSION_NOT_FOUND", "找不到目标版本 v" + version);
+        }
+        String trimmed = changeSummary == null ? null : changeSummary.trim();
+        if (trimmed != null && trimmed.length() > 200) {
+            trimmed = trimmed.substring(0, 200);
+        }
+        row.setChangeSummary(trimmed == null || trimmed.isEmpty() ? null : trimmed);
+        definitionMapper.updateById(row);
+        return row;
+    }
 }

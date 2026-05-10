@@ -134,6 +134,32 @@ public class WorkflowConfigController {
     }
 
     /**
+     * PATCH /api/v1/workflow-config/versions/{version}/summary
+     * Body: {biz_type, college_id?, change_summary}
+     *
+     * 仅改 change_summary 文案,不改 yaml/不开新版本。空串清空。
+     */
+    @org.springframework.web.bind.annotation.PatchMapping("/versions/{version}/summary")
+    @SaCheckPermission("system:manage")
+    public R<Map<String, Object>> updateSummary(
+            @org.springframework.web.bind.annotation.PathVariable("version") int version,
+            @RequestBody Map<String, Object> body) {
+        String bizType = (String) body.get("biz_type");
+        if (bizType == null || bizType.isBlank()) {
+            throw new BizException("BIZ_TYPE_EMPTY", "biz_type 不能为空");
+        }
+        Object collegeIdObj = body.get("college_id");
+        Long collegeId = collegeIdObj instanceof Number n ? n.longValue() : null;
+        Object summaryObj = body.get("change_summary");
+        String summary = summaryObj == null ? null : String.valueOf(summaryObj);
+        WorkflowDefinition row = editService.updateChangeSummary(bizType, collegeId, version, summary);
+        Map<String, Object> out = new HashMap<>();
+        out.put("version", row.getVersion());
+        out.put("change_summary", row.getChangeSummary());
+        return R.ok(out);
+    }
+
+    /**
      * POST /api/v1/workflow-config/apply
      * Body: {biz_type, college_id?, new_yaml, change_summary}
      *

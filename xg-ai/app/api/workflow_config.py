@@ -335,8 +335,25 @@ V096 起从 per-假别上限改成租户级单一上限,行为是软警告 + 高
 举例:"去掉学期上限"
 {"op": "set_term_cap", "days": null}
 
-## 3. complex_rewrite — 兜底(LLM 自己重写整 YAML)
-适用:新增假别 / 改 form 字段 / 改销假流程 / 改 type_router / 任何 set_chain/set_term_cap 表达不了的。
+## 3. set_leave_type_enabled — 停用 / 启用 某假别(不动 YAML 工作流)
+适用:老师说「停用公假」「关掉病假」「重新启用婚假」等仅切换可见性的指令。
+**这条 op 不动 YAML**,只调 backend PUT /api/v1/leave-types/{code}/enabled 翻数据库一行,
+学生端 /leave-types 列表自动不再返回该 code,因此申请请假看不到这个假别;
+管理端「请假规则」页仍展示卡片(用 已停用 tag 区分),便于以后再启用。
+入参:
+  - leave_type:假别 code(必须在当前 type_router 里存在)
+  - enabled:true=启用 / false=停用
+
+举例:"停用公假"
+{"op": "set_leave_type_enabled", "leave_type": "official_business", "enabled": false}
+
+举例:"重新启用婚假"
+{"op": "set_leave_type_enabled", "leave_type": "marriage", "enabled": true}
+
+## 4. complex_rewrite — 兜底(LLM 自己重写整 YAML)
+适用:**真**需要新增假别 / 改 form 字段 / 改销假流程 / 改 type_router / 任何 set_chain/set_term_cap/set_leave_type_enabled 表达不了的。
+注意:停用/启用 假别**绝不要**走 complex_rewrite——用 set_leave_type_enabled 即可,
+否则会破坏 YAML 节点引用,且不会让学生端真正看不见。
 入参:
   - new_yaml:完整新 YAML 文本
 
@@ -369,7 +386,7 @@ V096 起从 per-假别上限改成租户级单一上限,行为是软警告 + 高
 - 编造系统不支持的角色
 - 老师没要求时擅自加证明 / 改其他假别
 - 输出 markdown 代码块或额外解释
-- **set_term_cap 不能跟 set_chain / complex_rewrite 在同一个 ops 数组里混用**(实现限制),
+- **set_term_cap / set_leave_type_enabled 不能跟 set_chain / complex_rewrite 在同一个 ops 数组里混用**(实现限制),
   老师同时要改两件时,优先按指令里更明确的那一项做,另一项可以在 ai_message 提示「请单独再说一次」
 """
 
@@ -593,6 +610,60 @@ async def propose(
             change_summary=change_summary,
             ai_message=ai_message or f"✓ 已设置全学期累计上限:{applied}",
             focus_codes=focus_codes or None,
+        )
+
+    # 全部是 set_leave_type_enabled → 不动 YAML,逐个调 backend PUT 翻 leave_type_config.enabled。
+    # 学生端 /leave-types(默认 enabled-only) 因此立刻不再看到停用的假别;管理端拿 include_disabled
+    # 仍能看到卡(标灰 + 已停用 tag),便于后续再启用。focus_codes 取所有切换的 code。
+    if all(op.get("op") == "set_leave_type_enabled" for op in ops):
+        toggled_codes: list[str] = []
+        async with httpx.AsyncClient(base_url=settings.java_base_url, timeout=10.0, trust_env=False) as c:
+            for op in ops:
+                lt = op.get("leave_type")
+                en = op.get("enabled")
+                if not isinstance(lt, str) or not lt:
+                    return ProposeResp(ok=False, ai_message="set_leave_type_enabled 缺 leave_type", error_code="OP_BAD")
+                if not isinstance(en, bool):
+                    return ProposeResp(ok=False, ai_message="set_leave_type_enabled 缺 enabled(true/false)", error_code="OP_BAD")
+                if valid_codes and lt not in valid_codes:
+                    return ProposeResp(
+                        ok=False,
+                        ai_message=f"假别 code「{lt}」不在当前规则里,请用现有 code(可见{sorted(valid_codes)})",
+                        error_code="UNKNOWN_LEAVE_TYPE",
+                    )
+                try:
+                    r = await c.put(
+                        f"/api/v1/leave-types/{lt}/enabled",
+                        headers=headers,
+                        json={"enabled": en},
+                    )
+                    if r.status_code != 200:
+                        return ProposeResp(
+                            ok=False,
+                            ai_message=f"应用失败:{r.text[:200]}",
+                            error_code="BACKEND_REJECT",
+                        )
+                except Exception as e:
+                    logger.exception("set_leave_type_enabled call failed")
+                    return ProposeResp(ok=False, ai_message=f"调用后端失败:{e}", error_code="BACKEND_FAIL")
+                toggled_codes.append(lt)
+        # 翻完后用切换中的 code 兜底 focus(LLM 不输 focus_codes 时也能定位)
+        toggled_focus = focus_codes or list(dict.fromkeys(toggled_codes))
+        # ai_message 用我们生成的更靠谱版本(LLM 容易遗漏哪些是停用 / 启用)
+        zh_pairs = []
+        for op in ops:
+            lt = op.get("leave_type")
+            en = op.get("enabled")
+            zh = next((t["name"] for t in leave_type_map if t["code"] == lt), lt)
+            zh_pairs.append(f"{'启用' if en else '停用'}「{zh}」")
+        return ProposeResp(
+            ok=True,
+            new_yaml=None,
+            diff_zh=" / ".join(zh_pairs),
+            change_summary=change_summary or " / ".join(zh_pairs),
+            ai_message="✓ " + "、".join(zh_pairs)
+                + "。学生端列表已即时刷新,工作流配置不变。",
+            focus_codes=toggled_focus or None,
         )
 
     # 检查是不是单 complex_rewrite,如果是直接走整 YAML 路径

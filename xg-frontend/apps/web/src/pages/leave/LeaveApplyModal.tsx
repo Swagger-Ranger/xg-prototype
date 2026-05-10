@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Modal, Form, Select, DatePicker, Input, Button, InputNumber, Tooltip } from 'antd';
+import { Modal, Form, Select, DatePicker, Input, Button, InputNumber, Tooltip, Alert } from 'antd';
 import { ReadOutlined } from '@ant-design/icons';
 import { message } from '@/utils/antdApp';
 import type { Dayjs } from 'dayjs';
@@ -11,16 +11,52 @@ import {
   applyLeave,
   leaveTypeFieldsToSchema,
   previewLeaveImpact,
+  getMyTermUsage,
+  getLeaveGlobalConfig,
   type LeaveApplyData,
   type LeaveImpactView,
+  type LeaveTermUsage,
+  type LeaveGlobalConfig,
 } from '@/api/leave';
 import { getMyExtendedInfo } from '@/api/student';
 import { getCurrentLocation } from '@/utils/geolocation';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import DynamicFormFields from '@/components/form/DynamicFormFields';
+import type { FormFieldSchema } from '@/api/workflow';
 
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
+
+/**
+ * 请假天数预览,镜像后端 LeaveCalendarService.calcEffectiveDays:
+ * 工作时段 09:00–12:00 + 13:00–18:00,8h = 1 天。**每天都按工作日切**,
+ * 不区分周末/节假日(简化决定:学校无法稳定拿到法定节假日数据)。
+ */
+function calcWorkingDays(start: Date, end: Date): number {
+  if (end <= start) return 0;
+  const PER_DAY = 8 * 3600;
+  const SEGS: Array<[number, number]> = [
+    [9 * 3600, 12 * 3600],
+    [13 * 3600, 18 * 3600],
+  ];
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  let workingSec = 0;
+  const cursor = new Date(startMs);
+  cursor.setHours(0, 0, 0, 0);
+  const lastDay = new Date(endMs);
+  lastDay.setHours(0, 0, 0, 0);
+  while (cursor.getTime() <= lastDay.getTime()) {
+    const dayStartMs = cursor.getTime();
+    for (const [a, b] of SEGS) {
+      const lo = Math.max(startMs, dayStartMs + a * 1000);
+      const hi = Math.min(endMs, dayStartMs + b * 1000);
+      workingSec += Math.max(0, (hi - lo) / 1000);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return Math.round((workingSec / PER_DAY) * 100) / 100;
+}
 
 interface Props {
   open: boolean;
@@ -70,13 +106,51 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     [selectedType?.extra_fields],
   );
 
-  // Mirror backend LeaveService.calculateDurationDays: ceil(seconds/86400).
-  // Any partial day counts as a full day, so 9:00→17:00 same day = 1 天,
-  // and the workflow's duration_check sees the same number we display.
+  // 跟后端 LeaveCalendarService.calcEffectiveDays 同口径:逐日按工作时段
+  // 09:00–12:00 + 13:00–18:00 求交,8 工作小时 = 1 天。每天都按工作日切,
+  // 不查节假日表 — 学校拿不到稳定假期数据,统一口径胜过偶发降级出错。
   const durationDays =
     dateRange?.[0] && dateRange?.[1]
-      ? Math.max(0, Math.ceil(dateRange[1].diff(dateRange[0], 'second') / 86400))
+      ? calcWorkingDays(dateRange[0].toDate(), dateRange[1].toDate())
       : 0;
+
+  // 进入弹窗即拉本学期累计请假天数(全部假别合计)。超过全局上限时顶部红条
+  // 软警告 + 同时被审批侧标记成高风险——不阻断提交。学生身份才有意义,辅导员
+  // 帮学生代提交时也只显示自己的累计(代提交场景占比极低,改造太重不值得)。
+  const { data: termUsage } = useQuery<LeaveTermUsage>({
+    queryKey: ['leave.term-usage.my'],
+    queryFn: getMyTermUsage,
+    enabled: open,
+    staleTime: 30 * 1000,
+  });
+
+  // 学校请假规则全局开关。require_proof=true 时学生提交必须上传证明材料,
+  // 在底部追加一项 file 字段并标 required;false 时完全不渲染该字段(不让
+  // 学生看到一个可以留空的"证明材料"造成困惑)。
+  const { data: globalConfig } = useQuery<LeaveGlobalConfig>({
+    queryKey: ['leaveGlobalConfig'],
+    queryFn: getLeaveGlobalConfig,
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  });
+  const requireProof = globalConfig?.require_proof === true;
+  const proofSchema = useMemo<FormFieldSchema[]>(
+    () =>
+      requireProof
+        ? [
+            {
+              name: 'attachment_file_ids',
+              label: '证明材料',
+              type: 'file',
+              required: true,
+              fileMaxCount: 3,
+              fileAccept: 'image/*,.pdf',
+              fileMaxSizeKb: 5 * 1024,
+            },
+          ]
+        : [],
+    [requireProof],
+  );
 
   // 选完起止时间后实时预览会缺的课程。dateRange 不全 / 同 modal 多次重选时
   // 用 ISO 串作 query key,自动 dedup + 缓存。后端按 X-User-Id 取 student_id 算,
@@ -221,6 +295,16 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     if (typeExtra && typeof typeExtra === 'object') {
       Object.assign(extra_data, typeExtra as Record<string, unknown>);
     }
+    // require_proof=true 时 _proof.attachment_file_ids 由 FileUploadField 维护;
+    // 雪花 ID 后端要 List<Long>,Jackson 接受字符串/数字混传,toString 统一兜底。
+    const proofWrap = (values as Record<string, unknown>)._proof;
+    let attachmentFileIds: string[] | undefined;
+    if (proofWrap && typeof proofWrap === 'object') {
+      const ids = (proofWrap as Record<string, unknown>).attachment_file_ids;
+      if (Array.isArray(ids) && ids.length > 0) {
+        attachmentFileIds = ids.map((id) => String(id));
+      }
+    }
     const location = await getCurrentLocation();
     if (!location) {
       message.warning('未获取到定位（用户可能拒绝了授权），仍可提交但不会记录位置。');
@@ -231,6 +315,7 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
       end_time: values.date_range[1].toISOString(),
       reason: values.reason,
       extra_data,
+      ...(attachmentFileIds ? { attachment_file_ids: attachmentFileIds } : {}),
       ...(aiDraftSnapshotRef.current ? { ai_draft: aiDraftSnapshotRef.current } : {}),
       ...(location
         ? {
@@ -264,6 +349,16 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
       destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+        {termUsage?.exceeded && termUsage.cap_days != null && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={`本学期已累计请假 ${termUsage.accumulated_days} 天,超出全校上限 ${termUsage.cap_days} 天`}
+            description="本次申请仍可提交,但会被自动标记为高风险,辅导员审批时会重点关注。"
+          />
+        )}
+
         <Form.Item
           name="leave_type_code"
           label="假别"
@@ -283,10 +378,9 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
                 if (!value[1].isAfter(value[0])) {
                   return Promise.reject(new Error('结束时间必须晚于开始时间'));
                 }
-                // 与 backend calculateDurationDays 同口径：ceil(seconds/86400)
-                const days = Math.ceil(value[1].diff(value[0], 'second') / 86400);
+                const days = calcWorkingDays(value[0].toDate(), value[1].toDate());
                 if (days > 30) {
-                  return Promise.reject(new Error('请假时长不得超过 30 天'));
+                  return Promise.reject(new Error('请假时长不得超过 30 个工作日'));
                 }
                 return Promise.resolve();
               },
@@ -336,7 +430,10 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
           />
         </Form.Item>
 
-        <Form.Item label="请假天数">
+        <Form.Item
+          label="请假天数"
+          tooltip="按工作时段计算:09:00–12:00 + 13:00–18:00,8 小时 = 1 天。午休 12:00–13:00 不计;周末/节假日不区分,按同口径切片。"
+        >
           <InputNumber value={durationDays} disabled style={{ width: '100%' }} suffix="天" />
         </Form.Item>
 
@@ -397,6 +494,10 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
 
         {typeFieldsSchema.length > 0 && (
           <DynamicFormFields fields={typeFieldsSchema} fieldNamePrefix={['_typeExtra']} />
+        )}
+
+        {proofSchema.length > 0 && (
+          <DynamicFormFields fields={proofSchema} fieldNamePrefix={['_proof']} />
         )}
       </Form>
     </Modal>

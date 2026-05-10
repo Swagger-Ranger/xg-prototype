@@ -37,8 +37,19 @@ export interface LeaveQueryParams {
   end_date?: string;
 }
 
+/** 学生端 / 通用调用方:仅 enabled 假别。 */
 export function getLeaveTypes(): Promise<LeaveTypeConfig[]> {
   return api.get('/leave-types').then((res) => res.data);
+}
+
+/**
+ * 管理端「请假规则」页用:含已停用的全量假别。
+ * 用于 codeByName 锚点(AI 命中后滚动 + 高亮)+ 已停用 tag 渲染。
+ */
+export function getAllLeaveTypes(): Promise<LeaveTypeConfig[]> {
+  return api
+    .get('/leave-types', { params: { include_disabled: true } })
+    .then((res) => res.data);
 }
 
 export function applyLeave(data: LeaveApplyData): Promise<LeaveRequest> {
