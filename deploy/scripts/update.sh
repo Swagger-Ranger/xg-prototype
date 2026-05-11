@@ -17,6 +17,13 @@ NC='\033[0m' # No Color
 PROFILE="lite"
 SKIP_BUILD=false
 KEEP_DATA=true
+QUICK_MODE=false
+USE_DEMO_ENV=false
+
+# 智能构建检测
+NEED_REBUILD_JAVA=false
+NEED_REBUILD_PYTHON=false
+LAST_COMMIT_FILE=".last_deploy_commit"
 
 # 日志函数
 log_info() {
@@ -48,17 +55,25 @@ show_help() {
   -d, --no-data          更新时清除数据卷（危险！）
   -s, --skip-pull        跳过 git pull 步骤
   -b, --skip-build       跳过构建步骤，只重启服务
+  -q, --quick            快速模式：只重启，不构建、不拉取（演示环境推荐）
+  --demo                 使用演示环境配置 (.env.demo)
   -h, --help             显示帮助信息
 
 示例:
-  $0                     # 默认 lite 模式，使用缓存构建
+  $0                     # 默认 lite 模式，智能构建（代码没变则不重建）
+  $0 -q                  # 快速重启（演示环境日常使用）
   $0 -f                  # full 模式更新
   $0 -p full -n          # full 模式，无缓存构建
+  $0 --demo              # 使用演示环境配置启动
   $0 -s                  # 跳过 git pull，直接重新构建
 
-快速更新流程:
+快速更新流程（演示环境）:
   1. git pull            # 拉取最新代码
-  2. $0                  # 运行此脚本更新服务
+  2. $0 -q               # 快速重启（不重建，秒级）
+
+完整更新流程（代码有变更）:
+  1. git pull            # 拉取最新代码
+  2. $0                  # 智能更新（只重建变更的服务）
 EOF
 }
 
@@ -94,6 +109,16 @@ parse_args() {
                 SKIP_BUILD=true
                 shift
                 ;;
+            -q|--quick)
+                QUICK_MODE=true
+                SKIP_BUILD=true
+                SKIP_PULL=true
+                shift
+                ;;
+            --demo)
+                USE_DEMO_ENV=true
+                shift
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -123,6 +148,20 @@ check_environment() {
         fi
     fi
 
+    # 演示环境使用 .env.demo
+    if [ "$USE_DEMO_ENV" = true ]; then
+        if [ -f ".env.demo" ]; then
+            log_info "使用演示环境配置 (.env.demo)"
+            # 备份当前 .env
+            if [ -f ".env" ] && [ ! -f ".env.backup" ]; then
+                cp .env .env.backup
+            fi
+            cp .env.demo .env
+        else
+            log_warn ".env.demo 不存在，使用默认 .env"
+        fi
+    fi
+
     # 检查 .env 文件
     if [ ! -f ".env" ]; then
         if [ -f ".env.example" ]; then
@@ -144,6 +183,80 @@ check_environment() {
 
     log_info "当前目录: $(pwd)"
     log_info "部署模式: $PROFILE"
+
+    # 快速模式提示
+    if [ "$QUICK_MODE" = true ]; then
+        log_info "快速模式: 只重启服务，不构建、不拉取代码"
+    fi
+}
+
+# 智能检测是否需要重新构建
+check_need_rebuild() {
+    if [ "$QUICK_MODE" = true ] || [ "$SKIP_BUILD" = true ]; then
+        return
+    fi
+
+    log_step "检查代码变更..."
+
+    # 获取当前提交哈希
+    local current_commit
+    current_commit=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+
+    # 获取上次部署的提交哈希
+    local last_commit
+    if [ -f "$LAST_COMMIT_FILE" ]; then
+        last_commit=$(cat "$LAST_COMMIT_FILE")
+    else
+        last_commit=""
+    fi
+
+    if [ "$current_commit" = "$last_commit" ]; then
+        log_info "代码未变更 (commit: ${current_commit:0:8})"
+        log_info "使用快速模式重启（如需强制重建请使用 -n 参数）"
+        SKIP_BUILD=true
+        return
+    fi
+
+    # 检查哪些目录有变更
+    if [ -n "$last_commit" ]; then
+        log_info "检测到代码变更: ${last_commit:0:8} → ${current_commit:0:8}"
+
+        # 检查 Java 后端是否有变更
+        if git diff --name-only "$last_commit" "$current_commit" | grep -q "^xg-backend/"; then
+            log_info "Java 后端代码有变更，需要重建"
+            NEED_REBUILD_JAVA=true
+        fi
+
+        # 检查 Python AI 是否有变更
+        if git diff --name-only "$last_commit" "$current_commit" | grep -q "^xg-ai/"; then
+            log_info "Python AI 代码有变更，需要重建"
+            NEED_REBUILD_PYTHON=true
+        fi
+
+        # 检查 Dockerfile 或 docker-compose 是否有变更
+        if git diff --name-only "$last_commit" "$current_commit" | grep -qE "^deploy/(Dockerfile|docker-compose)"; then
+            log_info "部署配置有变更，需要重建"
+            NEED_REBUILD_JAVA=true
+            NEED_REBUILD_PYTHON=true
+        fi
+
+        # 如果没有特定变更但提交不同，默认重建 Java（通常有配置变更）
+        if [ "$NEED_REBUILD_JAVA" = false ] && [ "$NEED_REBUILD_PYTHON" = false ]; then
+            log_info "其他文件有变更，默认重建 Java 服务"
+            NEED_REBUILD_JAVA=true
+        fi
+    else
+        log_info "首次部署或记录丢失，完整构建"
+        NEED_REBUILD_JAVA=true
+        NEED_REBUILD_PYTHON=true
+    fi
+}
+
+# 记录当前部署的提交
+record_deploy_commit() {
+    if [ -d ".git" ]; then
+        git rev-parse HEAD > "$LAST_COMMIT_FILE" 2>/dev/null || true
+    fi
 }
 
 # 初始化日志目录
@@ -261,14 +374,14 @@ stop_services() {
 # 构建和启动
 build_and_start() {
     if [ "$SKIP_BUILD" = true ]; then
-        log_step "跳过构建，直接重启服务..."
+        log_step "快速重启服务..."
         docker compose --profile $PROFILE restart
         return
     fi
 
     log_step "构建并启动服务..."
 
-    # 清理旧镜像（可选，避免磁盘空间问题）
+    # 清理旧镜像（仅无缓存模式）
     if [ -n "$NO_CACHE" ]; then
         log_info "清理旧构建缓存..."
         docker compose --profile $PROFILE rm -f 2>/dev/null || true
@@ -279,13 +392,29 @@ build_and_start() {
     log_info "更新基础镜像..."
     docker compose pull postgres redis minio nginx 2>/dev/null || true
 
-    # 构建并启动
-    log_info "构建应用镜像..."
-    docker compose --profile $PROFILE up -d --build $NO_CACHE
+    # 根据变更情况选择性构建
+    if [ "$NEED_REBUILD_JAVA" = true ] && [ "$NEED_REBUILD_PYTHON" = true ]; then
+        log_info "构建 Java 和 Python 服务..."
+        docker compose --profile $PROFILE up -d --build $NO_CACHE
+    elif [ "$NEED_REBUILD_JAVA" = true ]; then
+        log_info "仅构建 Java 服务..."
+        docker compose --profile $PROFILE up -d --build $NO_CACHE xg-java
+        docker compose --profile $PROFILE up -d xg-python nginx
+    elif [ "$NEED_REBUILD_PYTHON" = true ]; then
+        log_info "仅构建 Python 服务..."
+        docker compose --profile $PROFILE up -d --build $NO_CACHE xg-python
+        docker compose --profile $PROFILE up -d xg-java nginx
+    else
+        log_info "无代码变更，直接重启..."
+        docker compose --profile $PROFILE up -d
+    fi
 
     # 显示构建结果
     echo ""
-    docker images | grep "xg-" || true
+    docker images | grep -E "(xg-|deploy-)" || true
+
+    # 记录部署提交
+    record_deploy_commit
 }
 
 # 健康检查
@@ -363,11 +492,12 @@ show_summary() {
 main() {
     parse_args "$@"
     check_environment
-    init_logs           # 初始化日志目录和轮转配置
+    init_logs                   # 初始化日志目录和轮转配置
+    check_need_rebuild          # 智能检测是否需要重建
     git_operations
     backup_data
     stop_services
-    build_and_start
+    build_and_start             # 根据检测结果选择性构建
     health_check
     show_summary
 }
