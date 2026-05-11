@@ -1,0 +1,8 @@
+# build-pdf.sh / capture-screenshots.mjs 的生成物 —— 任何时候都可重生成,不入 git。
+# 截图通过 puppeteer 跑 capture-screenshots.mjs;HTML/PDF 通过 build-pdf.sh 走 marked + chromium 出。
+screenshots/
+朝夕系统介绍.html
+朝夕系统介绍.pdf
+
+# macOS
+.DS_Store
