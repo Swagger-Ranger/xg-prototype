@@ -22,7 +22,6 @@ import { getMyExtendedInfo } from '@/api/student';
 import { getCurrentLocation } from '@/utils/geolocation';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import DynamicFormFields from '@/components/form/DynamicFormFields';
-import type { FormFieldSchema } from '@/api/workflow';
 
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
@@ -105,12 +104,6 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     () => leaveTypeFieldsToSchema(selectedType?.extra_fields),
     [selectedType?.extra_fields],
   );
-  // 「证明材料」统一由全局 require_proof 开关驱动,旧 leave_type_config.extra_fields
-  // 里残留的 file 字段(常见 label「证明材料」)在表单里去重,避免出现两个上传框。
-  const typeFieldsWithoutFile = useMemo(
-    () => typeFieldsSchema.filter((f) => f.type !== 'file'),
-    [typeFieldsSchema],
-  );
 
   // 跟后端 LeaveCalendarService.calcEffectiveDays 同口径:逐日按工作时段
   // 09:00–12:00 + 13:00–18:00 求交,8 工作小时 = 1 天。每天都按工作日切,
@@ -130,9 +123,10 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     staleTime: 30 * 1000,
   });
 
-  // 学校请假规则全局开关。require_proof=true 时学生提交必须上传证明材料,
-  // 在底部追加一项 file 字段并标 required;false 时完全不渲染该字段(不让
-  // 学生看到一个可以留空的"证明材料"造成困惑)。
+  // 全局「证明材料」开关 = 是否展示证明材料 file 字段的总闸:
+  //   toggle ON  → file 字段渲染并 required=true(Antd 默认在 label 前打红 *)
+  //   toggle OFF → file 字段整个不渲染,学生看不到「证明材料」入口
+  // 提交路径走 _typeExtra → extra_data.evidence,跟后端 FormDataValidator 看的字段一致。
   const { data: globalConfig } = useQuery<LeaveGlobalConfig>({
     queryKey: ['leaveGlobalConfig'],
     queryFn: getLeaveGlobalConfig,
@@ -140,22 +134,12 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     staleTime: 5 * 60 * 1000,
   });
   const requireProof = globalConfig?.require_proof === true;
-  const proofSchema = useMemo<FormFieldSchema[]>(
+  const typeFieldsWithToggle = useMemo(
     () =>
-      requireProof
-        ? [
-            {
-              name: 'attachment_file_ids',
-              label: '证明材料',
-              type: 'file',
-              required: true,
-              fileMaxCount: 3,
-              fileAccept: 'image/*,.pdf',
-              fileMaxSizeKb: 5 * 1024,
-            },
-          ]
-        : [],
-    [requireProof],
+      typeFieldsSchema
+        .filter((f) => f.type !== 'file' || requireProof)
+        .map((f) => (f.type === 'file' ? { ...f, required: true } : f)),
+    [typeFieldsSchema, requireProof],
   );
 
   // 选完起止时间后实时预览会缺的课程。dateRange 不全 / 同 modal 多次重选时
@@ -301,16 +285,6 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     if (typeExtra && typeof typeExtra === 'object') {
       Object.assign(extra_data, typeExtra as Record<string, unknown>);
     }
-    // require_proof=true 时 _proof.attachment_file_ids 由 FileUploadField 维护;
-    // 雪花 ID 后端要 List<Long>,Jackson 接受字符串/数字混传,toString 统一兜底。
-    const proofWrap = (values as Record<string, unknown>)._proof;
-    let attachmentFileIds: string[] | undefined;
-    if (proofWrap && typeof proofWrap === 'object') {
-      const ids = (proofWrap as Record<string, unknown>).attachment_file_ids;
-      if (Array.isArray(ids) && ids.length > 0) {
-        attachmentFileIds = ids.map((id) => String(id));
-      }
-    }
     const location = await getCurrentLocation();
     if (!location) {
       message.warning('未获取到定位（用户可能拒绝了授权），仍可提交但不会记录位置。');
@@ -321,7 +295,6 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
       end_time: values.date_range[1].toISOString(),
       reason: values.reason,
       extra_data,
-      ...(attachmentFileIds ? { attachment_file_ids: attachmentFileIds } : {}),
       ...(aiDraftSnapshotRef.current ? { ai_draft: aiDraftSnapshotRef.current } : {}),
       ...(location
         ? {
@@ -354,7 +327,7 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
       width="min(640px, 100vw)"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 8 }} requiredMark="optional">
+      <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
         {termUsage?.exceeded && termUsage.cap_days != null && (
           <Alert
             type="error"
@@ -511,15 +484,8 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
 
         <DynamicFormFields bizType="leave" fieldNamePrefix={['_extra']} />
 
-        {typeFieldsWithoutFile.length > 0 && (
-          <DynamicFormFields fields={typeFieldsWithoutFile} fieldNamePrefix={['_typeExtra']} />
-        )}
-
-        {proofSchema.length > 0 && (
-          <>
-            <SectionTitle>证明材料</SectionTitle>
-            <DynamicFormFields fields={proofSchema} fieldNamePrefix={['_proof']} />
-          </>
+        {typeFieldsWithToggle.length > 0 && (
+          <DynamicFormFields fields={typeFieldsWithToggle} fieldNamePrefix={['_typeExtra']} />
         )}
       </Form>
     </Modal>

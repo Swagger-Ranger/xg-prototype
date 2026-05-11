@@ -450,6 +450,17 @@ public class LeaveService {
             combined.getFields().addAll(base.getFields());
         }
         List<FormField> typeFields = leaveTypeFieldTranslator.toFormFields(leaveType.getExtraFields());
+        // 全局「证明材料」开关 OFF 时,把所有 file 字段从 required=true 降级为 false。
+        // 跟前端 typeFieldsWithToggle 一致 —— 学生看不到上传入口,后端也不能在校验时
+        // 重新拦截。开关 ON 时尊重各字段自带的 required(通常本就是 true)。
+        boolean requireProof = Boolean.TRUE.equals(leaveGlobalConfigService.get().getRequireProof());
+        if (!requireProof) {
+            for (FormField f : typeFields) {
+                if ("file".equalsIgnoreCase(f.getType())) {
+                    f.setRequired(false);
+                }
+            }
+        }
         combined.getFields().addAll(typeFields);
         return combined;
     }
