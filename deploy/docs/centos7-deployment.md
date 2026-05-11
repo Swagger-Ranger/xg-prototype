@@ -113,6 +113,10 @@ MINIO_SECRET_KEY=your-strong-password-here
 # AI 内部通信密钥（必须修改）
 AI_INTERNAL_TOKEN=your-random-token-here-at-least-32-chars
 
+# 超级管理员初始密码（生产环境必须修改，不设置则无法启动）
+# 用户名: admin
+SUPERADMIN_INITIAL_PASSWORD=admin123456
+
 # LLM API Keys（可选，不配置则 AI 功能不可用）
 QWEN_API_KEY=your-qwen-api-key
 DEEPSEEK_API_KEY=your-deepseek-api-key

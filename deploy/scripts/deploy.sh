@@ -158,6 +158,17 @@ setup_env() {
         ai_token=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | xxd -p | tr -d '\n' | head -c 64)
     fi
 
+    # 超级管理员密码（新增）
+    echo ""
+    echo "⚠️  超级管理员初始密码设置"
+    read -sp "请输入超级管理员初始密码 (用户名: admin): " admin_pass
+    echo ""
+    while [ -z "$admin_pass" ]; do
+        echo "超级管理员密码不能为空"
+        read -sp "请输入超级管理员初始密码: " admin_pass
+        echo ""
+    done
+
     # LLM API Keys
     read -p "请输入通义千问 API Key (没有则留空): " qwen_key
     read -p "请输入 DeepSeek API Key (没有则留空): " deepseek_key
@@ -176,6 +187,9 @@ MINIO_SECRET_KEY=$minio_key
 
 # AI 内部通信密钥
 AI_INTERNAL_TOKEN=$ai_token
+
+# 超级管理员初始密码（首次启动时创建 admin 用户使用）
+SUPERADMIN_INITIAL_PASSWORD=$admin_pass
 
 # LLM API Keys（可选）
 QWEN_API_KEY=$qwen_key

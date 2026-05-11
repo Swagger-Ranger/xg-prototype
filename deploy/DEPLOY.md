@@ -27,9 +27,11 @@ cd xg-prototype/deploy
 # 复制环境变量模板
 cp .env.example .env
 
-# 编辑配置（修改密码和 API Key）
+# 编辑配置（务必修改所有密码）
 vim .env
 ```
+
+**⚠️ 重要**：必须修改 `SUPERADMIN_INITIAL_PASSWORD`，这是超级管理员的初始密码（用户名：admin）。如果不设置，服务将拒绝启动。
 
 ### 4. 启动服务
 
