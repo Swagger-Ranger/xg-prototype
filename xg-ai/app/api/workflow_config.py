@@ -277,12 +277,37 @@ Python 代码会拿 op 在 YAML AST 上精确修改。**禁止直接输出 YAML*
 
 **关键铁律(违反就是错):**
 
-(1) 新增/修改一档时,必须保留既有所有档的 threshold + roles 不变,不准合并相邻档。
+(1) 【加档 / 改某档角色】场景下,必须保留既有所有档的 threshold + roles 不变,不准合并相邻档。
 (2) 老师说"加 X 在 N 天以上",新角色 X 只加在 >N 那档,**绝不倒灌到 ≤N 档**。
     既有档的 roles 必须跟当前 YAML 一字不差。
+(3) 【删档 / truncate】场景 — **跟铁律 (1) 反方向**,这里就是要把 tier 删掉:
+    凡识别到 "删除 N 天以上 / 砍掉 N 天以上 / 移除 N+ 的流程 / 公假上限改成 N 天 / 封顶 N / 最多 N 天" 等意图,
+    一律按 truncate 处理(**不是**只删最末一档):
+    a) 把 threshold > N 的所有档**全部**从 tiers 数组里**剔除**(包括末档 threshold=null 的那一档,如果它代表的就是 >N 区间)
+    b) 留下的档里,**最后一档的 threshold 必须改成 null**(它现在是新封顶)
+    c) 各档的 roles 保持原样,**不要**给末档新增"封顶"专属角色
+
+例 — 当前: 0-2/2-7/7-10/10-15 各档 / 15+ 5 角色
+老师:"删除公假 10 天以上的流程"(= truncate at 10)
+
+✅ 正确 tiers(只剩 3 档,末档 threshold=null):[
+  {"threshold":2, "roles":["counselor"]},
+  {"threshold":7, "roles":["counselor","dean"]},
+  {"threshold":null, "roles":["counselor","dean","student_affairs_officer"]}
+]
+
+❌ 错误一(只删最末档,留了 10+ 的档):[
+  {"threshold":2,"roles":[...]}, {"threshold":7,"roles":[...]},
+  {"threshold":10,"roles":[...]}, {"threshold":null,"roles":["counselor","dean","student_affairs_officer","student_affairs_director"]}
+]
+
+❌ 错误二(把末档 threshold 设成 15 / 留个上限档):[
+  {"threshold":2,...},{"threshold":7,...},{"threshold":10,...},{"threshold":15,...}
+]
+                                                       ↑ 还是有 10 天以上的档,truncate 失败
 
 例 — 当前: 0-2 辅导员 / 2-7 辅导员+院系领导 / 7+ 辅导员+院系领导
-老师:"加 7 天以上学工处人员,上限 10 天"
+老师:"加 7 天以上学工处人员,上限 10 天"(这是加档场景,套铁律 1)
 
 ✅ 正确 tiers:[
   {"threshold":2, "roles":["counselor"]},                           ← 跟现状一致
@@ -320,6 +345,19 @@ Python 代码会拿 op 在 YAML AST 上精确修改。**禁止直接输出 YAML*
     {"threshold": 20, "roles": ["class_master", "counselor", "college_secretary"]}
   ]
 }
+
+举例:"删除公假 10 天以上的流程"(truncate 场景,当前 5 档 0-2/2-7/7-10/10-15/15+)
+{
+  "op": "set_chain",
+  "leave_type": "official_business",
+  "tiers": [
+    {"threshold": 2, "roles": ["counselor"]},
+    {"threshold": 7, "roles": ["counselor","dean"]},
+    {"threshold": null, "roles": ["counselor","dean","student_affairs_officer"]}
+  ]
+}
+关键观察:tiers 从 5 个**减少到 3 个**,原本 threshold=10 的档保留(它的范围 7-10 还在合法区间),
+原本 threshold>10 的两档(10-15 和 15+)整体丢弃,新末档把 threshold 改成 null。
 
 ## 2. set_term_cap — 改「全学期累计请假上限」(全部假别合计)
 适用:老师说「全校学期最多请 X 天」「学期累计上限改 Y」「去掉学期上限」。

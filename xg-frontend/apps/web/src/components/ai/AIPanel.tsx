@@ -204,17 +204,24 @@ export default function AIPanel() {
 
   /**
    * AI 提案滚动到目标假别卡 + 闪 1.5s。LeaveTypeCard 渲染了 id="leave-type-{code}";
-   * 找不到 id 静默跳过(LLM 偶尔报错 code,或当前 tab 不在请假规则页都属此类)。
+   * 增删改查 4 类配置改动统一走这里。
    *
-   * 250ms 延迟让 setMessages 触发的 React render + 可能的 tab 切换先完成。
+   * 之前用固定 250ms setTimeout,但从其他页 navigate('/leave?tab=rule') 过来时,
+   * React Router 切换 + leaveTypes 查询 + 卡片 render 经常 > 250ms,落入"DOM 还没
+   * 出现就 getElementById = null"的死区,静默失败。改为每 100ms 轮询,最长 2s,
+   * 命中即触发滚动+高亮,避免 truncate / 跨页等场景偶发不响应。
    */
   function flashFocusCodes(codes: string[] | undefined) {
     if (!codes || codes.length === 0) return;
-    setTimeout(() => {
+    const deadline = Date.now() + 2000;
+    const tick = () => {
       const els = codes
         .map((c) => document.getElementById(`leave-type-${c}`))
         .filter((el): el is HTMLElement => !!el);
-      if (els.length === 0) return;
+      if (els.length === 0) {
+        if (Date.now() < deadline) setTimeout(tick, 100);
+        return;
+      }
       els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
       els.forEach((el) => {
         el.classList.remove('ai-focus-flash');
@@ -223,7 +230,8 @@ export default function AIPanel() {
         el.classList.add('ai-focus-flash');
         setTimeout(() => el.classList.remove('ai-focus-flash'), 2100);
       });
-    }, 250);
+    };
+    setTimeout(tick, 100);
   }
 
   /**
@@ -350,8 +358,12 @@ export default function AIPanel() {
           m.id === msgId && m.kind === 'workflow_proposal' ? { ...m, status: 'applied' } : m,
         ),
       );
-      // 刷新「请销假配置」页摘要
+      // 刷新「请销假配置」页摘要 + 假别字典(停用/启用后 enabled flag 变了)
       queryClient.invalidateQueries({ queryKey: ['workflow-config.summary'] });
+      queryClient.invalidateQueries({ queryKey: ['leaveTypes'] });
+      // 应用完成后再 flash 一次:卡片已经按新规则重 render,老师肉眼确认改动落在了对的卡上。
+      // flashFocusCodes 自带轮询,等 invalidateQueries 触发的 re-render 完成即可命中。
+      flashFocusCodes(target.focus_codes);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setMessages((prev) =>
