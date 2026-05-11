@@ -105,6 +105,12 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     () => leaveTypeFieldsToSchema(selectedType?.extra_fields),
     [selectedType?.extra_fields],
   );
+  // 「证明材料」统一由全局 require_proof 开关驱动,旧 leave_type_config.extra_fields
+  // 里残留的 file 字段(常见 label「证明材料」)在表单里去重,避免出现两个上传框。
+  const typeFieldsWithoutFile = useMemo(
+    () => typeFieldsSchema.filter((f) => f.type !== 'file'),
+    [typeFieldsSchema],
+  );
 
   // 跟后端 LeaveCalendarService.calcEffectiveDays 同口径:逐日按工作时段
   // 09:00–12:00 + 13:00–18:00 求交,8 工作小时 = 1 天。每天都按工作日切,
@@ -345,19 +351,21 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
           提交申请
         </Button>,
       ]}
-      width="min(560px, 100vw)"
+      width="min(640px, 100vw)"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+      <Form form={form} layout="vertical" style={{ marginTop: 8 }} requiredMark="optional">
         {termUsage?.exceeded && termUsage.cap_days != null && (
           <Alert
             type="error"
             showIcon
-            style={{ marginBottom: 12 }}
+            style={{ marginBottom: 16, borderRadius: 8 }}
             message={`本学期已累计请假 ${termUsage.accumulated_days} 天,超出全校上限 ${termUsage.cap_days} 天`}
             description="本次申请仍可提交,但会被自动标记为高风险,辅导员审批时会重点关注。"
           />
         )}
+
+        <SectionTitle>基本信息</SectionTitle>
 
         <Form.Item
           name="leave_type_code"
@@ -367,75 +375,79 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
           <Select placeholder="请选择假别" options={leaveTypes.map((t) => ({ label: t.name, value: t.code }))} />
         </Form.Item>
 
-        <Form.Item
-          name="date_range"
-          label="请假时间"
-          rules={[
-            { required: true, message: '请选择请假时间' },
-            {
-              validator: (_, value?: [Dayjs, Dayjs]) => {
-                if (!value || !value[0] || !value[1]) return Promise.resolve();
-                if (!value[1].isAfter(value[0])) {
-                  return Promise.reject(new Error('结束时间必须晚于开始时间'));
-                }
-                const days = calcWorkingDays(value[0].toDate(), value[1].toDate());
-                if (days > 30) {
-                  return Promise.reject(new Error('请假时长不得超过 30 个工作日'));
-                }
-                return Promise.resolve();
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <Form.Item
+            name="date_range"
+            label="请假时间"
+            style={{ flex: 1, marginBottom: 12 }}
+            rules={[
+              { required: true, message: '请选择请假时间' },
+              {
+                validator: (_, value?: [Dayjs, Dayjs]) => {
+                  if (!value || !value[0] || !value[1]) return Promise.resolve();
+                  if (!value[1].isAfter(value[0])) {
+                    return Promise.reject(new Error('结束时间必须晚于开始时间'));
+                  }
+                  const days = calcWorkingDays(value[0].toDate(), value[1].toDate());
+                  if (days > 30) {
+                    return Promise.reject(new Error('请假时长不得超过 30 个工作日'));
+                  }
+                  return Promise.resolve();
+                },
               },
-            },
-          ]}
-        >
-          <RangePicker
-            style={{ width: '100%' }}
-            showTime={{
-              format: 'HH:mm',
-              minuteStep: 15,
-              defaultValue: (() => {
-                // start_default = max(下一个整点, 08:00)
-                // end_default   = max(18:00, start_default + 1h)
-                // 必须保证 end > start，否则同日选择会同时落到 18:00 / 18:00
-                // 或更晚——用户提交后开始结束时间会变成同一时刻。
-                const eight = dayjs().hour(8).minute(0).second(0).millisecond(0);
-                const nextHour = dayjs().add(1, 'hour').minute(0).second(0).millisecond(0);
-                const startDefault = nextHour.isAfter(eight) ? nextHour : eight;
-                const sixPM = dayjs().hour(18).minute(0).second(0).millisecond(0);
-                const endDefault = sixPM.isAfter(startDefault)
-                  ? sixPM
-                  : startDefault.add(1, 'hour');
-                return [startDefault, endDefault];
-              })(),
-            }}
-            format="YYYY-MM-DD HH:mm"
-            disabledDate={(d) => !!d && d.isBefore(dayjs().startOf('day'))}
-            disabledTime={(d, type) => {
-              // Only constrain hours/minutes when the user is editing TODAY's
-              // range — past hours of today shouldn't be selectable. Future
-              // dates are unconstrained.
-              if (!d || !d.isSame(dayjs(), 'day')) return {};
-              if (type === 'end') return {};
-              const now = dayjs();
-              const minHour = now.hour();
-              const minMinute = now.hour() === d.hour() ? now.minute() : 0;
-              return {
-                disabledHours: () =>
-                  Array.from({ length: minHour }, (_, i) => i),
-                disabledMinutes: (selectedHour: number) =>
-                  selectedHour === minHour
-                    ? Array.from({ length: minMinute }, (_, i) => i)
-                    : [],
-              };
-            }}
-          />
-        </Form.Item>
+            ]}
+          >
+            <RangePicker
+              style={{ width: '100%' }}
+              showTime={{
+                format: 'HH:mm',
+                minuteStep: 15,
+                defaultValue: (() => {
+                  // start_default = max(下一个整点, 08:00)
+                  // end_default   = max(18:00, start_default + 1h)
+                  // 必须保证 end > start，否则同日选择会同时落到 18:00 / 18:00
+                  // 或更晚——用户提交后开始结束时间会变成同一时刻。
+                  const eight = dayjs().hour(8).minute(0).second(0).millisecond(0);
+                  const nextHour = dayjs().add(1, 'hour').minute(0).second(0).millisecond(0);
+                  const startDefault = nextHour.isAfter(eight) ? nextHour : eight;
+                  const sixPM = dayjs().hour(18).minute(0).second(0).millisecond(0);
+                  const endDefault = sixPM.isAfter(startDefault)
+                    ? sixPM
+                    : startDefault.add(1, 'hour');
+                  return [startDefault, endDefault];
+                })(),
+              }}
+              format="YYYY-MM-DD HH:mm"
+              disabledDate={(d) => !!d && d.isBefore(dayjs().startOf('day'))}
+              disabledTime={(d, type) => {
+                // Only constrain hours/minutes when the user is editing TODAY's
+                // range — past hours of today shouldn't be selectable. Future
+                // dates are unconstrained.
+                if (!d || !d.isSame(dayjs(), 'day')) return {};
+                if (type === 'end') return {};
+                const now = dayjs();
+                const minHour = now.hour();
+                const minMinute = now.hour() === d.hour() ? now.minute() : 0;
+                return {
+                  disabledHours: () =>
+                    Array.from({ length: minHour }, (_, i) => i),
+                  disabledMinutes: (selectedHour: number) =>
+                    selectedHour === minHour
+                      ? Array.from({ length: minMinute }, (_, i) => i)
+                      : [],
+                };
+              }}
+            />
+          </Form.Item>
 
-        <Form.Item
-          label="请假天数"
-          tooltip="按工作时段计算:09:00–12:00 + 13:00–18:00,8 小时 = 1 天。午休 12:00–13:00 不计;周末/节假日不区分,按同口径切片。"
-        >
-          <InputNumber value={durationDays} disabled style={{ width: '100%' }} suffix="天" />
-        </Form.Item>
+          <Form.Item
+            label="请假天数"
+            style={{ width: 140, marginBottom: 12 }}
+            tooltip="按上课时段计算:09:00–12:00 + 13:00–18:00,8 课时 = 1 天。中午不计;周末/节假日同口径。"
+          >
+            <InputNumber value={durationDays} disabled style={{ width: '100%' }} suffix="天" />
+          </Form.Item>
+        </div>
 
         {impact && impact.total_periods > 0 && (
           <Tooltip
@@ -458,11 +470,11 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
           >
             <div
               style={{
-                margin: '-4px 0 12px',
-                padding: '6px 10px',
+                margin: '0 0 16px',
+                padding: '8px 12px',
                 background: 'var(--warn-bg, #fffbe6)',
                 border: '1px solid var(--warn-border, #ffe58f)',
-                borderRadius: 4,
+                borderRadius: 6,
                 fontSize: 12,
                 color: 'var(--fg-2, #595959)',
                 cursor: 'help',
@@ -482,24 +494,53 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
           </Tooltip>
         )}
 
+        <SectionTitle>请假说明</SectionTitle>
+
         <Form.Item
           name="reason"
           label="请假原因"
           rules={[{ required: true, message: '请填写请假原因' }]}
         >
-          <TextArea rows={3} placeholder="请填写请假原因" maxLength={500} showCount />
+          <TextArea
+            rows={3}
+            placeholder="简要说明请假原因,辅导员审批时会看到"
+            maxLength={500}
+            showCount
+          />
         </Form.Item>
 
         <DynamicFormFields bizType="leave" fieldNamePrefix={['_extra']} />
 
-        {typeFieldsSchema.length > 0 && (
-          <DynamicFormFields fields={typeFieldsSchema} fieldNamePrefix={['_typeExtra']} />
+        {typeFieldsWithoutFile.length > 0 && (
+          <DynamicFormFields fields={typeFieldsWithoutFile} fieldNamePrefix={['_typeExtra']} />
         )}
 
         {proofSchema.length > 0 && (
-          <DynamicFormFields fields={proofSchema} fieldNamePrefix={['_proof']} />
+          <>
+            <SectionTitle>证明材料</SectionTitle>
+            <DynamicFormFields fields={proofSchema} fieldNamePrefix={['_proof']} />
+          </>
         )}
       </Form>
     </Modal>
+  );
+}
+
+/** 表单视觉分组小标题。比 Divider 轻,比裸文本有层次。 */
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 13,
+        fontWeight: 600,
+        color: 'var(--fg-2, #4b5563)',
+        margin: '4px 0 10px',
+        paddingLeft: 8,
+        borderLeft: '3px solid var(--primary, #1677ff)',
+        lineHeight: 1.2,
+      }}
+    >
+      {children}
+    </div>
   );
 }

@@ -43,7 +43,11 @@ export default function DynamicFormFields({
   });
 
   if (useQueryPath && isLoading) return <Skeleton active paragraph={{ rows: 2 }} />;
-  const fields = (explicitFields ?? data?.fields ?? []).filter((f) => !f.deprecated);
+  const fields = (explicitFields ?? data?.fields ?? [])
+    .filter((f) => !f.deprecated)
+    // 「手写签名」字段已下线 —— 任何老数据残留的 widget=signature 整条 Form.Item 丢掉,
+    // 避免学生还能看到一个 label="签名" 但内容空白的占位行。
+    .filter((f) => !(f.type === 'file' && f.widget === 'signature'));
   if (fields.length === 0) return null;
 
   return (
@@ -222,7 +226,10 @@ function buildRules(f: FormFieldSchema) {
 function renderInput(f: FormFieldSchema) {
   if (f.type === 'file') {
     if (f.widget === 'signature') {
-      return <SignaturePad />;
+      // 「手写签名」字段已下线 —— FormFieldsEditor 不再支持新建,这里把"旧数据仍能渲染"
+      // 那条路径也关掉。学生提交请假表单不该再看到签名 canvas;真要签字走文件上传。
+      // SignaturePad 组件本身保留,以后真要打开时只需把这条 return null 撤掉。
+      return null;
     }
     return <FileUploadField field={f} />;
   }
