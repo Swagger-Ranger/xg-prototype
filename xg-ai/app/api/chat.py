@@ -150,7 +150,7 @@ _SYSTEM_PROMPT_ZH = (
     "- 不要为了过滤先 query_students；这是 UI 操作，工具会让前端直接套筛选。\n\n"
     "### 其他\n"
     "与系统功能无关的问题，正常用简洁中文回答。\n"
-    "不要编造系统没有的功能。可用功能：请销假、签到、信息收集、通知任务、学生信息、知识问答。"
+    "不要编造系统没有的功能。可用功能：请销假、签到、信息收集、我的通知(收件箱)、学生信息、知识问答。"
 )
 
 _SYSTEM_PROMPT_EN = (
@@ -219,7 +219,7 @@ _ROLE_LABELS_EN = {
 
 _PAGE_LABELS_ZH = {
     "workspace": "工作台", "leave": "请销假", "collection": "信息收集",
-    "checkin": "签到", "notification": "通知任务",
+    "checkin": "签到", "notification": "我的通知",
     "student": "学生信息", "knowledge": "知识问答",
 }
 _PAGE_LABELS_EN = {
@@ -237,7 +237,7 @@ UI_TOOLS = [
             "导航到系统的指定功能页面。当用户明确说要去某页面时调用。"
             "leave=请销假应用(含请假列表 + 请假/销假/请假须知配置三 tab);"
             "leave-config=旧路径,自动重定向到 leave 页;"
-            "notification=通知任务(辅导员/管理员给学生发通知的工具);"
+            "notification=我的通知(站内收件箱,每个用户看自己收到的通知,P0 只读);"
             "notification-center=通知管理(管理员配通知规则,在系统管理下);"
             "其他业务页同名。"
             "tab/focus 可选:用户说「看 X 假别配置」时填 page=leave + tab=rule + focus={假别 code}, "

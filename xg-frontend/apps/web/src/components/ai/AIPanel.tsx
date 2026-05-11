@@ -111,7 +111,7 @@ const LEAVE_TYPE_LABELS: Record<string, string> = {
 
 const PAGE_LABELS: Record<string, string> = {
   workspace: '工作台', leave: '请销假', collection: '信息收集',
-  checkin: '签到', notification: '通知任务',
+  checkin: '签到', notification: '我的通知',
   student: '学生信息库',
 };
 
@@ -1057,14 +1057,6 @@ export default function AIPanel() {
                       <span className={styles.quickTextGroup}>
                         <span className={styles.quickText}>信息收集</span>
                         <span className={styles.quickDesc}>发起收集任务</span>
-                      </span>
-                      <RightOutlined className={styles.quickArrow} />
-                    </button>
-                    <button className={styles.quickBtn} onClick={() => handleSend('帮我发一条通知')}>
-                      <span className={`${styles.quickIconWrap} ${styles.amber}`}><CompassOutlined /></span>
-                      <span className={styles.quickTextGroup}>
-                        <span className={styles.quickText}>发通知</span>
-                        <span className={styles.quickDesc}>发布通知任务</span>
                       </span>
                       <RightOutlined className={styles.quickArrow} />
                     </button>

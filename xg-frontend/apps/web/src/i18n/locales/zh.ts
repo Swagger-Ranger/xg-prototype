@@ -34,7 +34,7 @@ const zh: LocaleResource = {
     leave: '请销假',
     collection: '信息收集',
     checkin: '签到',
-    notification: '通知任务',
+    notification: '我的通知',
     student: '学生信息库',
     workLog: '工作日志',
     violation: '违纪处分',

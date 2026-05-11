@@ -1,19 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, Form, Input, Modal, Select, Segmented, Spin, Empty } from 'antd';
+import { Badge, Button, Segmented, Spin, Empty } from 'antd';
 import { message } from '@/utils/antdApp';
 import dayjs from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Notification, SendNotificationData } from '@/api/notification';
+import type { Notification } from '@/api/notification';
 import {
   getMyNotifications,
   getUnreadCount,
   markAsRead,
   confirmNotification,
-  sendNotification,
 } from '@/api/notification';
 import { describeApiError } from '@/utils/api-error';
-import { useAuth } from '@/hooks/useAuth';
 import styles from './index.module.css';
 
 type TabKey = 'all' | 'unread' | 'read';
@@ -43,12 +41,7 @@ export default function NotificationPage() {
   const [tab, setTab] = useState<TabKey>('all');
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [sendOpen, setSendOpen] = useState(false);
 
-  const { hasPermission } = useAuth();
-  const canSend = hasPermission('notification:send');
-
-  const [sendForm] = Form.useForm<SendNotificationData>();
   const queryClient = useQueryClient();
 
   const queryParams = { page, size: PAGE_SIZE };
@@ -82,17 +75,6 @@ export default function NotificationPage() {
     onError: (e: unknown) => message.error(describeApiError(e, '确认失败，请重试')),
   });
 
-  const sendMutation = useMutation({
-    mutationFn: sendNotification,
-    onSuccess: () => {
-      message.success('通知已发送');
-      setSendOpen(false);
-      sendForm.resetFields();
-      queryClient.invalidateQueries({ queryKey: ['myNotifications'] });
-    },
-    onError: (e: unknown) => message.error(describeApiError(e, '发送通知失败，请重试')),
-  });
-
   const handleRowClick = (item: Notification) => {
     setExpanded(expanded === item.id ? null : item.id);
     if (!item.read) {
@@ -112,54 +94,12 @@ export default function NotificationPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>
-          {canSend ? '通知任务' : '我的通知'}
+          我的通知
           {unreadCount > 0 && (
             <Badge count={unreadCount} className={styles.badge} />
           )}
         </h1>
-        {canSend && (
-          <Button type="primary" onClick={() => setSendOpen(true)}>
-            发送通知
-          </Button>
-        )}
       </div>
-
-      <Modal
-        title="发送通知"
-        open={sendOpen}
-        onCancel={() => { setSendOpen(false); sendForm.resetFields(); }}
-        onOk={() => sendForm.submit()}
-        okText="发送"
-        cancelText="取消"
-        confirmLoading={sendMutation.isPending}
-      >
-        <Form
-          form={sendForm}
-          layout="vertical"
-          initialValues={{ priority: 'normal', type: 'system' }}
-          onFinish={(values) => sendMutation.mutate(values)}
-        >
-          <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}>
-            <Input placeholder="通知标题" />
-          </Form.Item>
-          <Form.Item name="content" label="内容" rules={[{ required: true, message: '请输入内容' }]}>
-            <Input.TextArea rows={4} placeholder="通知内容" />
-          </Form.Item>
-          <Form.Item name="type" label="类型">
-            <Select>
-              <Select.Option value="system">系统通知</Select.Option>
-              <Select.Option value="workflow">工作流通知</Select.Option>
-              <Select.Option value="reminder">提醒</Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="priority" label="优先级">
-            <Select>
-              <Select.Option value="normal">普通</Select.Option>
-              <Select.Option value="urgent">紧急</Select.Option>
-            </Select>
-          </Form.Item>
-        </Form>
-      </Modal>
 
       <Segmented
         className={styles.segmented}
