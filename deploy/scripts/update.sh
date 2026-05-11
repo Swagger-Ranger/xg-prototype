@@ -146,6 +146,24 @@ check_environment() {
     log_info "部署模式: $PROFILE"
 }
 
+# 初始化日志目录
+init_logs() {
+    log_step "检查日志目录..."
+
+    # 创建日志目录
+    if [ ! -d "/data/logs" ]; then
+        log_info "创建日志目录..."
+        mkdir -p /data/logs/{java,python,nginx,postgres,redis,minio}
+        chmod 755 /data/logs /data/logs/*
+    fi
+
+    # 配置 logrotate（如果脚本存在且未配置）
+    if [ -f "./scripts/setup-logs.sh" ] && [ ! -f "/etc/logrotate.d/xg-services" ]; then
+        log_info "配置日志轮转..."
+        ./scripts/setup-logs.sh
+    fi
+}
+
 # Git 操作
 git_operations() {
     if [ "$SKIP_PULL" = true ]; then
@@ -345,6 +363,7 @@ show_summary() {
 main() {
     parse_args "$@"
     check_environment
+    init_logs           # 初始化日志目录和轮转配置
     git_operations
     backup_data
     stop_services

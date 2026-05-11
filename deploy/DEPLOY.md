@@ -35,7 +35,23 @@ vim .env
 
 ### 4. 启动服务
 
+#### 方式一：使用一键部署脚本（推荐）
+
 ```bash
+cd /opt/xg-prototype/deploy
+./scripts/deploy.sh
+# 按提示输入配置，自动完成日志初始化
+```
+
+#### 方式二：手动启动（需额外初始化日志）
+
+```bash
+cd /opt/xg-prototype/deploy
+
+# 先执行日志初始化（重要！）
+./scripts/setup-logs.sh
+
+# 再启动服务
 # 轻量模式（4核8G推荐）
 docker compose --profile lite up -d --build
 
@@ -62,7 +78,7 @@ cd /opt/xg-prototype
 # 拉取最新代码
 git pull
 
-# 运行更新脚本（自动重新构建和部署）
+# 运行更新脚本（自动重新构建、部署和配置日志）
 ./deploy/scripts/update.sh
 ```
 

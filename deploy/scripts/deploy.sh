@@ -202,11 +202,33 @@ EOF
     log_info ".env 文件已创建"
 }
 
+# 初始化日志目录和轮转配置
+init_logs() {
+    log_info "初始化日志目录..."
+
+    # 创建日志目录
+    mkdir -p /data/logs/{java,python,nginx,postgres,redis,minio}
+    chmod 755 /data/logs /data/logs/*
+
+    # 配置 logrotate（如果脚本存在）
+    if [ -f "./scripts/setup-logs.sh" ]; then
+        log_info "配置日志轮转..."
+        ./scripts/setup-logs.sh
+    else
+        log_warn "setup-logs.sh 脚本不存在，跳过 logrotate 配置"
+    fi
+
+    log_info "日志目录已创建: /data/logs"
+}
+
 # 启动服务
 start_services() {
     log_info "启动服务 (profile: $PROFILE)..."
 
     cd "$DEPLOY_DIR/deploy"
+
+    # 初始化日志目录
+    init_logs
 
     # 拉取基础镜像
     log_info "拉取 Docker 镜像..."
