@@ -5,3 +5,12 @@ logging:
   level:
     root: WARN
     com.xg: INFO
+
+# 平台超级管理员初始密码配置
+# 支持环境变量 SUPERADMIN_INITIAL_PASSWORD 覆盖
+xg:
+  platform:
+    bootstrap:
+      username: ${SUPERADMIN_INITIAL_USERNAME:admin}
+      password: ${SUPERADMIN_INITIAL_PASSWORD:}
+      real-name: ${SUPERADMIN_INITIAL_REALNAME:超级管理员}
