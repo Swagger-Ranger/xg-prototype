@@ -15,6 +15,7 @@ import { getWorkspaceMetrics } from '@/api/insight';
 import { useAuth } from '@/hooks/useAuth';
 import InsightCard from '@/components/insight/InsightCard';
 import TodayBriefCard, { type BriefItem } from '@/components/brief/TodayBriefCard';
+import AskMetricsChips from '@/components/ai/AskMetricsChips';
 import styles from './index.module.css';
 
 const SPARK_PATTERNS = [
@@ -158,6 +159,8 @@ export default function DeanWorkspace() {
       {user?.real_name && <div className={styles.greeting}>你好，{user.real_name}</div>}
 
       <TodayBriefCard items={briefItems} emptyText="今日全院运转平稳，无紧急事项。" />
+
+      <AskMetricsChips scope="college" />
 
       <div className={styles.sectionLabel}>
         <span>全院 KPI</span>

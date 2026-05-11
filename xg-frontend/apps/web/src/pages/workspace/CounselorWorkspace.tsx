@@ -17,6 +17,7 @@ import { getClassRoster } from '@/api/counselor';
 import { useAuth } from '@/hooks/useAuth';
 import InsightCard from '@/components/insight/InsightCard';
 import TodayBriefCard, { type BriefItem, type BriefStat, type ClassBrief } from '@/components/brief/TodayBriefCard';
+import AskMetricsChips from '@/components/ai/AskMetricsChips';
 import styles from './index.module.css';
 
 const SPARK_PATTERNS = [
@@ -111,7 +112,8 @@ function buildCounselorSummary(a: SummaryArgs) {
 }
 
 export default function CounselorWorkspace() {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+  const isDirector = hasRole('student_affairs_director') || hasRole('super_admin');
 
   const { data: pendingTasks } = useQuery({
     queryKey: ['pendingTasks', { page: 1, size: 5, assigneeId: user?.id }],
@@ -302,6 +304,8 @@ export default function CounselorWorkspace() {
         items={briefItems}
         emptyText="今日班级平稳，暂无需立刻处理的事项，可利用空档做主动关怀。"
       />
+
+      {isDirector && <AskMetricsChips scope="school" />}
 
       <div className={styles.sectionLabel}>
         <span>AI 观察员</span>
