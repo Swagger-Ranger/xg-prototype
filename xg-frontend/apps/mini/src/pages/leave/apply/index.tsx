@@ -6,10 +6,12 @@ import {
   calculateDurationDays,
   getLeaveNoticeConfig,
   getLeaveTypes,
+  getMyTermUsage,
   previewLeaveImpact,
   type LeaveExtraField,
   type LeaveImpactView,
   type LeaveNoticeConfig,
+  type LeaveTermUsage,
   type LeaveTypeConfig,
 } from '../../../api/leave';
 import type { MiniUser } from '../../../api/auth';
@@ -139,13 +141,24 @@ export default function ApplyLeavePage() {
   );
   const extraFields: LeaveExtraField[] = selectedType?.extra_fields ?? [];
 
-  // 时长（与后端 ceil(seconds/86400) 同口径）
+  // 时长(工作时段 8h=1天,每天都按工作日切,不区分周末/节假日)
   const durationDays = useMemo(() => {
     const start = combineDateTime(form.start_date, form.start_time);
     const end = combineDateTime(form.end_date, form.end_time);
     if (!start || !end) return 0;
     return calculateDurationDays(start.getTime(), end.getTime());
   }, [form.start_date, form.start_time, form.end_date, form.end_time]);
+
+  // 本学期累计请假天数(全部假别合计)+ 是否超全局上限。仅在 cap 配置过且超过时
+  // 顶部红条提示;申请仍可提交,但会被自动标记为高风险供审批人参考。
+  const [termUsage, setTermUsage] = useState<LeaveTermUsage | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getMyTermUsage()
+      .then((d) => { if (!cancelled) setTermUsage(d); })
+      .catch(() => { if (!cancelled) setTermUsage(null); });
+    return () => { cancelled = true; };
+  }, []);
 
   // 选完起止时间后实时预览会缺的课程。后端按 X-User-Id 取 student_id 算,
   // 非学生 / 无课表 / 学期间隙都返回 zero 视图,UI 按 total_periods 判空态。
@@ -195,7 +208,7 @@ export default function ApplyLeavePage() {
     const end = combineDateTime(form.end_date, form.end_time);
     if (!start || !end) return '请选择请假时间';
     if (end.getTime() <= start.getTime()) return '结束时间必须晚于开始时间';
-    if (durationDays > 30) return '请假时长不得超过 30 天';
+    if (durationDays > 30) return '请假时长不得超过 30 个工作日';
     if (!form.reason.trim()) return '请填写请假原因';
     for (const f of extraFields) {
       if (f.required) {
@@ -315,6 +328,17 @@ export default function ApplyLeavePage() {
         </Text>
       </View>
 
+      {termUsage?.exceeded && termUsage.cap_days != null && (
+        <View className={styles.termCapAlert}>
+          <Text className={styles.termCapAlertTitle}>
+            本学期已累计请假 {termUsage.accumulated_days} 天,超出全校上限 {termUsage.cap_days} 天
+          </Text>
+          <Text className={styles.termCapAlertDesc}>
+            本次申请仍可提交,但会被自动标记为高风险,辅导员审批时会重点关注。
+          </Text>
+        </View>
+      )}
+
       {/* ── 假别 ──────────────────────────────────────── */}
       <View className={styles.section}>
         <Text className={styles.sectionLabel}>假别</Text>
@@ -387,6 +411,11 @@ export default function ApplyLeavePage() {
           <Text className={styles.durationValue}>
             <Text className="num">{durationDays}</Text>
             <Text className={styles.durationUnit}> 天</Text>
+          </Text>
+        </View>
+        <View className={styles.durationFootnote}>
+          <Text className={styles.durationFootnoteText}>
+            按工作时段计:09:00–12:00 + 13:00–18:00,8 小时 = 1 天,午休不计。
           </Text>
         </View>
         {impact && impact.total_periods > 0 && (

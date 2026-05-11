@@ -13,8 +13,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -72,38 +72,60 @@ public class LeaveCalendarService {
         }
     }
 
+    /** 工作时段:上午段 09:00–12:00,下午段 13:00–18:00。一天 = 8 工作小时。 */
+    private static final LocalTime MORNING_START = LocalTime.of(9, 0);
+    private static final LocalTime MORNING_END = LocalTime.of(12, 0);
+    private static final LocalTime AFTERNOON_START = LocalTime.of(13, 0);
+    private static final LocalTime AFTERNOON_END = LocalTime.of(18, 0);
+    private static final long WORKING_SECONDS_PER_DAY = 8 * 3600L;
+
     /**
-     * Effective leave days. {@code start} / {@code end} are submission times;
-     * {@code excludeHolidays} comes from the leave type's snapshot. The result
-     * is at least {@code 0.5} for any non-empty range so a 1-hour leave still
-     * costs the half-day floor — matches existing UX (the old
-     * {@code calculateDurationDays} rounded {@code ceil(seconds/86400)}).
+     * 请假天数 = 区间内**工作时段**累计秒数 / 28800(8h)。规则:
+     * <ul>
+     *   <li>每个日历日按 {@code 09:00–12:00} + {@code 13:00–18:00} 切两段
+     *       (午休 12:00–13:00 不计;19:00 之后 / 09:00 之前不计)</li>
+     *   <li><b>不区分周末/节假日</b>——每天都当工作日切。简化决定:
+     *       学校无法稳定拿到法定节假日数据,与其降级出错不如统一按工作时段算,
+     *       公平 ≥ 完美。学生周六全天请假 = 1 天,接受这个轻微不公平的边界</li>
+     *   <li>结果保留 2 位小数,跟 V097 列 NUMERIC(5,2) 对齐</li>
+     * </ul>
+     *
+     * <p>{@code excludeHolidays} 参数保留只为 backward-compat,实际无效。
      */
     public BigDecimal calcEffectiveDays(OffsetDateTime start, OffsetDateTime end, boolean excludeHolidays) {
         if (start == null || end == null) return BigDecimal.ZERO;
-        long seconds = Duration.between(start, end).getSeconds();
-        if (seconds <= 0) return BigDecimal.ZERO;
-        double naturalDays = Math.ceil(seconds / 86400.0);
-        if (!excludeHolidays) {
-            return round(naturalDays);
-        }
+        if (!end.isAfter(start)) return BigDecimal.ZERO;
 
-        // Walk the date range and subtract weekend/holiday days. Bookends count
-        // unless they're themselves non-working — caller is responsible for
-        // not booking a leave on a holiday.
         LocalDate from = start.toLocalDate();
         LocalDate to = end.toLocalDate();
-        Map<LocalDate, String> calendar = loadCalendar(from, to);
 
-        long workingDays = 0;
+        long workingSeconds = 0;
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
-            if (isWorkingDay(d, calendar)) workingDays++;
+            workingSeconds += workingSecondsOnDay(d, start, end);
         }
-        // Preserve sub-day fractions if the user picked partial start/end.
-        // Math: (workingDays * 86400 - leadGap - tailGap) / 86400 — but for v0
-        // we just clamp to workingDays which matches the legacy contract for
-        // multi-day requests.
-        return round(workingDays);
+
+        return BigDecimal.valueOf(workingSeconds)
+                .divide(BigDecimal.valueOf(WORKING_SECONDS_PER_DAY), 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 单日工作时段与 [reqStart, reqEnd] 求交,返回相交秒数。
+     * 把 day 的两段工作时间各跟请假区间夹一下,clamp 到 [0, ∞)。
+     */
+    private long workingSecondsOnDay(LocalDate day, OffsetDateTime reqStart, OffsetDateTime reqEnd) {
+        long s = intersectSeconds(day, MORNING_START, MORNING_END, reqStart, reqEnd);
+        s += intersectSeconds(day, AFTERNOON_START, AFTERNOON_END, reqStart, reqEnd);
+        return s;
+    }
+
+    private long intersectSeconds(LocalDate day, LocalTime segStart, LocalTime segEnd,
+                                   OffsetDateTime reqStart, OffsetDateTime reqEnd) {
+        OffsetDateTime segStartDt = day.atTime(segStart).atOffset(reqStart.getOffset());
+        OffsetDateTime segEndDt = day.atTime(segEnd).atOffset(reqStart.getOffset());
+        OffsetDateTime lo = reqStart.isAfter(segStartDt) ? reqStart : segStartDt;
+        OffsetDateTime hi = reqEnd.isBefore(segEndDt) ? reqEnd : segEndDt;
+        long sec = Duration.between(lo, hi).getSeconds();
+        return Math.max(sec, 0L);
     }
 
     /** Public for endpoint listing; returns the raw rows. */
@@ -111,36 +133,4 @@ public class LeaveCalendarService {
         return holidayMapper.listAll(TenantContext.getRequiredTenantId());
     }
 
-    /** True when {@code date} should count toward leave duration. */
-    private boolean isWorkingDay(LocalDate date, Map<LocalDate, String> calendar) {
-        String type = calendar.get(date);
-        if ("public_holiday".equals(type)) return false;
-        if ("compensatory_workday".equals(type)) return true;
-        int dow = date.getDayOfWeek().getValue();  // 1..7, 6=Sat 7=Sun
-        return dow <= 5;
-    }
-
-    private Map<LocalDate, String> loadCalendar(LocalDate from, LocalDate to) {
-        Map<LocalDate, String> out = new HashMap<>();
-        try {
-            String tenantId = TenantContext.getRequiredTenantId();
-            List<Map<String, Object>> rows = holidayMapper.findInRange(tenantId, from, to);
-            for (Map<String, Object> row : rows) {
-                Object dateObj = row.get("date");
-                Object typeObj = row.get("type");
-                if (dateObj == null || typeObj == null) continue;
-                LocalDate d = dateObj instanceof LocalDate ld ? ld
-                        : LocalDate.parse(dateObj.toString());
-                out.put(d, typeObj.toString());
-            }
-        } catch (Exception e) {
-            log.warn("loadCalendar({} → {}) failed, treating range as plain weekday/weekend: {}",
-                    from, to, e.getMessage());
-        }
-        return out;
-    }
-
-    private static BigDecimal round(double v) {
-        return BigDecimal.valueOf(v).setScale(1, RoundingMode.HALF_UP);
-    }
 }

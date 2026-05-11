@@ -1,4 +1,7 @@
 dependencies {
     api project(':xg-platform')
     api 'org.apache.poi:poi-ooxml'
+    // 用于 field-catalog/*.yaml 解析 (Spring Boot starter 已经传递依赖了 snakeyaml,
+    // 这里显式声明,避免未来 Spring Boot 切换 yaml 引擎时这个模块被波及)。
+    implementation 'org.yaml:snakeyaml'
 }

@@ -108,4 +108,27 @@ public interface LeaveRequestMapper extends BaseMapper<LeaveRequest> {
                                       @Param("leaveTypeCode") String leaveTypeCode,
                                       @Param("fromDate") LocalDate fromDate,
                                       @Param("toDate") LocalDate toDate);
+
+    /**
+     * 批量统计一组学生在 [fromDate, toDate] 区间内、所有假别合计的请假天数。
+     * PendingTaskEnricher 用来一次拉齐"本学期累计天数",免得每个学生单查一次。
+     * 累计口径与 {@code LeaveService.getTermUsage} 保持一致:status ∈
+     * {pending, approved} 且 start_time 落在区间内。
+     */
+    @Select("""
+            <script>
+            SELECT student_id, COALESCE(SUM(duration_days), 0) AS total
+              FROM leave_request
+             WHERE student_id IN
+                   <foreach item="id" collection="studentIds" open="(" separator="," close=")">#{id}</foreach>
+               AND status IN ('pending', 'approved')
+               AND start_time::date >= #{fromDate}
+               AND start_time::date <![CDATA[<=]]> #{toDate}
+               AND deleted_at IS NULL
+             GROUP BY student_id
+            </script>
+            """)
+    List<Map<String, Object>> sumTermDaysByStudents(@Param("studentIds") List<Long> studentIds,
+                                                     @Param("fromDate") LocalDate fromDate,
+                                                     @Param("toDate") LocalDate toDate);
 }

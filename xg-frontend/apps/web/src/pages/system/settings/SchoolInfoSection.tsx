@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AutoComplete, Button, Form, Input, Spin, Typography } from 'antd';
+import { AutoComplete, Button, Divider, Form, Input, Modal, Space, Spin, Switch, Typography } from 'antd';
 import { message } from '@/utils/antdApp';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getTenantSettings, updateTenantSettings } from '@/api/tenantSettings';
@@ -39,6 +39,30 @@ export default function SchoolInfoSection() {
     },
     onError: (e: unknown) => message.error(describeApiError(e, '保存失败')),
   });
+
+  const residentialEnabled = data?.enable_residential_track ?? false;
+
+  const handleToggleResidential = (next: boolean) => {
+    if (next) {
+      Modal.confirm({
+        title: '启用书院制双轨视图？',
+        content:
+          '启用后,「学生信息 / 班级看板」会多一组书院 / 楼栋维度,辅导员可同时挂学院班 + 书院班。请先在《组织架构》导入书院树和学生绑定,否则相关页面会是空的。',
+        okText: '启用',
+        cancelText: '取消',
+        onOk: () => mut.mutate({ enable_residential_track: true }),
+      });
+    } else {
+      Modal.confirm({
+        title: '关闭书院制？',
+        content: '关闭后所有书院相关入口、筛选和列将隐藏。已配置的书院树和学生绑定不会丢失,再次启用即可恢复。',
+        okText: '关闭',
+        cancelText: '取消',
+        okButtonProps: { danger: true },
+        onOk: () => mut.mutate({ enable_residential_track: false }),
+      });
+    }
+  };
 
   if (isLoading) return <Spin />;
 
@@ -93,6 +117,23 @@ export default function SchoolInfoSection() {
           </Button>
         </Form.Item>
       </Form>
+
+      <Divider style={{ margin: '8px 0 16px' }} />
+
+      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        <Space align="center">
+          <Text strong>启用书院制</Text>
+          <Switch
+            checked={residentialEnabled}
+            loading={mut.isPending}
+            onChange={handleToggleResidential}
+          />
+        </Space>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          关闭(默认):学院单轨,UI 跟启用前一致。开启后「学生信息 / 班级看板」多一组
+          书院 / 楼栋维度,辅导员可同时挂学院班 + 书院班。关闭仅隐藏入口,不会删除已配置的书院树和学生绑定
+        </Text>
+      </Space>
     </div>
   );
 }

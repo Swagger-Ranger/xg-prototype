@@ -1,17 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Table, Tag, Input, Drawer, Descriptions, Tabs, Button } from 'antd';
+import { Modal, Select, Table, Tag, Drawer, Descriptions, Tabs, Button } from 'antd';
+import { message } from '@/utils/antdApp';
 import { CloseOutlined, RobotOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Student, StudentQueryParams } from '@/api/student';
-import { getStudents, getStudent, getStudentClasses } from '@/api/student';
+import {
+  getStudents,
+  getStudent,
+  getResidentialClasses,
+  updateResidentialClass,
+} from '@/api/student';
+import { describeApiError } from '@/utils/api-error';
+import { getTenantSettings } from '@/api/tenantSettings';
+import { getFieldCatalog } from '@/api/fieldCatalog';
+import { useStudentFilters } from '@/hooks/useStudentFilters';
+import DynamicFilterBar from '@/components/filters/DynamicFilterBar';
 import EventTimeline from '@/components/student/EventTimeline';
 import PinToAIButton from '@/components/ai/PinToAIButton';
 import AskAIChip from '@/components/ai/AskAIChip';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import styles from './index.module.css';
 
+// 注:Filter 选项 (年级/学院/专业/性别/状态等) 已经迁到 field-catalog/student.yaml,
+// 由 <DynamicFilterBar> 渲染。这里只保留表格展示用得到的两份映射 — Tag 渲染需要静态颜色。
 const STATUS_LABELS: Record<string, string> = {
   active: '在读',
   suspended: '休学',
@@ -24,37 +37,6 @@ const STATUS_COLORS: Record<string, string> = {
   graduated: 'var(--fg-4)',
   withdrawn: 'var(--danger)',
 };
-
-const GRADE_OPTIONS = [
-  { label: '全部年级', value: '' },
-  { label: '2021级', value: '2021级' },
-  { label: '2022级', value: '2022级' },
-  { label: '2023级', value: '2023级' },
-  { label: '2024级', value: '2024级' },
-  { label: '2025级', value: '2025级' },
-];
-
-const STATUS_OPTIONS = [
-  { label: '全部状态', value: '' },
-  { label: '在读', value: 'active' },
-  { label: '休学', value: 'suspended' },
-  { label: '毕业', value: 'graduated' },
-  { label: '退学', value: 'withdrawn' },
-];
-
-// Hardcoded college → majors. student_profile stores college/major as free text,
-// so this list is curated to match the seed data rather than loaded from org_unit.
-const COLLEGE_MAJORS: Record<string, string[]> = {
-  计算机学院: ['软件工程', '计算机科学与技术', '数据科学与大数据技术', '人工智能'],
-  人文学院: ['汉语言文学', '新闻学', '历史学', '哲学'],
-  经济管理学院: ['工商管理', '会计学', '金融学', '国际经济与贸易'],
-  机械工程学院: ['机械设计制造及其自动化', '自动化'],
-  艺术学院: ['视觉传达设计', '音乐表演'],
-};
-const COLLEGE_OPTIONS = [
-  { label: '全部学院', value: '' },
-  ...Object.keys(COLLEGE_MAJORS).map((c) => ({ label: c, value: c })),
-];
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 export default function StudentManagement() {
@@ -62,12 +44,6 @@ export default function StudentManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [keyword, setKeyword] = useState('');
-  const [filterGrade, setFilterGrade] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterCollege, setFilterCollege] = useState('');
-  const [filterMajor, setFilterMajor] = useState('');
-  const [filterClass, setFilterClass] = useState('');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const initialTab = searchParams.get('tab') === 'timeline' ? 'timeline' : 'profile';
@@ -82,23 +58,14 @@ export default function StudentManagement() {
   const aiAction = useAIActionStore((s) => s.action);
   const consumeAiAction = useAIActionStore((s) => s.consume);
 
-  // AI → student page: apply filter conditions emitted by the filter_students
-  // tool (e.g. user said "过滤 2024级 人工智能专业的学生" in the side panel).
+  // AI → student page: apply filter conditions emitted by the filter_students tool.
+  // applyAll 直接整批替换 (catalog 里有的字段全部覆盖 + 不在 catalog 的丢掉),
+  // 所以 LLM 多发 / 少发字段都安全。key 必须和 yaml 一致 (camelCase: className/dormBlock)。
   useEffect(() => {
     if (!aiAction || aiAction.type !== 'filter_students') return;
-    const d = aiAction.data ?? {};
-    const get = (k: string): string => {
-      const v = d[k];
-      return typeof v === 'string' ? v : '';
-    };
-    setKeyword(get('keyword'));
-    setFilterGrade(get('grade'));
-    setFilterCollege(get('college'));
-    setFilterMajor(get('major'));
-    setFilterClass(get('class_name'));
-    setFilterStatus(get('status'));
-    setPage(1);
+    filters.applyAll(aiAction.data ?? {});
     consumeAiAction();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters 是 hook 实例,引用稳定
   }, [aiAction, consumeAiAction]);
 
   // AI → right panel: pulse rows the AI just talked about.
@@ -130,57 +97,53 @@ export default function StudentManagement() {
     }
   }, [searchParams, detailId]);
 
-  const queryParams: StudentQueryParams = {
-    page,
-    size: pageSize,
-    keyword: keyword || undefined,
-    grade: filterGrade || undefined,
-    status: filterStatus || undefined,
-    college: filterCollege || undefined,
-    major: filterMajor || undefined,
-    className: filterClass || undefined,
-  };
-
-  const majorOptions = useMemo(() => {
-    const majors = filterCollege
-      ? COLLEGE_MAJORS[filterCollege] ?? []
-      : Array.from(new Set(Object.values(COLLEGE_MAJORS).flat()));
-    return [{ label: '全部专业', value: '' }, ...majors.map((m) => ({ label: m, value: m }))];
-  }, [filterCollege]);
-
-  const { data: classNames = [] } = useQuery<string[]>({
-    queryKey: ['studentClasses', filterCollege, filterMajor],
-    queryFn: () =>
-      getStudentClasses({
-        college: filterCollege || undefined,
-        major: filterMajor || undefined,
-      }),
-    enabled: !!filterMajor,
-    staleTime: 60 * 1000,
+  // 租户配置:书院制 toggle。失败 fallback 单轨视图,不阻塞页面渲染。
+  const { data: tenantSettings } = useQuery({
+    queryKey: ['tenantSettings'],
+    queryFn: getTenantSettings,
+    retry: false,
   });
-  const classOptions = useMemo(
-    () => [{ label: '全部班级', value: '' }, ...classNames.map((c) => ({ label: c, value: c }))],
-    [classNames],
+  const enableResidential = tenantSettings?.enable_residential_track ?? false;
+
+  // 字段目录:filter 行长什么样、选项从哪来,全在这份 yaml。
+  const { data: catalog } = useQuery({
+    queryKey: ['fieldCatalog', 'student'],
+    queryFn: () => getFieldCatalog('student'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // useStudentFilters 接管 9 个独立 useState,内部包级联清空 + 租户门控 + applyAll(给 AI 用)。
+  // 任何 set/clear 触发 onAfterChange → 自动回到第 1 页。
+  const filters = useStudentFilters(catalog, tenantSettings, () => setPage(1));
+
+  // 后端 query 参数:pagination + catalog 驱动的 filter 值。yaml 加新字段 → 这里自动跟着传。
+  const queryParams = useMemo(
+    () => ({ page, size: pageSize, ...filters.values }) as unknown as StudentQueryParams,
+    [page, pageSize, filters.values],
   );
 
-  const activeFilters = [
-    keyword && { key: 'keyword', label: `关键字: ${keyword}`, onRemove: () => { setKeyword(''); setPage(1); } },
-    filterGrade && { key: 'grade', label: `年级: ${filterGrade}`, onRemove: () => { setFilterGrade(''); setPage(1); } },
-    filterCollege && { key: 'college', label: `学院: ${filterCollege}`, onRemove: () => { setFilterCollege(''); setFilterMajor(''); setFilterClass(''); setPage(1); } },
-    filterMajor && { key: 'major', label: `专业: ${filterMajor}`, onRemove: () => { setFilterMajor(''); setFilterClass(''); setPage(1); } },
-    filterClass && { key: 'class', label: `班级: ${filterClass}`, onRemove: () => { setFilterClass(''); setPage(1); } },
-    filterStatus && { key: 'status', label: `状态: ${STATUS_LABELS[filterStatus] ?? filterStatus}`, onRemove: () => { setFilterStatus(''); setPage(1); } },
-  ].filter(Boolean) as { key: string; label: string; onRemove: () => void }[];
+  // 已选 chip 条:遍历 catalog 把当前有值的字段渲成"标签: 值"。
+  // 每行的 onRemove 走 filters.clearOne (它会自动级联清子级,e.g. 清学院 → 专业/班级也清)。
+  const activeFilters = useMemo(() => {
+    if (!catalog) return [] as { key: string; label: string; onRemove: () => void }[];
+    return catalog.fields
+      .filter((f) => filters.values[f.key])
+      .map((f) => {
+        const value = filters.values[f.key];
+        // 静态枚举:用 option.label 而不是 value (避免显示 active/male 这种英文 code)
+        let displayValue = value;
+        const opt = f.options?.find((o) => o.value === value);
+        if (opt) displayValue = opt.label;
+        const heading = f.key === 'keyword' ? '关键字' : f.label;
+        return {
+          key: f.key,
+          label: `${heading}: ${displayValue}`,
+          onRemove: () => filters.clearOne(f.key),
+        };
+      });
+  }, [catalog, filters]);
 
-  const resetAllFilters = () => {
-    setKeyword('');
-    setFilterGrade('');
-    setFilterStatus('');
-    setFilterCollege('');
-    setFilterMajor('');
-    setFilterClass('');
-    setPage(1);
-  };
+  const resetAllFilters = () => filters.clearAll();
 
   const { data, isFetching } = useQuery({
     queryKey: ['students', queryParams],
@@ -198,6 +161,35 @@ export default function StudentManagement() {
     setDrawerOpen(true);
   };
 
+  // ── 改书院班 modal ───────────────────────────────────────────
+  // toggle 关闭时永远不打开;打开时按当前书院班名字反查 id 作初始值。
+  const qc = useQueryClient();
+  const [resEditTarget, setResEditTarget] = useState<Student | null>(null);
+  const [resEditValue, setResEditValue] = useState<number | null>(null);
+  const { data: residentialClasses } = useQuery({
+    queryKey: ['residentialClasses'],
+    queryFn: getResidentialClasses,
+    enabled: enableResidential,
+    staleTime: 60_000,
+  });
+  const openResEdit = (record: Student) => {
+    const matched = residentialClasses?.find(
+      (c) => c.name === record.residential_dorm_block,
+    );
+    setResEditValue(matched?.id ?? null);
+    setResEditTarget(record);
+  };
+  const resEditMut = useMutation({
+    mutationFn: ({ id, orgUnitId }: { id: string; orgUnitId: number | null }) =>
+      updateResidentialClass(id, orgUnitId),
+    onSuccess: () => {
+      message.success('已更新书院班');
+      qc.invalidateQueries({ queryKey: ['students'] });
+      setResEditTarget(null);
+    },
+    onError: (e: unknown) => message.error(describeApiError(e, '更新失败')),
+  });
+
   const handleDrawerClose = () => {
     setDrawerOpen(false);
     setDetailId(null);
@@ -207,11 +199,6 @@ export default function StudentManagement() {
       next.delete('tab');
       setSearchParams(next, { replace: true });
     }
-  };
-
-  const handleSearch = (val: string) => {
-    setKeyword(val);
-    setPage(1);
   };
 
   const columns: ColumnsType<Student> = [
@@ -256,6 +243,21 @@ export default function StudentManagement() {
       dataIndex: 'class_name',
       width: 100,
     },
+    // 双轨制:启用书院制时插入"书院 / 楼栋"两列;否则不出现,跟单轨学校 UI 完全一致。
+    ...(enableResidential ? [
+      {
+        title: '书院',
+        dataIndex: 'residential_academy' as const,
+        width: 120,
+        render: (v: string | null | undefined) => v || <span style={{ color: 'var(--fg-4)' }}>—</span>,
+      },
+      {
+        title: '楼栋',
+        dataIndex: 'residential_dorm_block' as const,
+        width: 100,
+        render: (v: string | null | undefined) => v || <span style={{ color: 'var(--fg-4)' }}>—</span>,
+      },
+    ] : []),
     {
       title: '状态',
       dataIndex: 'status',
@@ -280,7 +282,7 @@ export default function StudentManagement() {
     {
       title: '操作',
       key: 'actions',
-      width: 160,
+      width: enableResidential ? 220 : 160,
       render: (_, record) => (
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <button
@@ -295,6 +297,14 @@ export default function StudentManagement() {
           >
             画像
           </button>
+          {enableResidential && (
+            <button
+              className={styles.actionLink}
+              onClick={() => openResEdit(record)}
+            >
+              改书院班
+            </button>
+          )}
           <PinToAIButton
             refData={{
               type: 'student',
@@ -331,77 +341,16 @@ export default function StudentManagement() {
             也可以在小夕里用自然语言过滤，例如「过滤 2024级 人工智能专业的学生」。
           </span>
         </div>
-        <FilterRow label="搜索">
-          <Input.Search
-            placeholder="学号或姓名"
-            allowClear
-            style={{ width: 240 }}
-            onSearch={handleSearch}
-            onChange={(e) => {
-              if (!e.target.value) {
-                setKeyword('');
-                setPage(1);
-              }
-            }}
+        {/* 过滤行全部由 yaml 字段目录驱动:加新字段就改 yaml,不动 React。
+            UI 仍走 styles.filterRow / styles.chip,字距颜色和原版一致。 */}
+        {catalog && (
+          <DynamicFilterBar
+            catalog={catalog}
+            values={filters.values}
+            onChange={filters.set}
+            tenantSettings={tenantSettings}
           />
-        </FilterRow>
-        <FilterRow label="年级">
-          {GRADE_OPTIONS.map((opt) => (
-            <Chip
-              key={opt.value || 'all'}
-              active={filterGrade === opt.value}
-              onClick={() => { setFilterGrade(opt.value); setPage(1); }}
-            >
-              {opt.label}
-            </Chip>
-          ))}
-        </FilterRow>
-        <FilterRow label="学院">
-          {COLLEGE_OPTIONS.map((opt) => (
-            <Chip
-              key={opt.value || 'all'}
-              active={filterCollege === opt.value}
-              onClick={() => { setFilterCollege(opt.value); setFilterMajor(''); setFilterClass(''); setPage(1); }}
-            >
-              {opt.label}
-            </Chip>
-          ))}
-        </FilterRow>
-        <FilterRow label="专业">
-          {majorOptions.map((opt) => (
-            <Chip
-              key={opt.value || 'all'}
-              active={filterMajor === opt.value}
-              onClick={() => { setFilterMajor(opt.value); setFilterClass(''); setPage(1); }}
-            >
-              {opt.label}
-            </Chip>
-          ))}
-        </FilterRow>
-        {filterMajor && (
-          <FilterRow label="班级">
-            {classOptions.map((opt) => (
-              <Chip
-                key={opt.value || 'all'}
-                active={filterClass === opt.value}
-                onClick={() => { setFilterClass(opt.value); setPage(1); }}
-              >
-                {opt.label}
-              </Chip>
-            ))}
-          </FilterRow>
         )}
-        <FilterRow label="状态">
-          {STATUS_OPTIONS.map((opt) => (
-            <Chip
-              key={opt.value || 'all'}
-              active={filterStatus === opt.value}
-              onClick={() => { setFilterStatus(opt.value); setPage(1); }}
-            >
-              {opt.label}
-            </Chip>
-          ))}
-        </FilterRow>
       </div>
 
       {activeFilters.length > 0 && (
@@ -524,35 +473,40 @@ export default function StudentManagement() {
           />
         )}
       </Drawer>
+
+      <Modal
+        title={resEditTarget ? `改书院班 — ${resEditTarget.name}` : '改书院班'}
+        open={!!resEditTarget}
+        onCancel={() => setResEditTarget(null)}
+        confirmLoading={resEditMut.isPending}
+        okText="保存"
+        cancelText="取消"
+        onOk={() =>
+          resEditTarget &&
+          resEditMut.mutate({ id: resEditTarget.id, orgUnitId: resEditValue })
+        }
+        destroyOnClose
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ color: 'var(--fg-3)', fontSize: 13 }}>
+            当前:{resEditTarget?.residential_dorm_block || '未分配'}
+          </div>
+          <Select
+            allowClear
+            placeholder="选择新的书院班(留空 = 取消归属)"
+            value={resEditValue ?? undefined}
+            onChange={(v) => setResEditValue(v ?? null)}
+            options={(residentialClasses ?? []).map((c) => ({
+              value: c.id,
+              label: c.academy_name ? `${c.academy_name} / ${c.name}` : c.name,
+            }))}
+            style={{ width: '100%' }}
+            showSearch
+            optionFilterProp="label"
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className={styles.filterRow}>
-      <span className={styles.filterRowLabel}>{label}</span>
-      <div className={styles.filterRowValues}>{children}</div>
-    </div>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className={`${styles.chip} ${active ? styles.chipActive : ''}`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}

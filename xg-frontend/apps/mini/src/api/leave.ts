@@ -251,6 +251,21 @@ export function previewLeaveImpact(start: string, end: string) {
   return get<LeaveImpactView>('/leaves/impact/preview', { start, end });
 }
 
+/**
+ * 学生本学期累计请假天数 + 是否超过全局上限。
+ * cap_days==null 时前端不渲染软警告;exceeded=true 时申请页顶端红条提示,
+ * 同时审批侧会按高风险标记,但不阻断提交。
+ */
+export interface LeaveTermUsage {
+  term_name: string | null;
+  accumulated_days: number;
+  cap_days: number | null;
+  exceeded: boolean;
+}
+export function getMyTermUsage() {
+  return get<LeaveTermUsage>('/leaves/term-usage');
+}
+
 /** 「请假须知」配置 —— 仅学生端请假页消费,缺值时后端会返回内置默认文案。
  *  字段命名跟后端 Jackson SNAKE_CASE 全局策略对齐。 */
 export interface LeaveNoticeConfig {
@@ -265,13 +280,43 @@ export function getLeaveNoticeConfig() {
 }
 
 /**
- * Mirror backend LeaveService.calculateDurationDays:
- *   ceil(seconds / 86400) — any partial day counts as a full day so that the
- *   workflow's duration_check sees the same number we display.
+ * 请假天数预览(对齐后端 LeaveCalendarService.calcEffectiveDays):
+ *   每个日历日按工作时段 09:00–12:00 + 13:00–18:00 求交,8 工作小时 = 1 天。
+ *   **每天都按工作日切**,不区分周末/节假日(简化决定:学校拿不到稳定假期数据)。
  *
- * `start` / `end` are ms-since-epoch.
+ * `start` / `end` 是 ms-since-epoch。结果保留 2 位小数。
  */
 export function calculateDurationDays(start: number, end: number): number {
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
-  return Math.max(0, Math.ceil((end - start) / 1000 / 86400));
+  const PER_DAY = 8 * 3600;
+  const MORNING_START_SEC = 9 * 3600;
+  const MORNING_END_SEC = 12 * 3600;
+  const AFTERNOON_START_SEC = 13 * 3600;
+  const AFTERNOON_END_SEC = 18 * 3600;
+
+  const startMs = Math.floor(start);
+  const endMs = Math.floor(end);
+  let workingSec = 0;
+
+  const cursor = new Date(startMs);
+  cursor.setHours(0, 0, 0, 0);
+  const lastDay = new Date(endMs);
+  lastDay.setHours(0, 0, 0, 0);
+
+  while (cursor.getTime() <= lastDay.getTime()) {
+    const dayStartMs = cursor.getTime();
+    const segs: Array<[number, number]> = [
+      [MORNING_START_SEC, MORNING_END_SEC],
+      [AFTERNOON_START_SEC, AFTERNOON_END_SEC],
+    ];
+    for (const [a, b] of segs) {
+      const segStart = dayStartMs + a * 1000;
+      const segEnd = dayStartMs + b * 1000;
+      const lo = Math.max(startMs, segStart);
+      const hi = Math.min(endMs, segEnd);
+      workingSec += Math.max(0, (hi - lo) / 1000);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return Math.round((workingSec / PER_DAY) * 100) / 100;
 }

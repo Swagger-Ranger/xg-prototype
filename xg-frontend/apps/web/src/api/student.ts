@@ -18,6 +18,9 @@ export interface Student {
   enrollment_date: string;
   created_at: string;
   extended_info?: Record<string, unknown> | null;
+  /** 双轨制下的"生活线"归属。单轨学校永远 null。 */
+  residential_academy?: string | null;
+  residential_dorm_block?: string | null;
 }
 
 export interface StudentQueryParams {
@@ -29,6 +32,11 @@ export interface StudentQueryParams {
   college?: string;
   major?: string;
   className?: string;
+  /** 'male' / 'female' / undefined(不限)。映射到 sys_user.gender。 */
+  gender?: string;
+  /** 双轨制 filter,启用书院制时才有意义。 */
+  academy?: string;
+  dormBlock?: string;
 }
 
 export function getStudents(params: StudentQueryParams): Promise<PageResult<Student>> {
@@ -46,6 +54,44 @@ export function getStudent(id: string): Promise<Student> {
  */
 export function getStudentClasses(params: { college?: string; major?: string }): Promise<string[]> {
   return api.get('/student-classes', { params }).then((res) => res.data);
+}
+
+/**
+ * 双轨制 filter 数据源 —— 书院 / 楼栋名字。返回空数组 = 该租户暂未配置书院。
+ * 单独路径 /student-residential-options 避开 /students/{id} 冲突。
+ */
+export interface ResidentialOptions {
+  academies: string[];
+  dormBlocks: string[];
+}
+export function getResidentialOptions(): Promise<ResidentialOptions> {
+  return api.get('/student-residential-options').then((res) => res.data);
+}
+
+/**
+ * 改书院班 modal 用:扁平列出全部书院班(id + name + 所属书院 name)。
+ * 比 getResidentialOptions 多一份 id —— 改绑定要按 id 写。
+ */
+export interface ResidentialClassEntry {
+  id: number;
+  name: string;
+  academy_name: string | null;
+}
+export function getResidentialClasses(): Promise<ResidentialClassEntry[]> {
+  return api.get('/student-residential-classes').then((res) => res.data);
+}
+
+/**
+ * 改某学生的书院班归属。orgUnitId=null → 清空(不属于任何书院班)。
+ * 后端只动 track='residential'+type='dorm_block' 那一行 membership,不影响学院班。
+ */
+export function updateResidentialClass(
+  studentProfileId: string | number,
+  orgUnitId: number | null,
+): Promise<void> {
+  return api
+    .put(`/students/${studentProfileId}/residential-class`, { org_unit_id: orgUnitId })
+    .then(() => undefined);
 }
 
 /**

@@ -133,6 +133,17 @@
   margin-left: 2rpx;
 }
 
+/* 算法口径解释:工作时段 8h=1天,跟 durationHint 同卡内,弱信息态。 */
+.durationFootnote {
+  margin-top: 6rpx;
+}
+
+.durationFootnoteText {
+  font-size: 22rpx;
+  color: var(--fg-3);
+  line-height: 1.5;
+}
+
 /* 影响课程提示:在 durationHint 下方,跟它一起呆在"时长卡"里。
    弱信息态——背景比 durationHint 更淡,字号 24rpx 防过度抢眼。 */
 .impactHint {
@@ -151,6 +162,30 @@
 .impactNum {
   color: var(--warn);
   font-weight: 600;
+}
+
+/* 全学期累计上限超限的红条 — 比 impactHint 更显著(背景红 + 加 border)。
+   行为是软警告:学生看到后仍可提交,但审批侧会被标记成高风险。 */
+.termCapAlert {
+  margin: 0 32rpx 24rpx;
+  padding: 20rpx 24rpx;
+  background: rgba(220, 38, 38, 0.08);
+  border: 1rpx solid rgba(220, 38, 38, 0.2);
+  border-radius: var(--r);
+}
+
+.termCapAlertTitle {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--danger);
+  display: block;
+  margin-bottom: 4rpx;
+}
+
+.termCapAlertDesc {
+  font-size: 24rpx;
+  color: var(--fg-2);
+  line-height: 1.5;
 }
 
 /* ── Input cell ────────────────────────────────────────── */

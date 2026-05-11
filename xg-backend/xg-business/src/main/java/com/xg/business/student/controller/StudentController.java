@@ -25,9 +25,17 @@ public class StudentController {
     private final StudentService studentService;
     private final StudentInsightService insightService;
 
+    /**
+     * 双参数:
+     *   - StudentQueryRequest 走 @ModelAttribute 拿 page/size (含 PageQuery 校验)
+     *   - allParams 是原始 query string,字段目录驱动的 SqlBuilder 直接消费它
+     * 这样新增 filter = 改 yaml 一处,Java 端无需为新字段加 DTO 字段。
+     */
     @GetMapping("/api/v1/students")
-    public R<PageResult<StudentView>> list(@Validated StudentQueryRequest query) {
-        return R.ok(studentService.list(query));
+    public R<PageResult<StudentView>> list(
+            @Validated StudentQueryRequest pageQuery,
+            @RequestParam Map<String, String> allParams) {
+        return R.ok(studentService.list(pageQuery, allParams));
     }
 
     /**
@@ -45,6 +53,27 @@ public class StudentController {
         return R.ok(studentService.listClassNames(college, major));
     }
 
+    /**
+     * 双轨制 filter 数据源——书院 / 楼栋名字。空数组 = 该租户没启用书院制。
+     * 同 endpoint 走 /student-residential-options 避开 /students/{id} 路径冲突。
+     */
+    @GetMapping("/api/v1/student-residential-options")
+    public R<Map<String, List<String>>> residentialOptions() {
+        return R.ok(Map.of(
+                "academies", studentService.listResidentialUnitNames("academy"),
+                "dormBlocks", studentService.listResidentialUnitNames("dorm_block")
+        ));
+    }
+
+    /**
+     * 改书院班 modal 数据源:扁平 [{id, name, academy_name}],按所属书院分组渲染。
+     * 比 /student-residential-options 多一份 id,因为绑定要按 id 写。
+     */
+    @GetMapping("/api/v1/student-residential-classes")
+    public R<List<Map<String, Object>>> residentialClasses() {
+        return R.ok(studentService.listResidentialClasses());
+    }
+
     @GetMapping("/api/v1/students/{id}")
     public R<StudentView> detail(@PathVariable Long id) {
         return R.ok(studentService.detail(id));
@@ -59,6 +88,21 @@ public class StudentController {
     public R<Void> updateExtendedInfo(@PathVariable Long id,
                                       @RequestBody Map<String, Object> patch) {
         studentService.updateExtendedInfo(id, patch);
+        return R.ok();
+    }
+
+    /**
+     * 改学生书院班归属。body:{ "org_unit_id": 1110 } 或 { "org_unit_id": null } 清空。
+     * 只动 track='residential' + type='dorm_block' 那条 membership,不影响学院班。
+     */
+    @PutMapping("/api/v1/students/{id}/residential-class")
+    public R<Void> setResidentialClass(@PathVariable Long id,
+                                       @RequestBody Map<String, Object> body) {
+        Object raw = body == null ? null : body.get("org_unit_id");
+        Long orgUnitId = null;
+        if (raw instanceof Number) orgUnitId = ((Number) raw).longValue();
+        else if (raw instanceof String s && !s.isBlank()) orgUnitId = Long.parseLong(s);
+        studentService.setResidentialClass(id, orgUnitId);
         return R.ok();
     }
 

@@ -49,7 +49,26 @@ public class TenantSettingsService {
         v.setTenantId((String) base.get("id"));
         v.setSchoolName((String) base.get("name"));
         v.setSchoolCity(readSchoolCity(tenantId));
+        v.setEnableResidentialTrack(readBooleanSetting("enable_residential_track", false));
         return v;
+    }
+
+    /**
+     * 读 tenant_settings 表里的 boolean 配置。值是字符串"true"/"false"。表不存在
+     * (V095 没跑)或行不存在,都返回 default。
+     */
+    private boolean readBooleanSetting(String key, boolean defaultValue) {
+        try {
+            String raw = jdbc.queryForObject(
+                    "SELECT setting_value FROM tenant_settings WHERE setting_key = ?",
+                    String.class, key);
+            return "true".equalsIgnoreCase(raw);
+        } catch (EmptyResultDataAccessException ex) {
+            return defaultValue;
+        } catch (Exception e) {
+            log.warn("tenant_settings.{} read failed (V095 not applied?): {}", key, e.getMessage());
+            return defaultValue;
+        }
     }
 
     @Transactional
@@ -95,6 +114,23 @@ public class TenantSettingsService {
                 log.error("[TS-UPDATE] school_city UPDATE failed (column missing?): {}", e.getMessage(), e);
                 throw new BizException("SCHOOL_CITY_COLUMN_MISSING",
                         "数据库还没创建 school_city 列，请重启后端让 Flyway V006 应用");
+            }
+        }
+        if (req.getEnableResidentialTrack() != null) {
+            try {
+                int affected = jdbc.update(
+                        "INSERT INTO tenant_settings (tenant_id, setting_key, setting_value, description) "
+                                + "VALUES (?, 'enable_residential_track', ?, '是否启用书院制 (学术 + 生活双轨视图)') "
+                                + "ON CONFLICT (tenant_id, setting_key) "
+                                + "DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW()",
+                        tenantId, Boolean.toString(req.getEnableResidentialTrack()));
+                log.info("[TS-UPDATE] enable_residential_track UPSERT affected={} value={}",
+                        affected, req.getEnableResidentialTrack());
+            } catch (Exception e) {
+                log.error("[TS-UPDATE] enable_residential_track UPSERT failed (V095 not applied?): {}",
+                        e.getMessage(), e);
+                throw new BizException("RESIDENTIAL_SETTINGS_MISSING",
+                        "数据库还没创建 tenant_settings 表，请重启后端让 Flyway V095 应用");
             }
         }
         log.info("[TS-UPDATE] writes done, refetching view");

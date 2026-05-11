@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Drawer, Tag, Button, Descriptions, Typography, Divider, Space, Modal, Tooltip } from 'antd';
+import { Drawer, Tag, Button, Descriptions, Typography, Divider, Space, Modal, Tooltip, Alert } from 'antd';
 import { ReadOutlined } from '@ant-design/icons';
 import { message } from '@/utils/antdApp';
 import dayjs from 'dayjs';
@@ -11,7 +11,9 @@ import {
   leaveTypeFieldsToSchema,
   withdrawLeave,
   getLeaveImpact,
+  getStudentTermUsage,
   type LeaveImpactView,
+  type LeaveTermUsage,
 } from '@/api/leave';
 import DynamicFormDisplay from '@/components/form/DynamicFormDisplay';
 import InstanceTimeline from '@/components/workflow/InstanceTimeline';
@@ -74,6 +76,15 @@ export default function LeaveDetailDrawer({ record, onClose, pendingTask, onAppr
     queryKey: ['leaveImpact', record?.id],
     queryFn: () => getLeaveImpact(record!.id),
     enabled: !!record,
+    staleTime: 60 * 1000,
+  });
+
+  // 本学期累计天数(全部假别合计)+ 是否超全局上限。审批人对学生历史请假
+  // 模式有判断的依据;cap_days===null 时整块隐藏。
+  const { data: termUsage } = useQuery<LeaveTermUsage>({
+    queryKey: ['leave.term-usage.student', record?.student_id],
+    queryFn: () => getStudentTermUsage(record!.student_id),
+    enabled: !!record?.student_id,
     staleTime: 60 * 1000,
   });
   const impactCourseNames = useMemo(() => {
@@ -166,6 +177,16 @@ export default function LeaveDetailDrawer({ record, onClose, pendingTask, onAppr
           <Descriptions.Item label="请假天数">{record.duration_days} 天</Descriptions.Item>
           <Descriptions.Item label="请假原因">{record.reason}</Descriptions.Item>
         </Descriptions>
+
+        {termUsage?.exceeded && termUsage.cap_days != null && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginTop: 12 }}
+            message={`该生本学期累计请假 ${termUsage.accumulated_days} 天,已超出全校上限 ${termUsage.cap_days} 天`}
+            description="该申请已被自动标记为高风险,审批前请重点关注请假频率与原因。"
+          />
+        )}
 
         {impact && impact.total_periods > 0 && (
           <Tooltip

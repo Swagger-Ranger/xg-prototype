@@ -1,0 +1,132 @@
+# 学生信息库筛选字段目录。一份配置驱动:
+#   - 后端 SqlBuilder 拼 WHERE
+#   - REST 端点 /api/v1/field-catalog/student 暴露给前端
+#   - AI sidecar 动态生成 filter_students 工具的 input_schema 和 prompt 别名
+#
+# 加新字段流程:在这里加一段,后端 / 前端 / AI 三处自动生效。
+# 字段顺序 = 学生页过滤区视觉顺序,前端按顺序渲染,改动 UI 排版直接挪 yaml。
+#
+# strategy 当前支持:
+#   simple_eq             — column = ?
+#   ilike_multi           — (col1 ILIKE %?% OR col2 ILIKE %?% ...) 拼接
+#   residential_subquery  — 走 student_org_membership ⨯ org_unit 子查询 (track='residential')
+#   jsonb_path            — extended_info JSONB 字段 (本期未启用,留口子)
+#   external_lookup       — 外部数据源拉 user_id 列表后 IN(...) (本期未启用,留口子)
+#
+# options 当前支持:
+#   static                — 选项写死在 yaml,适合 gender / status / 年级列表 这种业务上不变的
+#   cascadingStatic       — 选项按父级值分组的写死表,适合 学院↔专业 这种慢变的
+#   dynamic.source=endpoint — 调一个 url,根据 scopedBy 父级值传参,适合 班级 / 书院 这种 DB 来源
+
+page: student
+fields:
+
+  # ============ 关键词搜索 (单独区域,不进 chip 行) ============
+  - key: keyword
+    label: 关键词
+    description: 学号或姓名模糊匹配;只在用户给出具体学号/姓名时填。
+    type: text
+    sql:
+      strategy: ilike_multi
+      columns: [u.real_name, sp.student_no, u.phone]
+
+  # ============ 年级 (静态枚举) ============
+  - key: grade
+    label: 年级
+    description: 年级,例如 2024级、2023级;带「级」字。
+    type: enum
+    sql: { strategy: simple_eq, column: sp.grade }
+    options:
+      static:
+        - { value: 2021级, label: 2021级 }
+        - { value: 2022级, label: 2022级 }
+        - { value: 2023级, label: 2023级 }
+        - { value: 2024级, label: 2024级 }
+        - { value: 2025级, label: 2025级 }
+
+  # ============ 学院 → 专业 (级联 + 各自静态选项) ============
+  - key: college
+    label: 学院
+    description: 学术线学院全称,例如 计算机学院、人文学院。
+    type: enum
+    sql: { strategy: simple_eq, column: sp.college }
+    options:
+      static:
+        - { value: 计算机学院,   label: 计算机学院 }
+        - { value: 人文学院,     label: 人文学院 }
+        - { value: 经济管理学院, label: 经济管理学院 }
+        - { value: 机械工程学院, label: 机械工程学院 }
+        - { value: 艺术学院,     label: 艺术学院 }
+
+  - key: major
+    label: 专业
+    description: 学术线专业全称,例如 人工智能、软件工程。
+    type: enum
+    parent: college
+    sql: { strategy: simple_eq, column: sp.major }
+    options:
+      # 父级 college 不同 → 不同子集;父级未选 → 用 default 列出全部专业。
+      cascadingStatic:
+        parentKey: college
+        groups:
+          计算机学院:   [软件工程, 计算机科学与技术, 数据科学与大数据技术, 人工智能]
+          人文学院:     [汉语言文学, 新闻学, 历史学, 哲学]
+          经济管理学院: [工商管理, 会计学, 金融学, 国际经济与贸易]
+          机械工程学院: [机械设计制造及其自动化, 自动化]
+          艺术学院:     [视觉传达设计, 音乐表演]
+
+  # ============ 班级 (动态:从后端 distinct 拿,父级 [college, major] 传参) ============
+  - key: className
+    label: 班级
+    description: 学术线班级,例如 软件2301班。
+    type: enum
+    parent: major
+    sql: { strategy: simple_eq, column: sp.class_name }
+    options:
+      dynamic: { source: endpoint, url: /student-classes, key: "$root", scopedBy: [college, major] }
+
+  # ============ 双轨制 (residential_subquery + 租户开关门控) ============
+  - key: academy
+    label: 书院
+    description: 生活线书院全称,双轨制学校才有,例如 博雅书院、丘成桐书院。
+    type: enum
+    visibility: { tenantSetting: enable_residential_track }
+    sql: { strategy: residential_subquery, residentialType: academy }
+    options:
+      dynamic: { source: endpoint, url: /student-residential-options, key: academies }
+
+  - key: dormBlock
+    label: 书院班
+    description: 生活线书院班,跨学院/年级混编,例如 明德 1 班、弘毅 2 班。字段 key 沿用 dormBlock(技术名),用户标签是"书院班"。
+    type: enum
+    parent: academy
+    visibility: { tenantSetting: enable_residential_track }
+    sql: { strategy: residential_subquery, residentialType: dorm_block }
+    options:
+      dynamic: { source: endpoint, url: /student-residential-options, key: dormBlocks }
+
+  # ============ 性别 / 状态 (静态枚举,放最后) ============
+  - key: gender
+    label: 性别
+    description: 性别;只在用户明确提到时填。
+    type: enum
+    sql: { strategy: simple_eq, column: u.gender }
+    options:
+      static:
+        - { value: male,   label: 男 }
+        - { value: female, label: 女 }
+    aliases:
+      - { phrase: 男生, value: male }
+      - { phrase: 女生, value: female }
+
+  - key: status
+    label: 学籍状态
+    description: 学籍状态;在读/休学/毕业/退学。
+    type: enum
+    sql: { strategy: simple_eq, column: sp.status }
+    options:
+      static:
+        - { value: active,    label: 在读 }
+        - { value: suspended, label: 休学 }
+        - { value: graduated, label: 毕业 }
+        - { value: withdrawn, label: 退学 }

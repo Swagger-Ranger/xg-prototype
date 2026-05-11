@@ -1222,6 +1222,40 @@ async def fetch_leave_types() -> list[dict[str, str]]:
     return _LEAVE_TYPES_CACHE or _DEFAULT_LEAVE_TYPES
 
 
+# ---------- field catalog (cached) ----------
+# 后端 yaml field-catalog 的镜像。一份 yaml 驱动:后端 SqlBuilder + 这里 AI 工具 input_schema +
+# 前端 chip 渲染。原来 filter_students 的 schema 9 处硬编码现在全靠这个动态拉。
+# 5 分钟 TTL,catalog 几乎不变;后端起不来时 fallback 到 None,_build_tools 那头会跳过 schema 注入。
+_FIELD_CATALOG_CACHE: dict[str, dict] = {}
+_FIELD_CATALOG_TS: dict[str, float] = {}
+_FIELD_CATALOG_TTL = 300.0
+
+
+async def fetch_field_catalog(page: str) -> dict | None:
+    """读后端 /internal/field-catalog/{page}。返回 {page, fields:[...]} 或 None。
+    sidecar 走 /internal 前缀,SaToken 白名单已放行,不需带 user 头。"""
+    import time as _time
+    now = _time.time()
+    cached = _FIELD_CATALOG_CACHE.get(page)
+    ts = _FIELD_CATALOG_TS.get(page, 0.0)
+    if cached is not None and (now - ts) < _FIELD_CATALOG_TTL:
+        return cached
+    try:
+        async with httpx.AsyncClient(
+            base_url=settings.java_base_url, timeout=5.0, trust_env=False
+        ) as c:
+            resp = await c.get(f"/internal/field-catalog/{page}")
+            resp.raise_for_status()
+            data = resp.json().get("data") or {}
+        if data and data.get("fields"):
+            _FIELD_CATALOG_CACHE[page] = data
+            _FIELD_CATALOG_TS[page] = now
+            return data
+    except Exception:
+        logger.warning("fetch_field_catalog(%s) failed", page, exc_info=True)
+    return cached  # 拉失败时:有过缓存就用旧的;否则 None,调用方自己降级
+
+
 # ---------- Registry ----------
 
 Handler = Callable[[dict[str, Any], dict], Awaitable[str]]

@@ -29,6 +29,13 @@ public class StudentView {
     private LocalDate enrollmentDate;
     private OffsetDateTime createdAt;
 
+    /**
+     * 双轨制下的"生活线"归属。单轨学校(默认)永远 null,前端见 null 则不渲染相关列。
+     * 数据来自 student_org_membership ⨯ org_unit (track='residential')。
+     */
+    private String residentialAcademy;     // 书院名字
+    private String residentialDormBlock;   // 楼栋 / 楼层
+
     /** 扩展字段原始 JSONB，以嵌套对象形式下发给前端（由 field_definition 元数据描述） */
     @JsonRawValue
     private String extendedInfo;
