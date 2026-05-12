@@ -323,7 +323,7 @@ volumes:
   prometheus_data:
   grafana_data:
   web_dist:
-    driver: local
+    external: true  # 使用外部创建的卷，避免前缀问题
 
 networks:
   frontend:

@@ -14,3 +14,5 @@ xg:
       username: ${SUPERADMIN_INITIAL_USERNAME:admin}
       password: ${SUPERADMIN_INITIAL_PASSWORD:}
       real-name: ${SUPERADMIN_INITIAL_REALNAME:超级管理员}
+  tenant:
+    default-id: ${DEFAULT_TENANT_ID:1}  # 演示环境默认租户 ID
