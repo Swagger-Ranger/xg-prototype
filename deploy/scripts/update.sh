@@ -411,19 +411,17 @@ build_web() {
     # 确保 web_dist 卷存在
     docker volume create web_dist 2>/dev/null || true
 
-    # 构建前端镜像并输出到卷
-    docker compose --profile build build xg-web-builder 2>/dev/null || {
-        log_info "直接构建前端..."
-        cd ../xg-frontend
-        docker build -f ../deploy/Dockerfile.web -t xg-web-builder:latest .
-        cd - > /dev/null
-    }
+    # 清空旧的前端文件
+    log_info "清空旧的前端文件..."
+    docker run --rm -v web_dist:/web-dist alpine sh -c "rm -rf /web-dist/*" 2>/dev/null || true
+
+    # 构建前端镜像
+    log_info "构建前端镜像..."
+    docker build -f ./Dockerfile.web -t xg-web-builder:latest ../xg-frontend
 
     # 创建临时容器复制构建产物到卷
-    docker run --rm -v web_dist:/output xg-web-builder:latest sh -c "cp -r /app/apps/web/dist/* /output/" 2>/dev/null || {
-        # 如果镜像名不同，尝试使用 compose 构建的镜像名
-        docker run --rm -v web_dist:/output deploy-xg-web-builder:latest sh -c "cp -r /app/apps/web/dist/* /output/" 2>/dev/null || true
-    }
+    log_info "复制构建产物到 web_dist 卷..."
+    docker run --rm -v web_dist:/web-dist xg-web-builder:latest sh -c "cp -r /output/* /web-dist/ && ls -la /web-dist/"
 
     log_info "前端构建完成"
 }

@@ -237,16 +237,16 @@ services:
       - backend
 
   # 前端构建服务（用于构建 Web 应用）
+  # 此服务仅用于构建镜像，不直接运行
   xg-web-builder:
     build:
       context: ../xg-frontend
       dockerfile: ../deploy/Dockerfile.web
+    image: xg-web-builder:latest
     container_name: xg-web-builder
     profiles: ["build"]
-    # 此服务仅用于构建，不运行
-    entrypoint: ["sh", "-c", "cp -r /app/apps/web/dist/* /output/ && echo 'Build complete'"]
-    volumes:
-      - web_dist:/output
+    # 此服务仅构建镜像，实际复制由 update.sh 完成
+    command: ["echo", "Frontend build image ready"]
 
   nginx:
     image: nginx:1.25-alpine

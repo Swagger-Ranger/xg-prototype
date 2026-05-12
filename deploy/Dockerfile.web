@@ -27,4 +27,7 @@ COPY apps/web/public apps/web/public
 RUN pnpm install --frozen-lockfile
 RUN pnpm run build --filter=@xg1/web
 
-# 输出目录: /app/apps/web/dist
+# 构建完成后，将产物复制到 /output 目录（用于挂载到卷）
+RUN mkdir -p /output && cp -r /app/apps/web/dist/* /output/
+
+# 输出目录: /output
