@@ -44,6 +44,9 @@ public class TenantMigrationRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        // 演示环境：如果没有租户，自动创建 default 租户
+        ensureDefaultTenantExists();
+
         List<String> schemas = listActiveTenantSchemas();
         log.info("Tenant migration runner: {} active tenant schema(s)", schemas.size());
         for (String schema : schemas) {
@@ -52,6 +55,23 @@ public class TenantMigrationRunner implements ApplicationRunner {
             } catch (Exception e) {
                 log.error("Tenant migration failed for schema={}", schema, e);
             }
+        }
+    }
+
+    /** 演示环境：如果没有租户，自动创建 default 租户 */
+    private void ensureDefaultTenantExists() {
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM public.tenant")) {
+            if (rs.next() && rs.getInt(1) == 0) {
+                log.info("No tenants found, creating default tenant for demo environment");
+                stmt.execute("INSERT INTO public.tenant (id, name, code, schema_name, status, config, school_city, created_at, updated_at) " +
+                        "VALUES ('default', '默认租户', 'default', 'tenant_default', 'active', '{}', '北京市', NOW(), NOW()) " +
+                        "ON CONFLICT DO NOTHING");
+                log.info("Default tenant created");
+            }
+        } catch (Exception e) {
+            log.warn("Could not ensure default tenant exists: {}", e.getMessage());
         }
     }
 
