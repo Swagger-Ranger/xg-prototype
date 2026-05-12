@@ -1,0 +1,15 @@
+# SchemaCatalog 索引 — 列出本目录下所有要被 SchemaCatalogService 加载的表 yaml。
+# 加新表 = 加 yaml 文件 + 在这里登记一行。
+# 不在 tables 列表里的 yaml 文件,loader 会 warn skip(防误注册敏感表)。
+#
+# tenant 隔离是 schema 级(`tenant_<id>.*`),所以 QueryGuard 不做 tenant_id 列过滤;
+# 这里的 yaml 只关心:列白名单 + 敏感列标记 + 角色级数据可见范围(college/class)。
+tables:
+  - student_profile
+  - sys_user
+  - leave_request
+  - workflow_instance
+  - student_alert
+  - notification
+  - violation_record
+  - org_unit

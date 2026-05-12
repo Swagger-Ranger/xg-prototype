@@ -1,0 +1,32 @@
+table: student_alert
+alias: sa
+description: 学生异常预警记录(规则引擎触发,辅导员跟进 ack/resolve)
+indexes:
+  - [tenant_id, student_id, status]
+  - [severity, status]
+  - [created_at]
+join_keys:
+  student: { fk: student_id, table: sys_user, on: id }
+  student_profile: { fk: student_id, table: student_profile, on: user_id }
+columns:
+  - { name: id,              type: bigint,    label: 预警 ID }
+  - { name: student_id,      type: bigint,    label: 学生 user_id }
+  - { name: alert_rule_id,   type: bigint,    label: 命中的规则 ID }
+  - { name: rule_name,       type: text,      label: 规则名 }
+  - { name: severity,        type: text,      label: 严重度, indexed: true, enum: [low, medium, high, critical] }
+  - { name: status,          type: text,      label: 状态,  indexed: true, enum: [open, acknowledged, resolved, dismissed] }
+  - { name: acknowledged_by, type: bigint,    label: 确认人 user_id }
+  - { name: acknowledged_at, type: timestamp, label: 确认时间 }
+  - { name: resolved_at,     type: timestamp, label: 解决时间 }
+  - { name: note,            type: text,      label: 处理备注 }
+  - { name: created_at,      type: timestamp, label: 触发时间, aliases: [触发时间] }
+  - { name: updated_at,      type: timestamp, label: 更新时间 }
+  # trigger_data 是 JSONB,不暴露
+role_scope:
+  dean: "EXISTS (SELECT 1 FROM student_profile sp WHERE sp.user_id = sa.student_id AND sp.college = :owner_college)"
+  counselor: "EXISTS (SELECT 1 FROM student_profile sp WHERE sp.user_id = sa.student_id AND sp.class_id IN (:counselor_classes))"
+  class_master: "EXISTS (SELECT 1 FROM student_profile sp WHERE sp.user_id = sa.student_id AND sp.class_id IN (:counselor_classes))"
+  student_affairs_director: ""
+  school_admin: ""
+  super_admin: ""
+  student: "sa.student_id = :owner_id"

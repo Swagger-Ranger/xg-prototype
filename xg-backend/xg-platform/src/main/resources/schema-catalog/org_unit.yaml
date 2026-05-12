@@ -1,0 +1,25 @@
+table: org_unit
+alias: o
+description: 组织树(学校 → 学院 → 专业 → 班级),自引用 parent_id
+indexes:
+  - [tenant_id, parent_id]
+  - [type]
+columns:
+  - { name: id,         type: bigint,    label: org ID }
+  - { name: parent_id,  type: bigint,    label: 父 org ID }
+  - { name: name,       type: text,      label: 名称, aliases: [名称] }
+  - { name: code,       type: text,      label: 代码 }
+  - { name: type,       type: text,      label: 类型, indexed: true, enum: [school, college, major, class] }
+  - { name: sort_order, type: int,       label: 排序 }
+  - { name: leader_id,  type: bigint,    label: 负责人 user_id }
+  - { name: status,     type: text,      label: 状态, enum: [active, archived] }
+  - { name: created_at, type: timestamp, label: 创建时间 }
+  - { name: deleted_at, type: timestamp, label: 软删时间 }
+# org_unit 不限制可见性 —— 任何角色都能看组织树。
+role_scope:
+  dean: ""
+  counselor: ""
+  student_affairs_director: ""
+  school_admin: ""
+  super_admin: ""
+  student: ""

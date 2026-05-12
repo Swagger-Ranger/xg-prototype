@@ -1,0 +1,26 @@
+table: notification
+alias: n
+description: 通知收件箱(每条通知一行,租户内全量,recipient 解析在发送端做)
+indexes:
+  - [tenant_id, created_at]
+  - [source_type, source_id]
+columns:
+  - { name: id,              type: bigint,    label: 通知 ID }
+  - { name: title,           type: text,      label: 标题 }
+  - { name: content,         type: text,      label: 正文 }
+  - { name: level,           type: text,      label: 级别, indexed: true, enum: [normal, important, urgent] }
+  - { name: source_type,     type: text,      label: 来源类型, aliases: [来源] }
+  - { name: source_id,       type: bigint,    label: 来源对象 ID }
+  - { name: channels,        type: text_array, label: 投递渠道 }
+  - { name: require_confirm, type: boolean,   label: 需确认 }
+  - { name: sender_id,       type: bigint,    label: 发送人 user_id }
+  - { name: created_at,      type: timestamp, label: 创建时间 }
+# 通知粒度是租户内全量,角色 scope 在 notification_inbox / recipient 链路做。
+# 这里 NL→SQL 查通知统计(谁发的、什么级别、哪个 source_type 居多)不限制可见性。
+role_scope:
+  dean: ""
+  counselor: ""
+  student_affairs_director: ""
+  school_admin: ""
+  super_admin: ""
+  student: "n.sender_id = :owner_id OR n.source_type = 'public'"

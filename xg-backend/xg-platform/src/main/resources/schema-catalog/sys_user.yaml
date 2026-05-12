@@ -1,0 +1,33 @@
+table: sys_user
+alias: u
+description: 系统用户(学生 / 老师 / 管理员通用),student_profile.user_id 引用此表
+indexes:
+  - [tenant_id, username]
+  - [external_id]
+  - [wechat_openid]
+columns:
+  - { name: id,             type: bigint,    label: 用户 ID }
+  - { name: username,       type: text,      label: 用户名,    aliases: [用户名, 账号] }
+  - { name: real_name,      type: text,      label: 姓名,      aliases: [姓名, 名字] }
+  - { name: gender,         type: text,      label: 性别,      aliases: [性别], enum: [male, female, unknown] }
+  - { name: phone,          type: text,      label: 手机号,    sensitive: pii_partial }
+  - { name: email,          type: text,      label: 邮箱,      sensitive: pii_partial }
+  - { name: avatar_url,     type: text,      label: 头像 URL }
+  - { name: external_id,    type: text,      label: 外部账号,  sensitive: true }
+  - { name: wechat_openid,  type: text,      label: 微信 OpenID, sensitive: true }
+  - { name: wecom_userid,   type: text,      label: 企微 UserID, sensitive: true }
+  - { name: password_hash,  type: text,      label: 密码哈希,  sensitive: true }
+  - { name: status,         type: text,      label: 账号状态,  enum: [active, disabled] }
+  - { name: last_login_at,  type: timestamp, label: 最后登录 }
+  - { name: created_at,     type: timestamp, label: 创建时间 }
+  - { name: deleted_at,     type: timestamp, label: 软删时间 }
+# sys_user 自身不做角色级 scope —— 通过 join student_profile 间接 scope。
+# 但 sensitive 列(password_hash / external_id / wechat_openid 等)被 QueryGuard
+# 强制从 SELECT 列里 reject,任何角色都无法直查。
+role_scope:
+  dean: ""
+  counselor: ""
+  student_affairs_director: ""
+  school_admin: ""
+  super_admin: ""
+  student: "u.id = :owner_id"

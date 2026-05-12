@@ -1,0 +1,28 @@
+table: workflow_instance
+alias: wi
+description: 工作流实例(请假 / 销假 / 其他业务通用的状态机执行体)
+indexes:
+  - [tenant_id, biz_type, biz_id]
+  - [status, started_at]
+columns:
+  - { name: id,              type: bigint,    label: 实例 ID }
+  - { name: definition_id,   type: bigint,    label: 工作流定义 ID }
+  - { name: initiator_id,    type: bigint,    label: 发起人 user_id }
+  - { name: current_node_id, type: text,      label: 当前节点 id }
+  - { name: status,          type: text,      label: 状态,    indexed: true, enum: [running, completed, rejected, cancelled] }
+  - { name: biz_type,        type: text,      label: 业务类型, aliases: [业务] }
+  - { name: biz_id,          type: bigint,    label: 业务对象 ID }
+  - { name: started_at,      type: timestamp, label: 启动时间 }
+  - { name: finished_at,     type: timestamp, label: 完成时间 }
+  - { name: created_at,      type: timestamp, label: 创建时间 }
+  - { name: updated_at,      type: timestamp, label: 更新时间 }
+  - { name: deleted_at,      type: timestamp, label: 软删时间 }
+  # definition_snapshot / context 是 JSONB,不暴露
+role_scope:
+  dean: "EXISTS (SELECT 1 FROM student_profile sp WHERE sp.user_id = wi.initiator_id AND sp.college = :owner_college)"
+  counselor: "EXISTS (SELECT 1 FROM student_profile sp WHERE sp.user_id = wi.initiator_id AND sp.class_id IN (:counselor_classes))"
+  class_master: "EXISTS (SELECT 1 FROM student_profile sp WHERE sp.user_id = wi.initiator_id AND sp.class_id IN (:counselor_classes))"
+  student_affairs_director: ""
+  school_admin: ""
+  super_admin: ""
+  student: "wi.initiator_id = :owner_id"

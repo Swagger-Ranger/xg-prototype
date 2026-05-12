@@ -1,0 +1,34 @@
+table: student_profile
+alias: sp
+description: 学生学籍基础信息(每个 user_id 一行 active student)
+indexes:
+  - student_no
+  - [tenant_id, user_id]
+  - [college, grade, status]
+join_keys:
+  user: { fk: user_id, table: sys_user, on: id }
+  class: { fk: class_id, table: org_unit, on: id }
+columns:
+  - { name: id,              type: bigint,    label: 内部 ID,    sensitive: false }
+  - { name: user_id,         type: bigint,    label: 用户 ID,    sensitive: false }
+  - { name: student_no,      type: text,      label: 学号,      aliases: [学号], sensitive: false, indexed: true }
+  - { name: grade,           type: text,      label: 年级,      aliases: [年级, 入学级], indexed: true }
+  - { name: college,         type: text,      label: 学院,      aliases: [学院], indexed: true }
+  - { name: major,           type: text,      label: 专业,      aliases: [专业] }
+  - { name: class_name,      type: text,      label: 班级,      aliases: [班级] }
+  - { name: class_id,        type: bigint,    label: 班级 org id }
+  - { name: enrollment_date, type: date,      label: 入学日期 }
+  - { name: status,          type: text,      label: 学籍状态,  aliases: [状态, 学籍], indexed: true, enum: [active, suspended, graduated, withdrawn] }
+  - { name: created_at,      type: timestamp, label: 创建时间 }
+  - { name: updated_at,      type: timestamp, label: 更新时间 }
+  - { name: deleted_at,      type: timestamp, label: 软删时间,  sensitive: false }
+# 角色级数据可见范围(QueryGuard 自动注入到 WHERE)。空字符串 = 不限。
+# placeholder :owner_college 等由 ExecContext 替换为真实值。
+role_scope:
+  dean: "sp.college = :owner_college"
+  counselor: "sp.class_id IN (:counselor_classes)"
+  class_master: "sp.class_id IN (:counselor_classes)"
+  student_affairs_director: ""
+  school_admin: ""
+  super_admin: ""
+  student: "sp.user_id = :owner_id"
