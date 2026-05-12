@@ -77,8 +77,10 @@ export default function NotificationPage() {
 
   const handleRowClick = (item: Notification) => {
     setExpanded(expanded === item.id ? null : item.id);
+    // markRead / confirm 后端按 notification_id 过滤 recipient,所以这里必须传
+    // notification_id 而不是 item.id(后者是 recipient.id,不会匹配上,update 0 行)。
     if (!item.read) {
-      readMutation.mutate(item.id);
+      readMutation.mutate(item.notification_id);
     }
   };
 
@@ -166,7 +168,7 @@ export default function NotificationPage() {
                         size="small"
                         type="primary"
                         loading={confirmMutation.isPending}
-                        onClick={() => confirmMutation.mutate(item.id)}
+                        onClick={() => confirmMutation.mutate(item.notification_id)}
                       >
                         确认
                       </Button>

@@ -57,10 +57,12 @@ export default function NotificationsPage() {
   useDidShow(() => { load(); });
 
   const onTap = async (n: MiniNotification) => {
-    // 先乐观置已读，再后台 markRead；接口失败也不阻塞跳转
+    // 先乐观置已读，再后台 markRead；接口失败也不阻塞跳转。
+    // 后端 PUT /notifications/{id}/read 按 notification_id 过滤 recipient,
+    // 所以这里必须传 n.notification_id 而不是 n.id(后者是 recipient.id)。
     if (!n.read) {
       setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
-      markAsRead(n.id).catch(() => {
+      markAsRead(n.notification_id).catch(() => {
         // 静默：UI 已置已读，下次刷新会修正
       });
     }

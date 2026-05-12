@@ -25,10 +25,20 @@ public class ResidentialSubqueryStrategy implements SqlStrategy {
         if (!ALLOWED_TYPES.contains(type)) {
             throw new IllegalArgumentException("residential_subquery.residentialType 必须是 academy 或 dorm_block,实际:" + type);
         }
+        // 学生只直接挂在 leaf (dorm_block) 上;按"书院"(academy)筛要走 closure 跨级 ancestor,
+        // 按"书院班"(dorm_block)筛直接 join membership.org_unit_id 即可。
+        if ("academy".equals(type)) {
+            return "EXISTS (SELECT 1 FROM student_org_membership sm "
+                 + "JOIN org_closure oc ON oc.descendant_id = sm.org_unit_id "
+                 + "JOIN org_unit ou ON ou.id = oc.ancestor_id "
+                 + "WHERE sm.student_user_id = sp.user_id AND ou.deleted_at IS NULL "
+                 + "AND ou.track = 'residential' AND ou.type = 'academy' "
+                 + "AND ou.name = #{" + paramRef + "})";
+        }
         return "EXISTS (SELECT 1 FROM student_org_membership sm "
              + "JOIN org_unit ou ON ou.id = sm.org_unit_id "
              + "WHERE sm.student_user_id = sp.user_id AND ou.deleted_at IS NULL "
-             + "AND ou.track = 'residential' AND ou.type = '" + type + "' "
+             + "AND ou.track = 'residential' AND ou.type = 'dorm_block' "
              + "AND ou.name = #{" + paramRef + "})";
     }
 }

@@ -13,17 +13,38 @@ import java.util.List;
 public interface StudentProfileMapper extends BaseMapper<StudentProfile> {
 
     /**
-     * Resolve sys_user.id of all students managed by the given counselor.
-     * Traverses counselor_org_mapping → org_closure (descendant classes) → student_profile.class_id.
-     * Returns an empty list when the counselor manages no org.
+     * 辅导员"管事范围"内的学生(请假待审列表用)。双轨语义反向:
+     * <ul>
+     *   <li>residential path: 辅导员挂的 dorm_block 下的学生(走 membership)</li>
+     *   <li>academic path: 辅导员挂的学院树下的学生,**排除已被书院接管**的
+     *       (NOT EXISTS 子查询:该学生有 residential class membership 且对应班绑了导师)</li>
+     * </ul>
+     *
+     * <p>排除子句必须跟 {@code AssigneeLookupMapper.findCounselorsOfStudent} 的"先 residential 后 fallback"
+     * 一致 —— 学生被书院接管 ↔ 学院辅导员视野里消失 ↔ 学院辅导员审批列表里没他。
      */
     @Select({
+            "SELECT DISTINCT sm.student_user_id AS user_id",
+            "FROM student_org_membership sm",
+            "JOIN org_unit ou ON ou.id = sm.org_unit_id",
+            "  AND ou.track = 'residential' AND ou.type = 'dorm_block' AND ou.deleted_at IS NULL",
+            "JOIN counselor_org_mapping com ON com.org_id = sm.org_unit_id",
+            "WHERE com.counselor_id = #{counselorId}",
+            "UNION",
             "SELECT DISTINCT sp.user_id",
             "FROM student_profile sp",
             "JOIN org_closure oc ON oc.descendant_id = sp.class_id",
             "JOIN counselor_org_mapping com ON com.org_id = oc.ancestor_id",
             "WHERE com.counselor_id = #{counselorId}",
-            "  AND sp.deleted_at IS NULL"
+            "  AND sp.deleted_at IS NULL",
+            "  AND NOT EXISTS (",
+            "    SELECT 1 FROM student_org_membership sm2",
+            "    JOIN org_unit ou2 ON ou2.id = sm2.org_unit_id",
+            "      AND ou2.track = 'residential' AND ou2.type = 'dorm_block'",
+            "      AND ou2.deleted_at IS NULL",
+            "    JOIN counselor_org_mapping com2 ON com2.org_id = sm2.org_unit_id",
+            "    WHERE sm2.student_user_id = sp.user_id",
+            "  )"
     })
     List<Long> findStudentUserIdsByCounselor(@Param("counselorId") Long counselorId);
 
@@ -58,19 +79,35 @@ public interface StudentProfileMapper extends BaseMapper<StudentProfile> {
     List<Long> findStudentUserIdsByClassMaster(@Param("classMasterId") Long classMasterId);
 
     /**
-     * Full roster (one row per student) for the given counselor. Drives the
-     * workspace's cross-class view — one source of truth so class badges on
-     * leave/alert/violation rows don't each need a denormalised class_name.
+     * 辅导员的"班级花名册"(workspace 视图)。双轨语义:union 两条路径,**不**排除已被接管的学生 ——
+     * 跟 findStudentUserIdsByCounselor 不同,花名册是"管理范围"视图,学院辅导员仍能看到本班学生
+     * 即使他已被书院班接管(只是请假审批列表里看不到)。
+     *
+     * <p>明德导师挂明德 1/2 班 → 花名册显示跨学院的学生(张晓明/周佳怡/郑雅琴...);
+     * 李老师挂软件 2301 → 花名册仍显示该班全部学生,含已进书院的张晓明。
      */
     @Select({
             "SELECT DISTINCT sp.user_id, sp.student_no, u.real_name AS name,",
             "       sp.class_id, sp.class_name, sp.grade, sp.status",
             "FROM student_profile sp",
             "JOIN sys_user u ON u.id = sp.user_id AND u.deleted_at IS NULL",
-            "JOIN org_closure oc ON oc.descendant_id = sp.class_id",
-            "JOIN counselor_org_mapping com ON com.org_id = oc.ancestor_id",
-            "WHERE com.counselor_id = #{counselorId}",
-            "  AND sp.deleted_at IS NULL",
+            "WHERE sp.deleted_at IS NULL",
+            "  AND sp.user_id IN (",
+            "    SELECT DISTINCT sm.student_user_id",
+            "    FROM student_org_membership sm",
+            "    JOIN org_unit ou ON ou.id = sm.org_unit_id",
+            "      AND ou.track = 'residential' AND ou.type = 'dorm_block'",
+            "      AND ou.deleted_at IS NULL",
+            "    JOIN counselor_org_mapping com ON com.org_id = sm.org_unit_id",
+            "    WHERE com.counselor_id = #{counselorId}",
+            "    UNION",
+            "    SELECT DISTINCT sp2.user_id",
+            "    FROM student_profile sp2",
+            "    JOIN org_closure oc ON oc.descendant_id = sp2.class_id",
+            "    JOIN counselor_org_mapping com ON com.org_id = oc.ancestor_id",
+            "    WHERE com.counselor_id = #{counselorId}",
+            "      AND sp2.deleted_at IS NULL",
+            "  )",
             "ORDER BY sp.class_name, sp.student_no"
     })
     List<ClassRosterEntry> findRosterByCounselor(@Param("counselorId") Long counselorId);

@@ -1,17 +1,16 @@
 import {
   HomeOutlined,
-  FileTextOutlined,
-  CheckSquareOutlined,
-  ClockCircleOutlined,
+  CalendarOutlined,
+  SnippetsOutlined,
+  EnvironmentOutlined,
   BellOutlined,
   TeamOutlined,
   SettingOutlined,
   LogoutOutlined,
   EditOutlined,
-  WarningOutlined,
-  ShopOutlined,
+  ExclamationCircleOutlined,
   AlertOutlined,
-  ApartmentOutlined,
+  DeploymentUnitOutlined,
   FormOutlined,
   MessageOutlined,
 } from '@ant-design/icons';
@@ -23,20 +22,20 @@ import styles from './NavRail.module.css';
 
 const navItems = [
   { key: '/workspace', icon: <HomeOutlined />, label: '工作台', permission: null },
-  { key: '/leave', icon: <FileTextOutlined />, label: '请销假', permission: null },
-  { key: '/collection', icon: <CheckSquareOutlined />, label: '信息收集', permission: 'collection:manage' },
-  { key: '/checkin', icon: <ClockCircleOutlined />, label: '签到', permission: 'checkin:manage' },
+  { key: '/leave', icon: <CalendarOutlined />, label: '请销假', permission: null },
+  { key: '/collection', icon: <SnippetsOutlined />, label: '信息收集', permission: 'collection:manage' },
+  { key: '/checkin', icon: <EnvironmentOutlined />, label: '签到', permission: 'checkin:manage' },
   { key: '/notification', icon: <BellOutlined />, label: '我的通知', permission: null },
   { key: '/student', icon: <TeamOutlined />, label: '学生信息库', permission: 'student:view' },
   { key: '/work-log', icon: <EditOutlined />, label: '工作日志', permission: 'worklog:manage' },
-  { key: '/violation', icon: <WarningOutlined />, label: '违纪处分', permission: 'discipline:manage' },
+  { key: '/violation', icon: <ExclamationCircleOutlined />, label: '违纪处分', permission: 'discipline:manage' },
   { key: '/alerts', icon: <AlertOutlined />, label: '异常预警', permission: 'student:view' },
   { key: '/counselor-talks', icon: <MessageOutlined />, label: '辅导谈话', permission: 'worklog:manage' },
-  { key: '/work-study', icon: <ShopOutlined />, label: '勤工助学', permission: null },
+  { key: '/work-study', icon: <span className={styles.navTextIcon}>勤</span>, label: '勤工助学', permission: null },
 ];
 
 const bottomItems = [
-  { key: '/workflows', icon: <ApartmentOutlined />, label: '工作流定义', permission: 'system:manage' },
+  { key: '/workflows', icon: <DeploymentUnitOutlined />, label: '工作流定义', permission: 'system:manage' },
   { key: '/forms', icon: <FormOutlined />, label: '表单管理', permission: 'system:manage' },
   { key: '/system/users', icon: <SettingOutlined />, label: '系统管理', permission: 'system:manage' },
 ];

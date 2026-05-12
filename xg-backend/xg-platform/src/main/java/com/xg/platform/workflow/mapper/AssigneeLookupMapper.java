@@ -10,19 +10,42 @@ import java.util.List;
 public interface AssigneeLookupMapper {
 
     /**
-     * Counselor(s) managing the class of the given student user.
-     * Traverses student_profile.class_id → org_closure (ancestor = mapped org) → counselor_org_mapping.
-     * Primary counselor first so the workflow task lands on the class's main 班主任.
+     * 学生的"管事辅导员"——审批 / 通知 / 工作流任务都走它。双轨语义:
+     * <ul>
+     *   <li>学生进了书院班(residential class)  → 取书院班导师(完全接管,学院辅导员退场)</li>
+     *   <li>没进书院班                          → fallback 走学院班(原 V094 之前的逻辑)</li>
+     * </ul>
+     *
+     * <p>CTE r 是 residential 那条;主查询 UNION ALL 包 academic 那条,
+     * 用 NOT EXISTS(SELECT 1 FROM r) 实现"书院有人就不查学院",
+     * 不是空集判断 = 学生没进书院班才回退。这条 SQL 是<b>整套双轨制的</b>
+     * 单点入口 —— BuiltinAssigneeStrategy / ApplicantCounselorResolver 都靠它。
      */
     @Select("""
+            WITH r AS (
+                SELECT DISTINCT com.counselor_id
+                  FROM student_org_membership sm
+                  JOIN org_unit ou ON ou.id = sm.org_unit_id
+                                  AND ou.track = 'residential'
+                                  AND ou.type = 'dorm_block'
+                                  AND ou.deleted_at IS NULL
+                  JOIN counselor_org_mapping com ON com.org_id = sm.org_unit_id
+                  JOIN sys_user u ON u.id = com.counselor_id
+                                  AND u.status = 'active' AND u.deleted_at IS NULL
+                 WHERE sm.student_user_id = #{studentUserId}
+            )
+            SELECT counselor_id FROM r
+            UNION ALL
             SELECT DISTINCT com.counselor_id
               FROM student_profile sp
               JOIN org_closure oc ON oc.descendant_id = sp.class_id
               JOIN counselor_org_mapping com ON com.org_id = oc.ancestor_id
-              JOIN sys_user u ON u.id = com.counselor_id AND u.status = 'active' AND u.deleted_at IS NULL
+              JOIN sys_user u ON u.id = com.counselor_id
+                              AND u.status = 'active' AND u.deleted_at IS NULL
              WHERE sp.user_id = #{studentUserId}
                AND sp.deleted_at IS NULL
-             ORDER BY com.counselor_id
+               AND NOT EXISTS (SELECT 1 FROM r)
+             ORDER BY 1
             """)
     List<Long> findCounselorsOfStudent(@Param("studentUserId") Long studentUserId);
 

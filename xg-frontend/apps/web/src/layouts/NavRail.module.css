@@ -91,3 +91,12 @@
   background: rgba(220,38,38,0.06);
   box-shadow: var(--sh-xs);
 }
+
+/* 汉字图标 —— Antd 图标库找不到合适视觉时(如「勤工助学」)用首字代替。
+   尺寸跟 svg icon 视觉等价(14px / 字重 600 / 负字距)。 */
+.navTextIcon {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}

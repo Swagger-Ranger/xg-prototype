@@ -8,7 +8,7 @@ export interface TenantSettings {
   school_city: string | null;
   /**
    * 是否启用书院制双轨视图。false（缺省）= 学院单轨，UI 跟启用前一致。
-   * 启用后学生信息页多一组「书院 / 楼栋」filter + 列。
+   * 启用后学生信息页多一组「书院 / 书院班」filter + 列。
    */
   enable_residential_track: boolean;
 }

@@ -30,11 +30,13 @@ public interface StudentViewMapper {
             "       sp.class_name, u.phone, u.email, sp.status,",
             "       sp.education_level, sp.enrollment_date, sp.created_at,",
             "       sp.extended_info::text AS extended_info,",
-            // 生活线归属:走 membership ⨯ org_unit 子查询,各取一行 (一个学生通常只属于
-            // 一个书院 + 一个楼栋)。无书院的学校这两个 subquery 永远返回 NULL,VO 字段
-            // 缺省 null,前端见 null 不渲染列。
+            // 生活线归属:学生只直接挂在 leaf (dorm_block/书院班) 上,所以:
+            //   · residential_dorm_block: 直接 join membership.org_unit_id (学生挂的 leaf)
+            //   · residential_academy: 走 org_closure 跨 1 级取 ancestor (书院本身)
+            // 无书院的学校两个 subquery 都返回 NULL,前端见 null 不渲染列。
             "       (SELECT ou.name FROM student_org_membership sm",
-            "         JOIN org_unit ou ON ou.id = sm.org_unit_id",
+            "         JOIN org_closure oc ON oc.descendant_id = sm.org_unit_id",
+            "         JOIN org_unit ou ON ou.id = oc.ancestor_id",
             "         WHERE sm.student_user_id = sp.user_id AND ou.deleted_at IS NULL",
             "           AND ou.track = 'residential' AND ou.type = 'academy' LIMIT 1) AS residential_academy,",
             "       (SELECT ou.name FROM student_org_membership sm",

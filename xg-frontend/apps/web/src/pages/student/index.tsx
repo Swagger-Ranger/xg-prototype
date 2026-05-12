@@ -243,7 +243,8 @@ export default function StudentManagement() {
       dataIndex: 'class_name',
       width: 100,
     },
-    // 双轨制:启用书院制时插入"书院 / 楼栋"两列;否则不出现,跟单轨学校 UI 完全一致。
+    // 双轨制:启用书院制时插入"书院 / 书院班"两列;否则不出现,跟单轨学校 UI 完全一致。
+    // dataIndex 沿用 residential_dorm_block(技术名,DB 列也叫 dorm_block);用户标签是"书院班"。
     ...(enableResidential ? [
       {
         title: '书院',
@@ -252,7 +253,7 @@ export default function StudentManagement() {
         render: (v: string | null | undefined) => v || <span style={{ color: 'var(--fg-4)' }}>—</span>,
       },
       {
-        title: '楼栋',
+        title: '书院班',
         dataIndex: 'residential_dorm_block' as const,
         width: 100,
         render: (v: string | null | undefined) => v || <span style={{ color: 'var(--fg-4)' }}>—</span>,

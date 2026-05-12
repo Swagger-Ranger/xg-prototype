@@ -415,7 +415,7 @@ export default function ApplyLeavePage() {
         </View>
         <View className={styles.durationFootnote}>
           <Text className={styles.durationFootnoteText}>
-            按工作时段计:09:00–12:00 + 13:00–18:00,8 小时 = 1 天,午休不计。
+            按上课时段计:09:00–12:00 + 13:00–18:00,8 课时 = 1 天,午休不计。
           </Text>
         </View>
         {impact && impact.total_periods > 0 && (

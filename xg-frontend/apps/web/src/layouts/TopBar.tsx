@@ -1,4 +1,4 @@
-import { Dropdown } from 'antd';
+import { Badge, Dropdown } from 'antd';
 import { BellOutlined, UserOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -82,14 +82,17 @@ export default function TopBar() {
           </>
         )}
       </div>
-      {unreadCount > 0 && (
-        <span className={styles.metaPill}>{unreadCount} {t('topbar.unreadSuffix')}</span>
-      )}
       <div className={styles.spacer} />
-      <button className={styles.iconBtn} onClick={() => navigate('/notification')}>
-        <BellOutlined />
-        {unreadCount > 0 && <span className={styles.notiDot} />}
-      </button>
+      {/* 通知入口:数字角标直接挂在铃铛上,旧版独立的「N 条未读」pill 已并入这里。 */}
+      <Badge count={unreadCount} size="small" overflowCount={99} offset={[-4, 4]}>
+        <button
+          className={styles.iconBtn}
+          onClick={() => navigate('/notification')}
+          aria-label={unreadCount > 0 ? `${unreadCount} ${t('topbar.unreadSuffix')}` : '通知'}
+        >
+          <BellOutlined />
+        </button>
+      </Badge>
       <Dropdown menu={{ items: userMenuItems, onClick: handleMenuClick }} placement="bottomRight">
         <button className={styles.avatar} aria-label="账户菜单">
           <UserAvatar

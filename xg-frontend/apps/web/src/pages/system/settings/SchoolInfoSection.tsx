@@ -47,7 +47,7 @@ export default function SchoolInfoSection() {
       Modal.confirm({
         title: '启用书院制双轨视图？',
         content:
-          '启用后,「学生信息 / 班级看板」会多一组书院 / 楼栋维度,辅导员可同时挂学院班 + 书院班。请先在《组织架构》导入书院树和学生绑定,否则相关页面会是空的。',
+          '启用后,「学生信息 / 班级看板」会多一组书院 / 书院班维度,辅导员可同时挂学院班 + 书院班。请先在《组织架构》导入书院树和学生绑定,否则相关页面会是空的。',
         okText: '启用',
         cancelText: '取消',
         onOk: () => mut.mutate({ enable_residential_track: true }),
@@ -131,7 +131,7 @@ export default function SchoolInfoSection() {
         </Space>
         <Text type="secondary" style={{ fontSize: 12 }}>
           关闭(默认):学院单轨,UI 跟启用前一致。开启后「学生信息 / 班级看板」多一组
-          书院 / 楼栋维度,辅导员可同时挂学院班 + 书院班。关闭仅隐藏入口,不会删除已配置的书院树和学生绑定
+          书院 / 书院班维度,辅导员可同时挂学院班 + 书院班。关闭仅隐藏入口,不会删除已配置的书院树和学生绑定
         </Text>
       </Space>
     </div>

@@ -3,7 +3,6 @@ package com.xg.business.fieldcatalog.loader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.business.fieldcatalog.model.FieldCatalog;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -25,12 +24,17 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class FieldCatalogLoader {
 
     private static final String LOCATION_PATTERN = "classpath*:field-catalog/*.yaml";
 
-    private final ObjectMapper objectMapper;
+    /**
+     * 独立 ObjectMapper —— 不用 Spring 注入的全局 mapper,
+     * 因为后者带 SNAKE_CASE 策略会把 yaml 里 camelCase 字段 (residentialType /
+     * tenantSetting / parentKey 等) 全部解析为 null,导致 SqlStrategy 拿到 null
+     * 后 NPE。yaml 里的字段直接 match record field 名字 (默认驼峰)。
+     */
+    private static final ObjectMapper YAML_MAPPER = new ObjectMapper().findAndRegisterModules();
 
     private final Map<String, FieldCatalog> catalogs = new HashMap<>();
 
@@ -50,7 +54,7 @@ public class FieldCatalogLoader {
                     log.warn("field-catalog 空文件,跳过:{}", res.getFilename());
                     continue;
                 }
-                FieldCatalog catalog = objectMapper.convertValue(raw, FieldCatalog.class);
+                FieldCatalog catalog = YAML_MAPPER.convertValue(raw, FieldCatalog.class);
                 if (catalog.page() == null || catalog.page().isBlank()) {
                     throw new IllegalStateException("field-catalog 缺少 page 字段:" + res.getFilename());
                 }
