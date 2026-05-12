@@ -584,7 +584,6 @@ async def global_chat(
     x_user_id: str = Header(default=""),
     x_tenant_id: str = Header(default=""),
     x_user_lang: str = Header(default="zh"),
-    authorization: str = Header(default=""),
 ) -> ChatResponse:
     conv_id = req.conversation_id or uuid.uuid4().hex
     lang = (req.user_lang or x_user_lang or "zh").lower()
@@ -743,9 +742,6 @@ async def global_chat(
     action: ActionPayload | None = None
     reply = ""
     tool_ran = False
-    # 给 query_tools 写"结构化副产品"的 mutable 通道:LLM 自己只拿 text 解读,
-    # 但 query_metrics 等需要把图表数据原样喂给前端打卡 → 走这个 dict。
-    tool_side: dict = {}
 
     try:
         for _ in range(MAX_ITERS):
@@ -811,8 +807,6 @@ async def global_chat(
                     user_id=x_user_id, tenant_id=x_tenant_id,
                     user_role=req.user_role or "student",
                     user_lang=lang,
-                    authorization=authorization,
-                    side=tool_side,
                 )
                 convo.append({
                     "role": "tool",
@@ -827,11 +821,6 @@ async def global_chat(
                     "The query took too long and was aborted. Please rephrase.",
                     lang,
                 )
-
-        # query_metrics 把图表 data 留在 tool_side["metric_result"]。如果这一轮跑了
-        # 且没被其他 UI tool 抢占 action,打包成 metric_result action 给前端渲卡。
-        if action is None and tool_side.get("metric_result"):
-            action = ActionPayload(type="metric_result", data=tool_side["metric_result"])
 
         if not (reply or "").strip() and action:
             reply = _action_reply(action, lang)

@@ -44,18 +44,12 @@ def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(base_url=settings.java_base_url, timeout=8.0, trust_env=False)
 
 
-def _headers(user_id: str, tenant_id: str, role: str, authorization: str = "") -> dict[str, str]:
-    h = {
+def _headers(user_id: str, tenant_id: str, role: str) -> dict[str, str]:
+    return {
         "X-User-Id": user_id or "0",
         "X-Tenant-Id": tenant_id or "default",
         "X-User-Role": role or "student",
     }
-    # Sa-Token 全局 SaInterceptor 要求 /api/v1/** 必须带 Bearer token,否则 401。
-    # chat.py 把浏览器的 Authorization 透传过来,这里加进 headers,让所有 query 工具
-    # 都走真正的登录态(也修了之前 X-User-Id only 的静默 401 失败)。
-    if authorization:
-        h["Authorization"] = authorization
-    return h
 
 
 def _label(status: str | None) -> str:
@@ -69,10 +63,7 @@ async def _get_json(path: str, params: dict, ctx: dict) -> dict:
         resp = await c.get(
             path,
             params={k: v for k, v in params.items() if v is not None},
-            headers=_headers(
-                ctx["user_id"], ctx["tenant_id"], ctx["user_role"],
-                ctx.get("authorization", ""),
-            ),
+            headers=_headers(ctx["user_id"], ctx["tenant_id"], ctx["user_role"]),
         )
         resp.raise_for_status()
         return resp.json()
@@ -1265,105 +1256,6 @@ async def fetch_field_catalog(page: str) -> dict | None:
     return cached  # 拉失败时:有过缓存就用旧的;否则 None,调用方自己降级
 
 
-# ---------- query_metrics (院长 / 学工部部长 NL 问数) ----------
-
-# 注册表 metric_id 字面量 — 跟后端 MetricId enum 严格对齐。LLM 只能选这里出现的 id。
-# 加 metric 需要同时更新 backend enum + mapper + service + 本注册表的描述。
-METRIC_ID_DESCRIPTIONS: dict[str, str] = {
-    "leave.count": "请假总条数。可按 college / leave_type 切;不传 dim = 单值。filter 支持 status / leave_type / term_code。compareTo=yoy 同比、last_period 环比。",
-    "leave.pass_rate": "请假通过率 = approved / (approved+rejected)。(暂未实现)",
-    "leave.duration_avg": "平均请假时长(天)。(暂未实现)",
-    "leave.review_duration_avg": "平均审批耗时(小时)。(暂未实现)",
-    "leave.reject_top_reasons": "驳回理由 Top N。(暂未实现)",
-    "leave.no_return_overdue": "长期未销假名单。(暂未实现)",
-    "student.frequent_leaver": "高频请假学生 Top N。(暂未实现)",
-    "class.leave_density": "班级请假密度 Top N。(暂未实现)",
-    "student.term_cumulative_exceed": "学期累计超限学生名单。(暂未实现)",
-    "approver.workload": "审批人任务量。(暂未实现)",
-    "approver.slow_top": "审批最慢 Top N。(暂未实现)",
-    "alert.count_by_type": "预警按类型分布。(暂未实现)",
-}
-
-
-def _format_metric_for_llm(payload: dict) -> str:
-    """把后端 /metrics/query 的 JSON response 压成一行行 key: value 文本喂给 LLM,
-    让它写中文 narrative。结构化数据本身另走 ctx['side']['metric_result'] 给前端。"""
-    metric = payload.get("metric")
-    chart = payload.get("chart_type")
-    ctx_data = payload.get("context") or {}
-    rows = payload.get("rows") or []
-    comparison = payload.get("comparison")
-
-    lines: list[str] = [
-        f"指标: {metric}",
-        f"图类: {chart}",
-        f"范围: {ctx_data.get('scope', '?')} {ctx_data.get('college_name', '')}".rstrip(),
-        f"时段: {ctx_data.get('period', '?')} {ctx_data.get('since', '')}~{ctx_data.get('until', '')}".rstrip(),
-    ]
-    if chart == "number" and rows:
-        lines.append(f"数值: {rows[0].get('value')}")
-    elif rows:
-        # bar / line / topN: 列前 10 行
-        lines.append("分行:")
-        for r in rows[:10]:
-            label = r.get("label") or r.get("x") or r.get("name") or "?"
-            value = r.get("value")
-            lines.append(f"  · {label}: {value}")
-        if len(rows) > 10:
-            lines.append(f"  (其余 {len(rows) - 10} 行省略)")
-    if comparison:
-        lines.append(
-            f"对比({comparison.get('period', '?')}): "
-            f"value={comparison.get('value')} "
-            f"delta={comparison.get('delta')} delta%={comparison.get('delta_pct')}"
-        )
-    return "\n".join(lines)
-
-
-async def query_metrics(args: dict[str, Any], ctx: dict) -> str:
-    """NL 问数。LLM 选 metric_id + 维度 + 过滤 + 对比模式,后端跑写死 SQL。
-    LLM 拿到的 text 回去后会用它写 1-2 句中文 narrative;同时结构化数据落 side 给前端渲染图表。"""
-    payload = {
-        "metric": args.get("metric"),
-        "dimensions": args.get("dimensions") or [],
-        "filters": args.get("filters") or {},
-        "compareTo": args.get("compareTo") or args.get("compare_to"),
-    }
-    if not payload["metric"]:
-        return "缺 metric 参数,请告诉我要查哪个指标"
-    if payload["metric"] not in METRIC_ID_DESCRIPTIONS:
-        return f"未知 metric: {payload['metric']}。可用列表:{', '.join(METRIC_ID_DESCRIPTIONS.keys())}"
-
-    async with _client() as c:
-        resp = await c.post(
-            "/api/v1/metrics/query",
-            json=payload,
-            headers=_headers(
-                ctx["user_id"], ctx["tenant_id"], ctx["user_role"],
-                ctx.get("authorization", ""),
-            ),
-        )
-    if resp.status_code != 200:
-        try:
-            err = resp.json()
-            return f"查询失败:{err.get('message') or err.get('code') or resp.text[:200]}"
-        except Exception:
-            return f"查询失败(HTTP {resp.status_code})"
-
-    body = resp.json() or {}
-    data = body.get("data") if isinstance(body, dict) else body
-    if not isinstance(data, dict):
-        return "查询返回格式异常"
-
-    # 1) 给前端的结构化数据,通过 side 透传出去
-    side = ctx.get("side")
-    if isinstance(side, dict):
-        side["metric_result"] = data
-
-    # 2) 给 LLM 的扁平文本,让它写中文 narrative
-    return _format_metric_for_llm(data)
-
-
 # ---------- Registry ----------
 
 Handler = Callable[[dict[str, Any], dict], Awaitable[str]]
@@ -1759,50 +1651,6 @@ TOOLS: list[dict[str, Any]] = [
         },
         "allowed_roles": None,  # 所有角色都能读规则
     },
-    {
-        "name": "query_metrics",
-        "description": (
-            "NL 问数(管理者视角)。把老师的自然语言问数翻译成 metric_id + 维度/过滤/对比。"
-            "只选下面注册表里出现的 metric_id,**不要**编造没列出的:\n"
-            + "\n".join(f"  - {k}: {v}" for k, v in METRIC_ID_DESCRIPTIONS.items())
-            + "\n\n"
-            "用法:\n"
-            "  - `这个月请假多少` → metric=leave.count,filters={term_code 默认当学期}\n"
-            "  - `公假这学期通过率` → metric=leave.pass_rate,filters={leave_type:official_business}\n"
-            "  - `请假按假别分布` → metric=leave.count,dimensions=[leave_type]\n"
-            "  - `本院 vs 全校请假数` → metric=leave.count,dimensions=[college] (院长 scope 会自动渲染本院 vs 均值)\n"
-            "  - `今年比去年请假多多少` → metric=leave.count,compareTo=yoy\n\n"
-            "**重要**:每次返回数据后,基于返回的文本生成 1-2 句**中文** narrative(指出主值 + 同比/环比 + 高低),"
-            "不要复读 metric_id 和 chart 类型,那是给前端用的。"
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "metric": {
-                    "type": "string",
-                    "enum": sorted(METRIC_ID_DESCRIPTIONS.keys()),
-                    "description": "必填,指标 ID,只能从注册表里选",
-                },
-                "dimensions": {
-                    "type": "array",
-                    "items": {"type": "string", "enum": ["college", "class", "leave_type", "month", "week", "status"]},
-                    "description": "切片维度。一般只填一个(如 [leave_type]),不填=单值",
-                },
-                "filters": {
-                    "type": "object",
-                    "description": "等值过滤,key 可选:term_code / leave_type / status / since / until / college_id(院长 scope 下被强制覆盖)",
-                    "additionalProperties": True,
-                },
-                "compareTo": {
-                    "type": "string",
-                    "enum": ["none", "last_period", "yoy"],
-                    "description": "对比模式:yoy=同比(去年同期),last_period=环比(同长度上一时段)",
-                },
-            },
-            "required": ["metric"],
-        },
-        "allowed_roles": {None: {"dean", "student_affairs_director", "super_admin", "school_admin"}},
-    },
 ]
 
 async def _read_workflow_config_summary(args: dict[str, Any], ctx: dict) -> str:
@@ -1855,7 +1703,6 @@ HANDLERS: dict[str, Handler] = {
     "query_student_events": query_student_events,
     "query_late_students": query_late_students,
     "resolve_date": resolve_date,
-    "query_metrics": query_metrics,
 }
 
 
@@ -1913,18 +1760,7 @@ async def execute(
     tenant_id: str,
     user_role: str,
     user_lang: str = "zh",
-    authorization: str = "",
-    side: dict | None = None,
 ) -> str:
-    """Run a registered read-only query tool.
-
-    ``authorization`` 是浏览器 Authorization header,chat.py 透传进来,
-    让 query 工具调后端时带真正 Sa-Token,否则 SaInterceptor 全 401。
-
-    ``side`` 是 chat.py 提供的可变 dict,handler 可以把"结构化结果"写进去
-    (如 query_metrics 的图表 data),chat.py 在 LLM 终答后读取并打成 action。
-    LLM 自己拿到的只是 string 输出(让它写中文 narrative)。
-    """
     handler = HANDLERS.get(tool_name)
     if handler is None:
         return f"未知查询工具：{tool_name}"
@@ -1936,8 +1772,6 @@ async def execute(
     ctx = {
         "user_id": user_id, "tenant_id": tenant_id,
         "user_role": user_role, "user_lang": user_lang,
-        "authorization": authorization or "",
-        "side": side if side is not None else {},
     }
     try:
         return await handler(args or {}, ctx)

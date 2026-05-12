@@ -15,7 +15,6 @@ import { useBatchActionStore } from '@/stores/batch-action.store';
 import { useLocaleStore } from '@/stores/locale.store';
 import { useAuth } from '@/hooks/useAuth';
 import BatchActionDrawer from '@/components/batch/BatchActionDrawer';
-import MetricResultCard, { type MetricResultData } from './MetricResultCard';
 import api from '@/api';
 import styles from './AIPanel.module.css';
 
@@ -98,14 +97,7 @@ interface NotificationProposalMessage {
   error?: string;
 }
 
-interface MetricResultMessage {
-  id: string;
-  role: 'assistant';
-  kind: 'metric_result';
-  data: MetricResultData;
-}
-
-type Message = TextMessage | CardMessage | EventMessage | WorkflowProposalMessage | NotificationProposalMessage | MetricResultMessage;
+type Message = TextMessage | CardMessage | EventMessage | WorkflowProposalMessage | NotificationProposalMessage;
 
 /* ── Helpers ── */
 
@@ -677,18 +669,6 @@ export default function AIPanel() {
               navigate('/system?tab=notif');
             }
             void runNotificationProposal(String(actionData.instruction || msgText));
-          } else if (type === 'metric_result') {
-            // 院长 / 学工部部长 NL 问数:sidecar 已经把 LLM 中文 narrative 放在
-            // reply 文本里(上方常规文本气泡),这里追加一张图表卡(数字/柱/折线/TopN)。
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: (Date.now() + 5).toString(),
-                role: 'assistant',
-                kind: 'metric_result',
-                data: actionData as unknown as MetricResultData,
-              },
-            ]);
           } else if (type === 'propose_workflow_config_change') {
             // 校管理员改请假/销假规则 — 调 sidecar /propose 计算 new_yaml,
             // 落成 workflow_proposal 卡片让老师确认。
@@ -904,14 +884,6 @@ export default function AIPanel() {
               </div>
             )}
           </div>
-        </div>
-      );
-    }
-
-    if (msg.kind === 'metric_result') {
-      return (
-        <div key={msg.id} className={`${styles.msg} ${styles.assistant}`}>
-          <MetricResultCard data={msg.data} />
         </div>
       );
     }
