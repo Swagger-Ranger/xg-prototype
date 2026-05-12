@@ -55,14 +55,21 @@ process_sql_file() {
     
     log_info "处理: $basename"
     
-    # 读取文件内容
-    local content=$(cat "$file")
+    # 先替换带引号的 '${tenant_id}'，再替换不带引号的 ${tenant_id}
+    # 使用临时文件避免管道问题
+    local tmpfile=$(mktemp)
     
-    # 替换 ${tenant_id} 为 'default'
-    local modified=$(echo "$content" | sed "s/\${tenant_id}/'$TENANT_ID'/g")
+    # 第一步：替换 '${tenant_id}' -> 'default'
+    sed "s/'\${tenant_id}'/'$TENANT_ID'/g" "$file" > "$tmpfile"
     
-    # 执行 SQL（忽略错误继续）
-    echo "$modified" | docker exec -i $POSTGRES_CONTAINER psql -U $DB_USER -d $DB_NAME 2>&1 | grep -E "ERROR|WARN|CREATE|INSERT|UPDATE" | head -5 || true
+    # 第二步：替换 ${tenant_id} -> 'default'
+    sed -i "s/\${tenant_id}/'$TENANT_ID'/g" "$tmpfile"
+    
+    # 执行 SQL
+    cat "$tmpfile" | docker exec -i $POSTGRES_CONTAINER psql -U $DB_USER -d $DB_NAME 2>&1 | grep -E "ERROR|WARN|CREATE|INSERT|UPDATE|ALTER|DROP|DELETE" | head -10 || true
+    
+    # 清理临时文件
+    rm -f "$tmpfile"
 }
 
 # 按顺序执行所有迁移脚本
