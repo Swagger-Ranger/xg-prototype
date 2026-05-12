@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Spin } from 'antd';
+import { Button, Empty, Modal, Spin } from 'antd';
 import {
   TeamOutlined,
   UserSwitchOutlined,
@@ -8,14 +9,18 @@ import {
   WarningOutlined,
   RiseOutlined,
   FallOutlined,
+  PlusOutlined,
 } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getAlertSummary } from '@/api/alert';
 import { getWorkspaceMetrics } from '@/api/insight';
+import { listMyObserverCards, deleteObserverCard, type ObserverCard as ObserverCardData } from '@/api/aiObserver';
 import { useAuth } from '@/hooks/useAuth';
 import InsightCard from '@/components/insight/InsightCard';
+import ObserverCard from '@/components/observer/ObserverCard';
+import ObserverCardDrawer from '@/components/observer/ObserverCardDrawer';
 import TodayBriefCard, { type BriefItem } from '@/components/brief/TodayBriefCard';
-import AskMetricsChips from '@/components/ai/AskMetricsChips';
+import { message } from '@/utils/antdApp';
 import styles from './index.module.css';
 
 const SPARK_PATTERNS = [
@@ -28,6 +33,32 @@ const SPARK_PATTERNS = [
 export default function DeanWorkspace() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const qc = useQueryClient();
+
+  // 院长自配的「观察员卡」 - 默认非空时显示;空也显示一个"+新建"占位提示。
+  const { data: observerCards = [] } = useQuery({
+    queryKey: ['observerCards', 'mine'],
+    queryFn: listMyObserverCards,
+    staleTime: 60 * 1000,
+  });
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingCard, setEditingCard] = useState<ObserverCardData | null>(null);
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteObserverCard(id),
+    onSuccess: () => {
+      message.success('已删除');
+      qc.invalidateQueries({ queryKey: ['observerCards', 'mine'] });
+    },
+  });
+  const openNew = () => { setEditingCard(null); setDrawerOpen(true); };
+  const openEdit = (c: ObserverCardData) => { setEditingCard(c); setDrawerOpen(true); };
+  const confirmDelete = (c: ObserverCardData) => Modal.confirm({
+    title: `删除「${c.title}」?`,
+    okText: '删除',
+    okButtonProps: { danger: true },
+    cancelText: '取消',
+    onOk: () => deleteMut.mutateAsync(c.id),
+  });
 
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ['workspaceMetrics', 'dean'],
@@ -160,8 +191,6 @@ export default function DeanWorkspace() {
 
       <TodayBriefCard items={briefItems} emptyText="今日全院运转平稳，无紧急事项。" />
 
-      <AskMetricsChips scope="college" />
-
       <div className={styles.sectionLabel}>
         <span>全院 KPI</span>
         <div className={styles.sectionLine} />
@@ -195,11 +224,57 @@ export default function DeanWorkspace() {
 
       <div className={styles.sectionLabel}>
         <span>AI 观察员</span>
+        <Button
+          size="small"
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={openNew}
+          style={{ marginLeft: 12 }}
+        >
+          新建
+        </Button>
         <div className={styles.sectionLine} />
       </div>
+
+      {/* 自配卡 - 院长自己用 NL 配出来的可视化卡 */}
+      {observerCards.length > 0 ? (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+            gap: 12,
+            marginBottom: 16,
+          }}
+        >
+          {observerCards.map((c) => (
+            <ObserverCard
+              key={c.id}
+              card={c}
+              onEdit={openEdit}
+              onDelete={confirmDelete}
+            />
+          ))}
+        </div>
+      ) : (
+        <Empty
+          description="还没配卡 · 点上面的「新建」用一句话描述你想看的数据"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          style={{ marginBottom: 16, padding: '20px 0' }}
+        />
+      )}
+
+      {/* 系统预制的洞察(InsightCard)依然保留 — 它是规则驱动的固定项,跟可配卡互补 */}
       <div style={{ marginBottom: 28 }}>
         <InsightCard role="dean" />
       </div>
+
+      <ObserverCardDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        ownerRole="dean"
+        editing={editingCard}
+        onSaved={() => qc.invalidateQueries({ queryKey: ['observerCards', 'mine'] })}
+      />
 
       <div className={styles.sectionLabel}>
         <span>辅导员工作量 TOP</span>

@@ -6,9 +6,9 @@ indexes:
   - [start_time]
   - [status, created_at]
 join_keys:
-  student: { fk: student_id, table: sys_user, on: id }
-  student_profile: { fk: student_id, table: student_profile, on: user_id }
-  workflow_instance: { fk: workflow_instance_id, table: workflow_instance, on: id }
+  student: { fk: student_id, table: sys_user, "on": id }
+  student_profile: { fk: student_id, table: student_profile, "on": user_id }
+  workflow_instance: { fk: workflow_instance_id, table: workflow_instance, "on": id }
 columns:
   - { name: id,                   type: bigint,    label: 请假 ID }
   - { name: student_id,           type: bigint,    label: 学生 user_id }

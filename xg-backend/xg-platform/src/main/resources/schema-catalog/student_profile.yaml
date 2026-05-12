@@ -6,8 +6,8 @@ indexes:
   - [tenant_id, user_id]
   - [college, grade, status]
 join_keys:
-  user: { fk: user_id, table: sys_user, on: id }
-  class: { fk: class_id, table: org_unit, on: id }
+  user: { fk: user_id, table: sys_user, "on": id }
+  class: { fk: class_id, table: org_unit, "on": id }
 columns:
   - { name: id,              type: bigint,    label: 内部 ID,    sensitive: false }
   - { name: user_id,         type: bigint,    label: 用户 ID,    sensitive: false }

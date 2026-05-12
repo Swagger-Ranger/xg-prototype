@@ -5,8 +5,8 @@ indexes:
   - [tenant_id, student_id, occurred_at]
   - [category]
 join_keys:
-  student: { fk: student_id, table: sys_user, on: id }
-  student_profile: { fk: student_id, table: student_profile, on: user_id }
+  student: { fk: student_id, table: sys_user, "on": id }
+  student_profile: { fk: student_id, table: student_profile, "on": user_id }
 columns:
   - { name: id,            type: bigint,    label: 违纪 ID }
   - { name: student_id,    type: bigint,    label: 学生 user_id }

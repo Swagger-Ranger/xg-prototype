@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from app.config import settings
-from app.api import health, chat, insight, task_recommendation, agent, tools, kb, polish, asr, workflow_config, notification_config, leave_policy
+from app.api import health, chat, insight, task_recommendation, agent, tools, kb, polish, asr, workflow_config, notification_config, leave_policy, ai_observer
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ app.include_router(asr.router, prefix="/api/v1")
 app.include_router(workflow_config.router, prefix="/api/v1")
 app.include_router(notification_config.router, prefix="/api/v1")
 app.include_router(leave_policy.router, prefix="/api/v1")
+app.include_router(ai_observer.router, prefix="/api/v1")
 
 # Logging setup
 logging.basicConfig(
