@@ -23,6 +23,7 @@ USE_DEMO_ENV=false
 # 智能构建检测
 NEED_REBUILD_JAVA=false
 NEED_REBUILD_PYTHON=false
+NEED_REBUILD_WEB=false
 LAST_COMMIT_FILE=".last_deploy_commit"
 
 # 日志函数
@@ -59,6 +60,13 @@ show_help() {
   --demo                 使用演示环境配置 (.env.demo)
   -h, --help             显示帮助信息
 
+智能构建检测:
+  脚本会自动检测代码变更，只重建变更的部分：
+  - xg-backend/ 变更 → 重建 Java 服务
+  - xg-ai/ 变更 → 重建 Python 服务
+  - xg-frontend/ 变更 → 重建前端（使用 Docker 构建，无需服务器装 Node.js）
+  - 无变更 → 直接重启
+
 示例:
   $0                     # 默认 lite 模式，智能构建（代码没变则不重建）
   $0 -q                  # 快速重启（演示环境日常使用）
@@ -73,7 +81,13 @@ show_help() {
 
 完整更新流程（代码有变更）:
   1. git pull            # 拉取最新代码
-  2. $0                  # 智能更新（只重建变更的服务）
+  2. $0                  # 智能更新（自动检测前后端变更并重建）
+
+本地开发 + Docker 部署方案:
+  - 本地开发：使用 vibe coding，直接修改代码
+  - 代码提交：git add . && git commit -m "xxx" && git push
+  - 服务器更新：git pull && ./deploy/scripts/update.sh
+  - 前端自动构建：服务器使用 Docker 构建，无需安装 Node.js
 EOF
 }
 
@@ -233,6 +247,12 @@ check_need_rebuild() {
             NEED_REBUILD_PYTHON=true
         fi
 
+        # 检查前端是否有变更
+        if git diff --name-only "$last_commit" "$current_commit" | grep -q "^xg-frontend/"; then
+            log_info "前端代码有变更，需要重新构建"
+            NEED_REBUILD_WEB=true
+        fi
+
         # 检查 Dockerfile 或 docker-compose 是否有变更
         if git diff --name-only "$last_commit" "$current_commit" | grep -qE "^deploy/(Dockerfile|docker-compose)"; then
             log_info "部署配置有变更，需要重建"
@@ -240,8 +260,14 @@ check_need_rebuild() {
             NEED_REBUILD_PYTHON=true
         fi
 
+        # 首次部署需要构建前端
+        if [ ! -d "../xg-frontend/apps/web/dist" ] && [ ! "$(docker volume ls -q | grep web_dist)" ]; then
+            log_info "前端未构建，需要构建"
+            NEED_REBUILD_WEB=true
+        fi
+
         # 如果没有特定变更但提交不同，默认重建 Java（通常有配置变更）
-        if [ "$NEED_REBUILD_JAVA" = false ] && [ "$NEED_REBUILD_PYTHON" = false ]; then
+        if [ "$NEED_REBUILD_JAVA" = false ] && [ "$NEED_REBUILD_PYTHON" = false ] && [ "$NEED_REBUILD_WEB" = false ]; then
             log_info "其他文件有变更，默认重建 Java 服务"
             NEED_REBUILD_JAVA=true
         fi
@@ -371,8 +397,44 @@ stop_services() {
     sleep 3
 }
 
+# 构建前端
+build_web() {
+    if [ "$NEED_REBUILD_WEB" = false ] && [ "$SKIP_BUILD" = false ]; then
+        return
+    fi
+
+    log_step "构建前端..."
+
+    # 使用 Docker 构建前端
+    log_info "使用 Docker 构建前端（无需服务器安装 Node.js）..."
+
+    # 确保 web_dist 卷存在
+    docker volume create web_dist 2>/dev/null || true
+
+    # 构建前端镜像并输出到卷
+    docker compose --profile build build xg-web-builder 2>/dev/null || {
+        log_info "直接构建前端..."
+        cd ../xg-frontend
+        docker build -f ../deploy/Dockerfile.web -t xg-web-builder:latest .
+        cd - > /dev/null
+    }
+
+    # 创建临时容器复制构建产物到卷
+    docker run --rm -v web_dist:/output xg-web-builder:latest sh -c "cp -r /app/apps/web/dist/* /output/" 2>/dev/null || {
+        # 如果镜像名不同，尝试使用 compose 构建的镜像名
+        docker run --rm -v web_dist:/output deploy-xg-web-builder:latest sh -c "cp -r /app/apps/web/dist/* /output/" 2>/dev/null || true
+    }
+
+    log_info "前端构建完成"
+}
+
 # 构建和启动
 build_and_start() {
+    # 构建前端（如果需要）
+    if [ "$NEED_REBUILD_WEB" = true ]; then
+        build_web
+    fi
+
     if [ "$SKIP_BUILD" = true ]; then
         log_step "快速重启服务..."
         docker compose --profile $PROFILE restart
@@ -405,7 +467,7 @@ build_and_start() {
         docker compose --profile $PROFILE up -d --build $NO_CACHE xg-python
         docker compose --profile $PROFILE up -d xg-java nginx
     else
-        log_info "无代码变更，直接重启..."
+        log_info "无后端代码变更，启动服务..."
         docker compose --profile $PROFILE up -d
     fi
 

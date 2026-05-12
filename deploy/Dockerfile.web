@@ -1,0 +1,30 @@
+# 前端 Web 构建 Dockerfile
+# 用于在 Docker 中构建前端，避免在服务器安装 Node.js
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# 安装 pnpm
+RUN npm install -g pnpm@9.1.0
+
+# 复制 workspace 配置文件
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+
+# 复制 packages（共享依赖）
+COPY packages ./packages
+
+# 复制 web 应用
+COPY apps/web/package.json apps/web/
+COPY apps/web/tsconfig.json apps/web/
+COPY apps/web/vite.config.ts apps/web/
+COPY apps/web/vitest.config.ts apps/web/
+COPY apps/web/index.html apps/web/
+COPY apps/web/src apps/web/src
+COPY apps/web/public apps/web/public
+
+# 安装依赖并构建
+RUN pnpm install --frozen-lockfile
+RUN pnpm run build --filter=@xg1/web
+
+# 输出目录: /app/apps/web/dist

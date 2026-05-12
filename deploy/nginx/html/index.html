@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高校学生工作服务系统 - 演示环境</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 40px 60px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 90%;
+        }
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .badge {
+            display: inline-block;
+            background: #52c41a;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .info-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f6f8fa;
+            border-radius: 10px;
+        }
+        .info-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .api-list {
+            list-style: none;
+        }
+        .api-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #e8e8e8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .api-list li:last-child {
+            border-bottom: none;
+        }
+        .api-name {
+            font-weight: 500;
+            color: #333;
+        }
+        .api-url {
+            color: #667eea;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        .status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #52c41a;
+            margin-right: 8px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #999;
+            font-size: 12px;
+        }
+        .login-box {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .login-btn {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 12px 40px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .login-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>高校学生工作服务系统 <span class="badge">演示环境</span></h1>
+        <p class="subtitle">AI 原生学生工作服务平台原型</p>
+
+        <div class="info-section">
+            <h3><span class="status"></span>服务状态</h3>
+            <ul class="api-list">
+                <li>
+                    <span class="api-name">Java 后端服务</span>
+                    <span class="api-url">http://服务器IP:8080</span>
+                </li>
+                <li>
+                    <span class="api-name">Python AI 服务</span>
+                    <span class="api-url">http://服务器IP:8000</span>
+                </li>
+                <li>
+                    <span class="api-name">MinIO 存储服务</span>
+                    <span class="api-url">http://服务器IP:9001</span>
+                </li>
+            </ul>
+        </div>
+
+        <div class="info-section">
+            <h3>默认登录账号</h3>
+            <ul class="api-list">
+                <li>
+                    <span class="api-name">用户名</span>
+                    <span class="api-url">admin</span>
+                </li>
+                <li>
+                    <span class="api-name">密码</span>
+                    <span class="api-url">admin123456</span>
+                </li>
+            </ul>
+        </div>
+
+        <div class="login-box">
+            <a href="/api" class="login-btn">进入系统</a>
+        </div>
+
+        <div class="footer">
+            <p>部署时间：2026-05-11 | 演示环境配置</p>
+        </div>
+    </div>
+
+    <script>
+        // 动态替换服务器IP
+        document.querySelectorAll('.api-url').forEach(el => {
+            el.textContent = el.textContent.replace('服务器IP', window.location.hostname);
+        });
+    </script>
+</body>
+</html>

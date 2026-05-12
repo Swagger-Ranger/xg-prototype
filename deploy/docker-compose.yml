@@ -236,6 +236,18 @@ services:
       - frontend
       - backend
 
+  # 前端构建服务（用于构建 Web 应用）
+  xg-web-builder:
+    build:
+      context: ../xg-frontend
+      dockerfile: ../deploy/Dockerfile.web
+    container_name: xg-web-builder
+    profiles: ["build"]
+    # 此服务仅用于构建，不运行
+    entrypoint: ["sh", "-c", "cp -r /app/apps/web/dist/* /output/ && echo 'Build complete'"]
+    volumes:
+      - web_dist:/output
+
   nginx:
     image: nginx:1.25-alpine
     container_name: xg-nginx
@@ -243,6 +255,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - web_dist:/usr/share/nginx/html:ro
       - /data/logs/nginx:/var/log/nginx
     ports:
       - "80:80"
@@ -252,7 +265,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 64M
     restart: unless-stopped
     logging:
       driver: "local"
@@ -309,6 +322,8 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
+  web_dist:
+    driver: local
 
 networks:
   frontend:
