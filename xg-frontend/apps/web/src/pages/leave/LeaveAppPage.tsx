@@ -17,7 +17,7 @@ import LeaveNoticeSettings from '@/pages/leaveConfig/LeaveNoticeSettings';
  */
 export default function LeaveAppPage() {
   const { hasPermission } = useAuth();
-  const canConfig = hasPermission('system:manage');
+  const canConfig = hasPermission('leave:config');
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') ?? 'list';

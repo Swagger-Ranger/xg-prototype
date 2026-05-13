@@ -1,5 +1,6 @@
 package com.xg.business.leave.controller;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.xg.business.leave.dto.ManualReturnApplyRequest;
 import com.xg.business.leave.dto.ManualReturnReviewRequest;
 import com.xg.business.leave.dto.ReturnByLocationRequest;
@@ -57,6 +58,7 @@ public class LeaveReturnController {
     }
 
     @PostMapping("/leaves/{id}/return/manual-review")
+    @SaCheckPermission("leave:return:manual")
     public R<LeaveRequest> reviewManualReturn(
             @PathVariable Long id,
             @Valid @RequestBody ManualReturnReviewRequest req) {
@@ -73,6 +75,7 @@ public class LeaveReturnController {
     }
 
     @PutMapping("/leave-return/campus-geofence")
+    @SaCheckPermission("leave:config")
     public R<LeaveReturnService.Geofence> updateCampusGeofence(
             @Valid @RequestBody UpdateCampusGeofenceRequest req) {
         boolean enabled = req.getEnabled() == null || Boolean.TRUE.equals(req.getEnabled());

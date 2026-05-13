@@ -47,7 +47,9 @@ public final class RolePermissionDefaults {
             "workstudy:apply",
             "workstudy:position:view",
             "workstudy:position:apply",
-            "workstudy:salary:view"
+            "workstudy:timesheet:report",
+            "workstudy:salary:view",
+            "discipline:appeal"
     );
 
     /** 教师默认权限：审批 / 管理学生信息 / 通知发送。视野走业务实体（leader_id / counselor 映射）。 */
@@ -56,15 +58,23 @@ public final class RolePermissionDefaults {
             "leave:proxy_submit",
             "leave:stats",
             "leave:manage",
+            "leave:return:manual",
             "checkin:manage",
+            "checkin:export",
             "collection:manage",
+            "collection:export",
             "notification:send",
             "notification:manage",
             "student:view",
             "student:manage",
+            "worklog:write",
             "worklog:manage",
             "ai:assistant:use",
-            "knowledge:ask"
+            "knowledge:ask",
+            "discipline:create",
+            "talk:record",
+            "alert:view",
+            "alert:handle"
     );
 
     /**
@@ -77,13 +87,22 @@ public final class RolePermissionDefaults {
     private static final Set<String> COLLEGE_ADMIN_PERMS = union(TEACHER_PERMS, Set.of(
             "leave:stats",
             "discipline:manage",
+            "discipline:approve",
+            "discipline:export",
             "workstudy:manage",
             "workstudy:position:setup",
             "workstudy:position:manage",
             "workstudy:position:approve",
+            "workstudy:application:decide",
+            "workstudy:timesheet:finalize",
+            "workstudy:salary:submit",
             "workstudy:salary:view",
             "student:manage",
-            "notification:manage"
+            "notification:manage",
+            "worklog:export",
+            "talk:manage",
+            "alert:rule:manage",
+            "ai:observer:manage"
     ));
 
     /** 校级管理默认权限：全校范围 + 系统配置（用户 / 角色 / 组织 / 审计）。 */
@@ -93,11 +112,17 @@ public final class RolePermissionDefaults {
             "system:org:manage",
             "system:role:manage",
             "system:audit:view",
+            "system:ai:metrics",
+            "system:field:manage",
             "student:sensitive",
             "knowledge:manage",
             "workstudy:employer:manage",
             "workstudy:position:setup_approve",
-            "workstudy:salary:process"
+            "workstudy:salary:process",
+            "workstudy:yearsetting:manage",
+            "leave:config",
+            "alert:scan",
+            "academic:manage"
     ));
 
     /** 用工单位（外部）：仅勤工助学相关。 */
@@ -105,6 +130,9 @@ public final class RolePermissionDefaults {
             "workstudy:position:setup",
             "workstudy:position:approve",
             "workstudy:position:manage",
+            "workstudy:application:decide",
+            "workstudy:timesheet:finalize",
+            "workstudy:salary:submit",
             "workstudy:salary:process"
     );
 

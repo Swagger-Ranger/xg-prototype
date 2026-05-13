@@ -19,6 +19,7 @@ export default function LeaveTermUsageCard({
   if (!usage) return null;
   const exceeded = usage.exceeded && usage.cap_days != null;
   const noTerm = !usage.term_name;
+  const byType = usage.by_type ?? [];
   const subject = variant === 'apply' ? '本学期已累计请假' : '该生本学期累计请假';
   const recentSubject = variant === 'apply' ? '近 30 天我已请' : '近 30 天该生已请';
 
@@ -57,9 +58,9 @@ export default function LeaveTermUsageCard({
         </Tooltip>
       </div>
 
-      {usage.by_type.length > 0 && (
+      {byType.length > 0 && (
         <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {usage.by_type.map((t) => (
+          {byType.map((t) => (
             <Tag key={t.code} style={{ margin: 0, fontWeight: 400 }}>
               {t.name} {t.days} 天
             </Tag>
