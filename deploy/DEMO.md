@@ -211,11 +211,12 @@ docker exec -it xg-python bash
 ### 前端没有更新
 
 ```bash
-# 检查 web_dist 卷内容
-docker run --rm -v web_dist:/output alpine ls -la /output
+# 检查 web_dist 卷内容（卷名前缀依赖 docker compose 项目名，一般是 deploy_web_dist）
+docker volume ls | grep web_dist
+docker run --rm -v deploy_web_dist:/output alpine ls -la /output
 
-# 手动触发前端构建
-docker compose --profile build up xg-web-builder
+# 手动触发前端构建（强制重新复制构建产物到 web_dist 卷）
+docker compose --profile lite run --rm xg-web-builder
 ```
 
 ### 构建太慢/卡死

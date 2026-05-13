@@ -398,32 +398,17 @@ stop_services() {
 }
 
 # 构建前端
+# xg-web-builder 已纳入 lite/full profile，会在 docker compose up 时
+# 作为 oneshot 任务自动运行（nginx depends_on 它的成功完成）。
+# 这里仅在显式需要前端重建时预先 build 镜像，up 阶段会复用缓存。
 build_web() {
     if [ "$NEED_REBUILD_WEB" = false ] && [ "$SKIP_BUILD" = false ]; then
         return
     fi
 
-    log_step "构建前端..."
-
-    # 使用 Docker 构建前端
-    log_info "使用 Docker 构建前端（无需服务器安装 Node.js）..."
-
-    # 确保 web_dist 卷存在
-    docker volume create web_dist 2>/dev/null || true
-
-    # 清空旧的前端文件
-    log_info "清空旧的前端文件..."
-    docker run --rm -v web_dist:/web-dist alpine sh -c "rm -rf /web-dist/*" 2>/dev/null || true
-
-    # 构建前端镜像
-    log_info "构建前端镜像..."
-    docker build -f ./Dockerfile.web -t xg-web-builder:latest ../xg-frontend
-
-    # 创建临时容器复制构建产物到卷
-    log_info "复制构建产物到 web_dist 卷..."
-    docker run --rm -v web_dist:/web-dist xg-web-builder:latest sh -c "cp -r /output/* /web-dist/ && ls -la /web-dist/"
-
-    log_info "前端构建完成"
+    log_step "预构建前端镜像..."
+    docker compose --profile $PROFILE build $NO_CACHE xg-web-builder
+    log_info "前端镜像构建完成（实际复制由 up 阶段的 xg-web-builder 容器执行）"
 }
 
 # 构建和启动

@@ -238,17 +238,20 @@ services:
       - frontend
       - backend
 
-  # 前端构建服务（用于构建 Web 应用）
-  # 此服务仅用于构建镜像，不直接运行
+  # 前端构建服务：构建镜像并把产物复制到 web_dist 卷（由 nginx 挂载）
+  # 作为 oneshot 任务，在 nginx 启动前完成。也可手动触发：
+  #   docker compose run --rm xg-web-builder
   xg-web-builder:
     build:
       context: ../xg-frontend
       dockerfile: ../deploy/Dockerfile.web
     image: xg-web-builder:latest
     container_name: xg-web-builder
-    profiles: ["build"]
-    # 此服务仅构建镜像，实际复制由 update.sh 完成
-    command: ["echo", "Frontend build image ready"]
+    profiles: ["lite", "full"]
+    volumes:
+      - web_dist:/web-dist
+    command: ["sh", "-c", "rm -rf /web-dist/* && cp -r /output/. /web-dist/ && echo 'Frontend assets copied:' && ls -la /web-dist/"]
+    restart: "no"
 
   nginx:
     image: nginx:1.25-alpine
@@ -263,7 +266,10 @@ services:
       - "80:80"
       - "443:443"
     depends_on:
-      - xg-java
+      xg-java:
+        condition: service_started
+      xg-web-builder:
+        condition: service_completed_successfully
     deploy:
       resources:
         limits:
@@ -325,7 +331,6 @@ volumes:
   prometheus_data:
   grafana_data:
   web_dist:
-    external: true  # 使用外部创建的卷，避免前缀问题
 
 networks:
   frontend:
