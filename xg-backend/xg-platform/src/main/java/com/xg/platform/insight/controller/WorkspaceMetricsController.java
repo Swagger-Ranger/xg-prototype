@@ -30,6 +30,9 @@ public class WorkspaceMetricsController {
         if ("counselor".equals(role)) {
             return R.ok(metricsService.collectForCounselor(CurrentUser.id()));
         }
-        throw new BizException("UNSUPPORTED_ROLE", "仅支持 dean / counselor");
+        if ("school_admin".equals(role)) {
+            return R.ok(metricsService.collectForSchoolAdmin(CurrentUser.id()));
+        }
+        throw new BizException("UNSUPPORTED_ROLE", "仅支持 dean / counselor / school_admin");
     }
 }

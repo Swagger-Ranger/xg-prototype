@@ -121,8 +121,65 @@ export interface CounselorMetrics {
   checkin_late_last_7d?: number;
 }
 
+export interface AdminFailedNotif {
+  id: number | string;
+  notification_id: number | string;
+  user_id: number;
+  user_name?: string;
+  title?: string;
+  channel: string;
+  last_error?: string;
+  retry_count?: number;
+  created_at: string;
+}
+
+export interface AdminStuckWorkflow {
+  id: number | string;
+  biz_type: string;
+  biz_id?: number;
+  current_node_id: string;
+  definition_name?: string;
+  initiator_id?: number;
+  initiator_name?: string;
+  started_at: string;
+}
+
+export interface AdminDraftWorkflow {
+  id: number | string;
+  name: string;
+  module: string;
+  version: number;
+  updated_at: string;
+}
+
+export interface AdminAuditEntry {
+  id: number | string;
+  action: string;
+  module: string;
+  target_type?: string;
+  target_id?: number;
+  description?: string;
+  created_at: string;
+}
+
+export interface AdminMetrics {
+  scope?: string;
+  workflow_completed_7d?: number;
+  workflow_finished_7d?: number;
+  notif_sent_24h?: number;
+  notif_total_24h?: number;
+  today_active_users?: number;
+  notif_failures_24h?: AdminFailedNotif[];
+  stuck_workflows?: AdminStuckWorkflow[];
+  my_workflow_drafts?: AdminDraftWorkflow[];
+  my_recent_audits?: AdminAuditEntry[];
+}
+
 export function getWorkspaceMetrics(role: 'dean'): Promise<DeanMetrics>;
 export function getWorkspaceMetrics(role: 'counselor'): Promise<CounselorMetrics>;
-export function getWorkspaceMetrics(role: 'dean' | 'counselor'): Promise<DeanMetrics | CounselorMetrics> {
+export function getWorkspaceMetrics(role: 'school_admin'): Promise<AdminMetrics>;
+export function getWorkspaceMetrics(
+  role: 'dean' | 'counselor' | 'school_admin',
+): Promise<DeanMetrics | CounselorMetrics | AdminMetrics> {
   return api.get('/workspace/metrics', { params: { role } }).then((res) => res.data);
 }

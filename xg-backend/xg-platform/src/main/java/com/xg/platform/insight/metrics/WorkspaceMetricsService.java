@@ -81,6 +81,54 @@ public class WorkspaceMetricsService {
     }
 
     /**
+     * School-admin (信息化管理员) workspace metrics — system health & ops focus, NOT business KPI.
+     *
+     * <p>Three sections feed the AdminWorkspace UI:
+     * <ul>
+     *   <li><b>Pulse</b> — workflow throughput (7d), notification delivery (24h), daily active users</li>
+     *   <li><b>Anomalies</b> — notification send failures (24h) + stuck workflows (running > 7d).
+     *       Note: workflow_instance has no failed/timeout state, so "stuck" is the closest signal.</li>
+     *   <li><b>My desk</b> — my workflow drafts + my recent audit-log actions (last 7d)</li>
+     * </ul>
+     */
+    public Map<String, Object> collectForSchoolAdmin(Long userId) {
+        String schema = schema();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("scope", "school_admin");
+
+        // A. Pulse — workflow throughput (7d), notification delivery (24h), daily activity
+        m.put("workflow_completed_7d", countOrZero(
+                "SELECT COUNT(*) FROM " + schema + ".workflow_instance " +
+                        "WHERE status = 'completed' AND started_at > NOW() - INTERVAL '7 days' " +
+                        "  AND deleted_at IS NULL"));
+        m.put("workflow_finished_7d", countOrZero(
+                "SELECT COUNT(*) FROM " + schema + ".workflow_instance " +
+                        "WHERE status IN ('completed','rejected','cancelled') " +
+                        "  AND started_at > NOW() - INTERVAL '7 days' AND deleted_at IS NULL"));
+
+        m.put("notif_sent_24h", countOrZero(
+                "SELECT COUNT(*) FROM " + schema + ".notification_recipient " +
+                        "WHERE status = 'sent' AND created_at > NOW() - INTERVAL '24 hours'"));
+        m.put("notif_total_24h", countOrZero(
+                "SELECT COUNT(*) FROM " + schema + ".notification_recipient " +
+                        "WHERE created_at > NOW() - INTERVAL '24 hours'"));
+
+        m.put("today_active_users", countOrZero(
+                "SELECT COUNT(DISTINCT user_id) FROM " + schema + ".audit_log " +
+                        "WHERE user_id IS NOT NULL AND created_at::date = CURRENT_DATE"));
+
+        // B. Anomalies — failed notifications + stuck workflows
+        m.put("notif_failures_24h", listFailedNotifications(schema, 8));
+        m.put("stuck_workflows", listStuckWorkflows(schema, 8));
+
+        // C. My desk — drafts owned by me + my recent audit actions
+        m.put("my_workflow_drafts", listMyWorkflowDrafts(schema, userId, 10));
+        m.put("my_recent_audits", listMyRecentAudits(schema, userId, 12));
+
+        return m;
+    }
+
+    /**
      * Class-scoped counselor metrics — same shape as {@link #collectForCounselor} but
      * restricted to a single class under the counselor's management. Used by the
      * workspace per-class "AI 观察员" drawer so multi-class counselors can drill
@@ -351,6 +399,68 @@ public class WorkspaceMetricsService {
             return out;
         } catch (Exception e) {
             log.warn("top counselor workload query failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> listFailedNotifications(String schema, int limit) {
+        String sql = "SELECT nr.id, nr.notification_id, nr.user_id, nr.channel, nr.last_error, " +
+                "       nr.retry_count, nr.created_at, " +
+                "       n.title, u.real_name AS user_name " +
+                "FROM " + schema + ".notification_recipient nr " +
+                "JOIN " + schema + ".notification n ON n.id = nr.notification_id " +
+                "LEFT JOIN " + schema + ".sys_user u ON u.id = nr.user_id " +
+                "WHERE nr.status = 'failed' AND nr.created_at > NOW() - INTERVAL '24 hours' " +
+                "ORDER BY nr.created_at DESC LIMIT ?";
+        try {
+            return jdbc.queryForList(sql, limit);
+        } catch (Exception e) {
+            log.warn("listFailedNotifications failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> listStuckWorkflows(String schema, int limit) {
+        String sql = "SELECT wi.id, wi.biz_type, wi.biz_id, wi.current_node_id, wi.started_at, " +
+                "       wi.initiator_id, u.real_name AS initiator_name, wd.name AS definition_name " +
+                "FROM " + schema + ".workflow_instance wi " +
+                "LEFT JOIN " + schema + ".workflow_definition wd ON wd.id = wi.definition_id " +
+                "LEFT JOIN " + schema + ".sys_user u ON u.id = wi.initiator_id " +
+                "WHERE wi.status = 'running' AND wi.started_at < NOW() - INTERVAL '7 days' " +
+                "  AND wi.deleted_at IS NULL " +
+                "ORDER BY wi.started_at ASC LIMIT ?";
+        try {
+            return jdbc.queryForList(sql, limit);
+        } catch (Exception e) {
+            log.warn("listStuckWorkflows failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> listMyWorkflowDrafts(String schema, Long userId, int limit) {
+        if (userId == null) return List.of();
+        String sql = "SELECT id, name, module, version, updated_at " +
+                "FROM " + schema + ".workflow_definition " +
+                "WHERE status = 'draft' AND updated_by = ? AND deleted_at IS NULL " +
+                "ORDER BY updated_at DESC LIMIT ?";
+        try {
+            return jdbc.queryForList(sql, userId, limit);
+        } catch (Exception e) {
+            log.warn("listMyWorkflowDrafts failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> listMyRecentAudits(String schema, Long userId, int limit) {
+        if (userId == null) return List.of();
+        String sql = "SELECT id, action, module, target_type, target_id, description, created_at " +
+                "FROM " + schema + ".audit_log " +
+                "WHERE user_id = ? AND created_at > NOW() - INTERVAL '7 days' " +
+                "ORDER BY created_at DESC LIMIT ?";
+        try {
+            return jdbc.queryForList(sql, userId, limit);
+        } catch (Exception e) {
+            log.warn("listMyRecentAudits failed: {}", e.getMessage());
             return List.of();
         }
     }
