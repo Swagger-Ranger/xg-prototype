@@ -22,6 +22,7 @@ const CounselorTalkManagement = lazy(() => import('./pages/counselorTalk'));
 const WorkflowManagement = lazy(() => import('./pages/workflow'));
 const FormManagement = lazy(() => import('./pages/forms'));
 const ProfilePage = lazy(() => import('./pages/profile'));
+const DataImportPage = lazy(() => import('./pages/dataImport'));
 
 const Loading = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="forms" element={<FormManagement />} />
           <Route path="leave-config" element={<LeaveConfigRedirect />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="data-import" element={<DataImportPage />} />
           <Route path="system/*" element={<SystemManagement />} />
           <Route path="*" element={<DefaultLanding />} />
         </Route>
