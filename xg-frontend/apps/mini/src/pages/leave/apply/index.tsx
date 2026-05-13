@@ -3,7 +3,6 @@ import { Picker, Text, Textarea, View, Input } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import {
   applyLeave,
-  calculateDurationDays,
   getLeaveNoticeConfig,
   getLeaveTypes,
   getMyTermUsage,
@@ -18,17 +17,25 @@ import type { MiniUser } from '../../../api/auth';
 import styles from './index.module.css';
 
 /* 申请请假 — Apple 玻璃感 × Form archetype。
- * 字段：假别 / 起止 / 时长(只读) / 原因 / 假别动态字段 / 提交（含定位）
+ * 字段：假别 / 时长模式 + 段选 / 原因 / 假别动态字段 / 提交（含定位）。
+ * 半日制:单日选 上午/下午/全天(0.5/0.5/1);跨天起始日只能 下午/全天,结束日只能 上午/全天。
  */
 
 type ExtraValue = string | number | boolean;
+type LeaveMode = 'single' | 'range';
+type SingleSeg = 'AM' | 'PM' | 'FULL';
+type StartSeg = 'PM' | 'FULL';
+type EndSeg = 'AM' | 'FULL';
 
 interface FormState {
   leave_type_code: string;
-  start_date: string; // YYYY-MM-DD
-  start_time: string; // HH:mm
+  mode: LeaveMode;
+  single_date: string;   // YYYY-MM-DD
+  single_seg: SingleSeg;
+  start_date: string;
+  start_seg: StartSeg;
   end_date: string;
-  end_time: string;
+  end_seg: EndSeg;
   reason: string;
   extra: Record<string, ExtraValue>;
 }
@@ -38,12 +45,45 @@ function todayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function combineDateTime(date: string, time: string): Date | null {
+/** 把 YYYY-MM-DD + HH:mm 拼成本地 Date。 */
+function combineDateTime(date: string, hour: number, minute: number): Date | null {
   if (!date) return null;
   const [yy, mm, dd] = date.split('-').map(Number);
-  const [h = 0, m = 0] = (time || '00:00').split(':').map(Number);
-  const d = new Date(yy, (mm ?? 1) - 1, dd ?? 1, h, m, 0, 0);
+  const d = new Date(yy, (mm ?? 1) - 1, dd ?? 1, hour, minute, 0, 0);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** 段选 → 起止时分 (匹配后端 slot 边界:上午 09-12,下午 13-18)。 */
+const SLOT_START_HM = { AM: [9, 0], PM: [13, 0] } as const;
+const SLOT_END_HM = { AM: [12, 0], PM: [18, 0] } as const;
+
+function resolveTimes(form: FormState): { start: Date; end: Date; days: number } | null {
+  if (form.mode === 'single') {
+    if (!form.single_date) return null;
+    if (form.single_seg === 'FULL') {
+      const s = combineDateTime(form.single_date, 9, 0);
+      const e = combineDateTime(form.single_date, 18, 0);
+      return s && e ? { start: s, end: e, days: 1 } : null;
+    }
+    const [sh, sm] = SLOT_START_HM[form.single_seg];
+    const [eh, em] = SLOT_END_HM[form.single_seg];
+    const s = combineDateTime(form.single_date, sh, sm);
+    const e = combineDateTime(form.single_date, eh, em);
+    return s && e ? { start: s, end: e, days: 0.5 } : null;
+  }
+  if (!form.start_date || !form.end_date) return null;
+  if (form.end_date <= form.start_date) return null;
+  const [sh, sm] = form.start_seg === 'PM' ? SLOT_START_HM.PM : SLOT_START_HM.AM;
+  const [eh, em] = form.end_seg === 'AM' ? SLOT_END_HM.AM : SLOT_END_HM.PM;
+  const s = combineDateTime(form.start_date, sh, sm);
+  const e = combineDateTime(form.end_date, eh, em);
+  if (!s || !e) return null;
+  const startDay = form.start_seg === 'PM' ? 0.5 : 1;
+  const endDay = form.end_seg === 'AM' ? 0.5 : 1;
+  // 中间整天数:end - start - 1 天
+  const oneDay = 86400000;
+  const middle = Math.max(0, Math.round((new Date(form.end_date).getTime() - new Date(form.start_date).getTime()) / oneDay) - 1);
+  return { start: s, end: e, days: startDay + middle + endDay };
 }
 
 export default function ApplyLeavePage() {
@@ -69,10 +109,13 @@ export default function ApplyLeavePage() {
   const initial = todayISO();
   const [form, setForm] = useState<FormState>({
     leave_type_code: '',
+    mode: 'single',
+    single_date: initial,
+    single_seg: 'FULL',
     start_date: initial,
-    start_time: '08:00',
+    start_seg: 'FULL',
     end_date: initial,
-    end_time: '18:00',
+    end_seg: 'FULL',
     reason: '',
     extra: {},
   });
@@ -89,13 +132,24 @@ export default function ApplyLeavePage() {
       const sd = typeof prefill.start_date === 'string' ? prefill.start_date : undefined;
       const ed = typeof prefill.end_date === 'string' ? prefill.end_date : undefined;
       const rs = typeof prefill.reason === 'string' ? prefill.reason : undefined;
-      setForm((p) => ({
-        ...p,
-        leave_type_code: lt ?? p.leave_type_code,
-        start_date: sd ?? p.start_date,
-        end_date: ed ?? sd ?? p.end_date,  // 单日时 end 跟 start
-        reason: rs ?? p.reason,
-      }));
+      // AI 不传段选,统一按"全天"段填(最常见、最不引起歧义),学生可在表单里改成半天。
+      setForm((p) => {
+        const next = { ...p };
+        if (lt) next.leave_type_code = lt;
+        if (rs) next.reason = rs;
+        if (sd && ed && ed > sd) {
+          next.mode = 'range';
+          next.start_date = sd;
+          next.start_seg = 'FULL';
+          next.end_date = ed;
+          next.end_seg = 'FULL';
+        } else if (sd) {
+          next.mode = 'single';
+          next.single_date = sd;
+          next.single_seg = 'FULL';
+        }
+        return next;
+      });
     }
 
     // 仅学生身份拉「请假须知」配置;非学生跳过整套弹窗。
@@ -141,16 +195,14 @@ export default function ApplyLeavePage() {
   );
   const extraFields: LeaveExtraField[] = selectedType?.extra_fields ?? [];
 
-  // 时长(工作时段 8h=1天,每天都按工作日切,不区分周末/节假日)
-  const durationDays = useMemo(() => {
-    const start = combineDateTime(form.start_date, form.start_time);
-    const end = combineDateTime(form.end_date, form.end_time);
-    if (!start || !end) return 0;
-    return calculateDurationDays(start.getTime(), end.getTime());
-  }, [form.start_date, form.start_time, form.end_date, form.end_time]);
+  // 半日段选 → 起止时刻 + 总天数(0.5 倍数)。
+  const resolved = useMemo(() => resolveTimes(form), [
+    form.mode, form.single_date, form.single_seg,
+    form.start_date, form.start_seg, form.end_date, form.end_seg,
+  ]);
+  const durationDays = resolved?.days ?? 0;
 
-  // 本学期累计请假天数(全部假别合计)+ 是否超全局上限。仅在 cap 配置过且超过时
-  // 顶部红条提示;申请仍可提交,但会被自动标记为高风险供审批人参考。
+  // 本学期累计请假 — 常驻卡片消费(总天数 / by_type / recent_count_30d / exceeded)。
   const [termUsage, setTermUsage] = useState<LeaveTermUsage | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -160,22 +212,16 @@ export default function ApplyLeavePage() {
     return () => { cancelled = true; };
   }, []);
 
-  // 选完起止时间后实时预览会缺的课程。后端按 X-User-Id 取 student_id 算,
-  // 非学生 / 无课表 / 学期间隙都返回 zero 视图,UI 按 total_periods 判空态。
+  // 选完起止时间后实时预览会缺的课程。
   const [impact, setImpact] = useState<LeaveImpactView | null>(null);
   useEffect(() => {
-    const start = combineDateTime(form.start_date, form.start_time);
-    const end = combineDateTime(form.end_date, form.end_time);
-    if (!start || !end || end.getTime() <= start.getTime()) {
-      setImpact(null);
-      return;
-    }
+    if (!resolved) { setImpact(null); return; }
     let cancelled = false;
-    previewLeaveImpact(start.toISOString(), end.toISOString())
+    previewLeaveImpact(resolved.start.toISOString(), resolved.end.toISOString())
       .then((d) => { if (!cancelled) setImpact(d); })
       .catch(() => { if (!cancelled) setImpact(null); });
     return () => { cancelled = true; };
-  }, [form.start_date, form.start_time, form.end_date, form.end_time]);
+  }, [resolved?.start.getTime(), resolved?.end.getTime()]);
 
   const impactCourseNames = useMemo(() => {
     if (!impact) return [];
@@ -204,11 +250,10 @@ export default function ApplyLeavePage() {
 
   const validate = (): string | null => {
     if (!form.leave_type_code) return '请选择假别';
-    const start = combineDateTime(form.start_date, form.start_time);
-    const end = combineDateTime(form.end_date, form.end_time);
-    if (!start || !end) return '请选择请假时间';
-    if (end.getTime() <= start.getTime()) return '结束时间必须晚于开始时间';
-    if (durationDays > 30) return '请假时长不得超过 30 个工作日';
+    if (!resolved) {
+      return form.mode === 'range' ? '结束日必须晚于起始日' : '请选择请假日期';
+    }
+    if (resolved.days > 30) return '请假时长不得超过 30 天';
     if (!form.reason.trim()) return '请填写请假原因';
     for (const f of extraFields) {
       if (f.required) {
@@ -233,8 +278,10 @@ export default function ApplyLeavePage() {
     });
 
   const doSubmit = async () => {
-    const start = combineDateTime(form.start_date, form.start_time)!;
-    const end = combineDateTime(form.end_date, form.end_time)!;
+    if (!resolved) {
+      Taro.showToast({ title: '请假时间未填完整', icon: 'none' });
+      return;
+    }
     setSubmitting(true);
     const loc = await getLocation();
     if (!loc) {
@@ -243,8 +290,8 @@ export default function ApplyLeavePage() {
     try {
       await applyLeave({
         leave_type_code: form.leave_type_code,
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
+        start_time: resolved.start.toISOString(),
+        end_time: resolved.end.toISOString(),
         reason: form.reason.trim(),
         extra_data: { ...form.extra },
         ...(loc
@@ -328,14 +375,41 @@ export default function ApplyLeavePage() {
         </Text>
       </View>
 
-      {termUsage?.exceeded && termUsage.cap_days != null && (
-        <View className={styles.termCapAlert}>
-          <Text className={styles.termCapAlertTitle}>
-            本学期已累计请假 {termUsage.accumulated_days} 天,超出全校上限 {termUsage.cap_days} 天
-          </Text>
-          <Text className={styles.termCapAlertDesc}>
-            本次申请仍可提交,但会被自动标记为高风险,辅导员审批时会重点关注。
-          </Text>
+      {termUsage && (
+        <View
+          className={`${styles.termUsage} ${termUsage.exceeded && termUsage.cap_days != null ? styles.termUsageExceeded : ''}`}
+        >
+          <View className={styles.termUsageRow}>
+            <Text className={styles.termUsageMain}>
+              {termUsage.term_name ?? '当前学期外'}·本学期累计{' '}
+              <Text className={`num ${styles.termUsageNum}`}>{termUsage.accumulated_days}</Text>
+              {' '}天
+              {termUsage.cap_days != null && (
+                <Text className={styles.termUsageCap}>
+                  {' '}/ 上限 <Text className="num">{termUsage.cap_days}</Text> 天
+                </Text>
+              )}
+            </Text>
+            <Text className={styles.termUsageRecent}>
+              近 30 天 <Text className="num">{termUsage.recent_count_30d}</Text> 次
+            </Text>
+          </View>
+          {termUsage.by_type.length > 0 && (
+            <View className={styles.termUsageChips}>
+              {termUsage.by_type.map((t) => (
+                <View key={t.code} className={styles.termUsageChip}>
+                  <Text className={styles.termUsageChipText}>
+                    {t.name} <Text className="num">{t.days}</Text> 天
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {termUsage.exceeded && termUsage.cap_days != null && (
+            <Text className={styles.termUsageWarn}>
+              已超出全校上限,本次申请仍可提交,但会被标记为高风险。
+            </Text>
+          )}
         </View>
       )}
 
@@ -358,64 +432,92 @@ export default function ApplyLeavePage() {
         </Picker>
       </View>
 
-      {/* ── 时间 ──────────────────────────────────────── */}
+      {/* ── 时长(模式 + 日期 + 段选) ─────────────────────── */}
       <View className={styles.section}>
-        <Text className={styles.sectionLabel}>开始时间</Text>
-        <View className={styles.dateRow}>
-          <Picker
-            mode="date"
-            value={form.start_date}
-            onChange={(e) => setField('start_date', String(e.detail.value))}
-          >
-            <View className={`${styles.pickerCell} ${styles.pickerCellInline}`}>
-              <Text className={`${styles.pickerValue} num`}>{form.start_date}</Text>
-            </View>
-          </Picker>
-          <Picker
-            mode="time"
-            value={form.start_time}
-            onChange={(e) => setField('start_time', String(e.detail.value))}
-          >
-            <View className={`${styles.pickerCell} ${styles.pickerCellInline}`}>
-              <Text className={`${styles.pickerValue} num`}>{form.start_time}</Text>
-            </View>
-          </Picker>
-        </View>
-      </View>
+        <Text className={styles.sectionLabel}>请假时长</Text>
+        <SegmentedRow<LeaveMode>
+          options={[
+            { label: '单日', value: 'single' },
+            { label: '跨天', value: 'range' },
+          ]}
+          value={form.mode}
+          onChange={(v) => setField('mode', v)}
+        />
 
-      <View className={styles.section}>
-        <Text className={styles.sectionLabel}>结束时间</Text>
-        <View className={styles.dateRow}>
-          <Picker
-            mode="date"
-            value={form.end_date}
-            start={form.start_date}
-            onChange={(e) => setField('end_date', String(e.detail.value))}
-          >
-            <View className={`${styles.pickerCell} ${styles.pickerCellInline}`}>
-              <Text className={`${styles.pickerValue} num`}>{form.end_date}</Text>
+        {form.mode === 'single' ? (
+          <View className={styles.modeBlock}>
+            <Picker
+              mode="date"
+              value={form.single_date}
+              onChange={(e) => setField('single_date', String(e.detail.value))}
+            >
+              <View className={`${styles.pickerCell} ${styles.pickerCellInline}`}>
+                <Text className={`${styles.pickerValue} num`}>{form.single_date}</Text>
+              </View>
+            </Picker>
+            <View className={styles.segGap}>
+              <SegmentedRow<SingleSeg>
+                options={[
+                  { label: '上午 0.5d', value: 'AM' },
+                  { label: '下午 0.5d', value: 'PM' },
+                  { label: '全天 1d', value: 'FULL' },
+                ]}
+                value={form.single_seg}
+                onChange={(v) => setField('single_seg', v)}
+              />
             </View>
-          </Picker>
-          <Picker
-            mode="time"
-            value={form.end_time}
-            onChange={(e) => setField('end_time', String(e.detail.value))}
-          >
-            <View className={`${styles.pickerCell} ${styles.pickerCellInline}`}>
-              <Text className={`${styles.pickerValue} num`}>{form.end_time}</Text>
+          </View>
+        ) : (
+          <View className={styles.modeBlock}>
+            <Text className={styles.subLabel}>起始日</Text>
+            <Picker
+              mode="date"
+              value={form.start_date}
+              onChange={(e) => setField('start_date', String(e.detail.value))}
+            >
+              <View className={`${styles.pickerCell} ${styles.pickerCellInline}`}>
+                <Text className={`${styles.pickerValue} num`}>{form.start_date}</Text>
+              </View>
+            </Picker>
+            <View className={styles.segGap}>
+              <SegmentedRow<StartSeg>
+                options={[
+                  { label: '下午开始 0.5d', value: 'PM' },
+                  { label: '全天 1d', value: 'FULL' },
+                ]}
+                value={form.start_seg}
+                onChange={(v) => setField('start_seg', v)}
+              />
             </View>
-          </Picker>
-        </View>
+            <Text className={`${styles.subLabel} ${styles.subLabelGap}`}>结束日</Text>
+            <Picker
+              mode="date"
+              value={form.end_date}
+              start={form.start_date}
+              onChange={(e) => setField('end_date', String(e.detail.value))}
+            >
+              <View className={`${styles.pickerCell} ${styles.pickerCellInline}`}>
+                <Text className={`${styles.pickerValue} num`}>{form.end_date}</Text>
+              </View>
+            </Picker>
+            <View className={styles.segGap}>
+              <SegmentedRow<EndSeg>
+                options={[
+                  { label: '上午结束 0.5d', value: 'AM' },
+                  { label: '全天 1d', value: 'FULL' },
+                ]}
+                value={form.end_seg}
+                onChange={(v) => setField('end_seg', v)}
+              />
+            </View>
+          </View>
+        )}
+
         <View className={styles.durationHint}>
           <Text className={styles.durationLabel}>请假天数</Text>
           <Text className={styles.durationValue}>
             <Text className="num">{durationDays}</Text>
             <Text className={styles.durationUnit}> 天</Text>
-          </Text>
-        </View>
-        <View className={styles.durationFootnote}>
-          <Text className={styles.durationFootnoteText}>
-            按上课时段计:09:00–12:00 + 13:00–18:00,8 课时 = 1 天,午休不计。
           </Text>
         </View>
         {impact && impact.total_periods > 0 && (
@@ -549,6 +651,32 @@ export default function ApplyLeavePage() {
           </View>
         </View>
       )}
+    </View>
+  );
+}
+
+/** 段选组件 — Taro 没原生 Segmented,用 View 自实现。
+ * 选中态用白色背景 + 弱阴影,不消耗 --ac accent 预算。 */
+function SegmentedRow<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ label: string; value: T }>;
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <View className={styles.segmented}>
+      {options.map((opt) => (
+        <View
+          key={opt.value}
+          className={`${styles.segOpt} ${value === opt.value ? styles.segOptActive : ''} tap-min`}
+          onClick={() => onChange(opt.value)}
+        >
+          <Text className={styles.segOptLabel}>{opt.label}</Text>
+        </View>
+      ))}
     </View>
   );
 }

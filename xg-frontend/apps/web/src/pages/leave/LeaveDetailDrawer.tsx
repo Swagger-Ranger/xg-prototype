@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Drawer, Tag, Button, Descriptions, Typography, Divider, Space, Modal, Tooltip, Alert } from 'antd';
+import { Drawer, Tag, Button, Descriptions, Typography, Divider, Space, Modal, Tooltip } from 'antd';
 import { ReadOutlined } from '@ant-design/icons';
 import { message } from '@/utils/antdApp';
 import dayjs from 'dayjs';
@@ -18,6 +18,7 @@ import {
 import DynamicFormDisplay from '@/components/form/DynamicFormDisplay';
 import InstanceTimeline from '@/components/workflow/InstanceTimeline';
 import ReturnLeaveModal from './ReturnLeaveModal';
+import LeaveTermUsageCard from './LeaveTermUsageCard';
 import styles from './detail.module.css';
 import { describeApiError } from '@/utils/api-error';
 import { osmMapUrl } from '@/utils/geolocation';
@@ -169,24 +170,18 @@ export default function LeaveDetailDrawer({ record, onClose, pendingTask, onAppr
           </Text>
         </div>
 
-        <Descriptions column={1} size="small" style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 16 }}>
+          <LeaveTermUsageCard usage={termUsage} variant="approve" />
+        </div>
+
+        <Descriptions column={1} size="small">
           <Descriptions.Item label="学生姓名">{record.student_name}</Descriptions.Item>
           <Descriptions.Item label="假别">{record.leave_type_name}</Descriptions.Item>
-          <Descriptions.Item label="开始时间">{dayjs(record.start_time).format('YYYY-MM-DD')}</Descriptions.Item>
-          <Descriptions.Item label="结束时间">{dayjs(record.end_time).format('YYYY-MM-DD')}</Descriptions.Item>
+          <Descriptions.Item label="开始时间">{dayjs(record.start_time).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+          <Descriptions.Item label="结束时间">{dayjs(record.end_time).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
           <Descriptions.Item label="请假天数">{record.duration_days} 天</Descriptions.Item>
           <Descriptions.Item label="请假原因">{record.reason}</Descriptions.Item>
         </Descriptions>
-
-        {termUsage?.exceeded && termUsage.cap_days != null && (
-          <Alert
-            type="error"
-            showIcon
-            style={{ marginTop: 12 }}
-            message={`该生本学期累计请假 ${termUsage.accumulated_days} 天,已超出全校上限 ${termUsage.cap_days} 天`}
-            description="该申请已被自动标记为高风险,审批前请重点关注请假频率与原因。"
-          />
-        )}
 
         {impact && impact.total_periods > 0 && (
           <Tooltip

@@ -120,6 +120,15 @@ export interface LeaveTermUsage {
   accumulated_days: number;
   cap_days: number | null;
   exceeded: boolean;
+  /** 按假别拆分,按 days 倒序;空数组表示本学期未请过假。 */
+  by_type: LeaveTermUsageByType[];
+  /** 近 30 天 status∈{pending,approved} 的请假条数(跨学期口径)。 */
+  recent_count_30d: number;
+}
+export interface LeaveTermUsageByType {
+  code: string;
+  name: string;
+  days: number;
 }
 export function getMyTermUsage(): Promise<LeaveTermUsage> {
   return api.get('/leaves/term-usage').then((res) => res.data);

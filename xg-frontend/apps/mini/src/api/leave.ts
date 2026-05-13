@@ -261,6 +261,15 @@ export interface LeaveTermUsage {
   accumulated_days: number;
   cap_days: number | null;
   exceeded: boolean;
+  /** 按假别拆分,按 days 倒序;空数组表示本学期未请过假。 */
+  by_type: LeaveTermUsageByType[];
+  /** 近 30 天 status∈{pending,approved} 的请假条数(跨学期口径)。 */
+  recent_count_30d: number;
+}
+export interface LeaveTermUsageByType {
+  code: string;
+  name: string;
+  days: number;
 }
 export function getMyTermUsage() {
   return get<LeaveTermUsage>('/leaves/term-usage');
@@ -280,15 +289,15 @@ export function getLeaveNoticeConfig() {
 }
 
 /**
- * 请假天数预览(对齐后端 LeaveCalendarService.calcEffectiveDays):
- *   每个日历日按工作时段 09:00–12:00 + 13:00–18:00 求交,8 工作小时 = 1 天。
- *   **每天都按工作日切**,不区分周末/节假日(简化决定:学校拿不到稳定假期数据)。
+ * 请假天数预览(对齐后端 LeaveCalendarService slot-coverage 口径):
+ *   每个日历日两个 slot(上午 09:00–12:00 / 下午 13:00–18:00),
+ *   请假区间与 slot 有任何重叠 = +0.5 天。**每天都按工作日切**,
+ *   不区分周末/节假日(学校拿不到稳定假期数据)。
  *
- * `start` / `end` 是 ms-since-epoch。结果保留 2 位小数。
+ * `start` / `end` 是 ms-since-epoch。结果天然落在 0.5 倍数。
  */
 export function calculateDurationDays(start: number, end: number): number {
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
-  const PER_DAY = 8 * 3600;
   const MORNING_START_SEC = 9 * 3600;
   const MORNING_END_SEC = 12 * 3600;
   const AFTERNOON_START_SEC = 13 * 3600;
@@ -296,7 +305,7 @@ export function calculateDurationDays(start: number, end: number): number {
 
   const startMs = Math.floor(start);
   const endMs = Math.floor(end);
-  let workingSec = 0;
+  let halfSlots = 0;
 
   const cursor = new Date(startMs);
   cursor.setHours(0, 0, 0, 0);
@@ -312,11 +321,10 @@ export function calculateDurationDays(start: number, end: number): number {
     for (const [a, b] of segs) {
       const segStart = dayStartMs + a * 1000;
       const segEnd = dayStartMs + b * 1000;
-      const lo = Math.max(startMs, segStart);
-      const hi = Math.min(endMs, segEnd);
-      workingSec += Math.max(0, (hi - lo) / 1000);
+      // 经典区间相交:start < segEnd && end > segStart
+      if (startMs < segEnd && endMs > segStart) halfSlots += 1;
     }
     cursor.setDate(cursor.getDate() + 1);
   }
-  return Math.round((workingSec / PER_DAY) * 100) / 100;
+  return halfSlots * 0.5;
 }

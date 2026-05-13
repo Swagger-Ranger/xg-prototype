@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Modal, Form, Select, DatePicker, Input, Button, InputNumber, Tooltip, Alert } from 'antd';
+import { Modal, Form, Select, DatePicker, Input, Button, Segmented, Tooltip } from 'antd';
 import { ReadOutlined } from '@ant-design/icons';
 import { message } from '@/utils/antdApp';
 import type { Dayjs } from 'dayjs';
@@ -22,39 +22,48 @@ import { getMyExtendedInfo } from '@/api/student';
 import { getCurrentLocation } from '@/utils/geolocation';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import DynamicFormFields from '@/components/form/DynamicFormFields';
+import LeaveTermUsageCard from './LeaveTermUsageCard';
 
-const { RangePicker } = DatePicker;
 const { TextArea } = Input;
 
-/**
- * 请假天数预览,镜像后端 LeaveCalendarService.calcEffectiveDays:
- * 工作时段 09:00–12:00 + 13:00–18:00,8h = 1 天。**每天都按工作日切**,
- * 不区分周末/节假日(简化决定:学校无法稳定拿到法定节假日数据)。
- */
-function calcWorkingDays(start: Date, end: Date): number {
-  if (end <= start) return 0;
-  const PER_DAY = 8 * 3600;
-  const SEGS: Array<[number, number]> = [
-    [9 * 3600, 12 * 3600],
-    [13 * 3600, 18 * 3600],
-  ];
-  const startMs = start.getTime();
-  const endMs = end.getTime();
-  let workingSec = 0;
-  const cursor = new Date(startMs);
-  cursor.setHours(0, 0, 0, 0);
-  const lastDay = new Date(endMs);
-  lastDay.setHours(0, 0, 0, 0);
-  while (cursor.getTime() <= lastDay.getTime()) {
-    const dayStartMs = cursor.getTime();
-    for (const [a, b] of SEGS) {
-      const lo = Math.max(startMs, dayStartMs + a * 1000);
-      const hi = Math.min(endMs, dayStartMs + b * 1000);
-      workingSec += Math.max(0, (hi - lo) / 1000);
-    }
-    cursor.setDate(cursor.getDate() + 1);
+/** 跟后端 LeaveCalendarService slot 口径对齐:每个被占用的半日 slot = 0.5 天。 */
+const SLOT_HOURS = {
+  startAM: [9, 0],
+  startPM: [13, 0],
+  endAM: [12, 0],
+  endPM: [18, 0],
+} as const;
+
+type LeaveMode = 'single' | 'range';
+type SingleSeg = 'AM' | 'PM' | 'FULL';
+type StartSeg = 'PM' | 'FULL';
+type EndSeg = 'AM' | 'FULL';
+
+/** 把表单段选项映射成 (start_time, end_time) ISO 串 + 总天数(0.5 倍数)。 */
+function resolveTimes(values: FormValues): { start: Dayjs; end: Dayjs; days: number } | null {
+  const setHM = (d: Dayjs, [h, m]: readonly [number, number]) =>
+    d.hour(h).minute(m).second(0).millisecond(0);
+
+  if (values.leave_mode === 'single') {
+    if (!values.single_date) return null;
+    const d = values.single_date;
+    if (values.single_seg === 'AM') return { start: setHM(d, SLOT_HOURS.startAM), end: setHM(d, SLOT_HOURS.endAM), days: 0.5 };
+    if (values.single_seg === 'PM') return { start: setHM(d, SLOT_HOURS.startPM), end: setHM(d, SLOT_HOURS.endPM), days: 0.5 };
+    return { start: setHM(d, SLOT_HOURS.startAM), end: setHM(d, SLOT_HOURS.endPM), days: 1 };
   }
-  return Math.round((workingSec / PER_DAY) * 100) / 100;
+
+  if (!values.start_date || !values.end_date) return null;
+  if (!values.end_date.isAfter(values.start_date, 'day')) return null;
+  const start = values.start_seg === 'PM'
+    ? setHM(values.start_date, SLOT_HOURS.startPM)
+    : setHM(values.start_date, SLOT_HOURS.startAM);
+  const end = values.end_seg === 'AM'
+    ? setHM(values.end_date, SLOT_HOURS.endAM)
+    : setHM(values.end_date, SLOT_HOURS.endPM);
+  const startDay = values.start_seg === 'PM' ? 0.5 : 1;
+  const endDay = values.end_seg === 'AM' ? 0.5 : 1;
+  const middle = Math.max(0, values.end_date.diff(values.start_date, 'day') - 1);
+  return { start, end, days: startDay + middle + endDay };
 }
 
 interface Props {
@@ -65,7 +74,13 @@ interface Props {
 
 interface FormValues {
   leave_type_code: string;
-  date_range: [Dayjs, Dayjs];
+  leave_mode: LeaveMode;
+  single_date?: Dayjs;
+  single_seg?: SingleSeg;
+  start_date?: Dayjs;
+  start_seg?: StartSeg;
+  end_date?: Dayjs;
+  end_seg?: EndSeg;
   reason: string;
   [key: string]: unknown;
 }
@@ -81,7 +96,13 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
   const aiDraftSnapshotRef = useRef<LeaveApplyData['ai_draft'] | null>(null);
 
   const leaveTypeCode = Form.useWatch('leave_type_code', form);
-  const dateRange = Form.useWatch('date_range', form);
+  const leaveMode = Form.useWatch('leave_mode', form);
+  const singleDate = Form.useWatch('single_date', form);
+  const singleSeg = Form.useWatch('single_seg', form);
+  const startDate = Form.useWatch('start_date', form);
+  const startSeg = Form.useWatch('start_seg', form);
+  const endDate = Form.useWatch('end_date', form);
+  const endSeg = Form.useWatch('end_seg', form);
 
   const { data: leaveTypes = [] } = useQuery<LeaveTypeConfig[]>({
     queryKey: ['leaveTypes'],
@@ -105,13 +126,23 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     [selectedType?.extra_fields],
   );
 
-  // 跟后端 LeaveCalendarService.calcEffectiveDays 同口径:逐日按工作时段
-  // 09:00–12:00 + 13:00–18:00 求交,8 工作小时 = 1 天。每天都按工作日切,
-  // 不查节假日表 — 学校拿不到稳定假期数据,统一口径胜过偶发降级出错。
-  const durationDays =
-    dateRange?.[0] && dateRange?.[1]
-      ? calcWorkingDays(dateRange[0].toDate(), dateRange[1].toDate())
-      : 0;
+  // 半日段选 → 总天数。跟后端 LeaveCalendarService slot-coverage 算法对齐,
+  // 结果天然落在 0.5 倍数 (0.5 / 1 / 1.5 / 2 / ...)
+  const resolved = useMemo(
+    () => resolveTimes({
+      leave_type_code: leaveTypeCode,
+      leave_mode: leaveMode ?? 'single',
+      single_date: singleDate,
+      single_seg: singleSeg,
+      start_date: startDate,
+      start_seg: startSeg,
+      end_date: endDate,
+      end_seg: endSeg,
+      reason: '',
+    }),
+    [leaveTypeCode, leaveMode, singleDate, singleSeg, startDate, startSeg, endDate, endSeg],
+  );
+  const durationDays = resolved?.days ?? 0;
 
   // 进入弹窗即拉本学期累计请假天数(全部假别合计)。超过全局上限时顶部红条
   // 软警告 + 同时被审批侧标记成高风险——不阻断提交。学生身份才有意义,辅导员
@@ -142,16 +173,15 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     [typeFieldsSchema, requireProof],
   );
 
-  // 选完起止时间后实时预览会缺的课程。dateRange 不全 / 同 modal 多次重选时
+  // 选完起止时间后实时预览会缺的课程。段选解析失败时不发请求。
   // 用 ISO 串作 query key,自动 dedup + 缓存。后端按 X-User-Id 取 student_id 算,
   // 非学生角色或学生没课表时返回 zero 视图,前端按 total_periods 判空态隐藏。
-  const startIso = dateRange?.[0]?.toISOString();
-  const endIso = dateRange?.[1]?.toISOString();
-  const datesValid = !!(startIso && endIso && dateRange?.[1]?.isAfter(dateRange[0]));
+  const startIso = resolved?.start.toISOString();
+  const endIso = resolved?.end.toISOString();
   const { data: impact } = useQuery<LeaveImpactView>({
     queryKey: ['leave.impact.preview', startIso, endIso],
     queryFn: () => previewLeaveImpact(startIso!, endIso!),
-    enabled: open && datesValid,
+    enabled: open && !!startIso && !!endIso,
     staleTime: 30 * 1000,
   });
 
@@ -196,23 +226,20 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
       const values: Record<string, unknown> = {};
       if (prefill.leave_type) values.leave_type_code = prefill.leave_type;
       if (prefill.reason) values.reason = prefill.reason;
-      // AI 的 open_leave_form 只给 YYYY-MM-DD（无时分），dayjs() 默认解析到 00:00，
-      // 单日会让 start==end 触发 validator，跨日则两端时分都是 0 看起来"一模一样"。
-      // 套用与手动打开时一致的 08:00 起 / 18:00 止默认时分。
-      const atStartHour = (s: string) =>
-        dayjs(s).hour(8).minute(0).second(0).millisecond(0);
-      const atEndHour = (s: string) =>
-        dayjs(s).hour(18).minute(0).second(0).millisecond(0);
-      if (prefill.start_date && prefill.end_date) {
-        values.date_range = [
-          atStartHour(prefill.start_date as string),
-          atEndHour(prefill.end_date as string),
-        ];
-      } else if (prefill.start_date) {
-        values.date_range = [
-          atStartHour(prefill.start_date as string),
-          atEndHour(prefill.start_date as string),
-        ];
+      // AI 的 open_leave_form 只给 YYYY-MM-DD,默认按"全天"段填(最常见、最不引起歧义),
+      // 学生可在 modal 里改成半天。单日 = single_date+FULL,跨天 = start_date+FULL/end_date+FULL。
+      const sd = typeof prefill.start_date === 'string' ? dayjs(prefill.start_date) : null;
+      const ed = typeof prefill.end_date === 'string' ? dayjs(prefill.end_date) : null;
+      if (sd && ed && ed.isAfter(sd, 'day')) {
+        values.leave_mode = 'range';
+        values.start_date = sd;
+        values.start_seg = 'FULL';
+        values.end_date = ed;
+        values.end_seg = 'FULL';
+      } else if (sd) {
+        values.leave_mode = 'single';
+        values.single_date = sd;
+        values.single_seg = 'FULL';
       }
       // AI 推断的 destination → 灌到 _extra.destination；CityCascaderField
       // 自身做模糊匹配，匹配不到会保留为文本提示用户重选。
@@ -285,14 +312,23 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
     if (typeExtra && typeof typeExtra === 'object') {
       Object.assign(extra_data, typeExtra as Record<string, unknown>);
     }
+    const times = resolveTimes(values);
+    if (!times) {
+      message.error('请假时间未填完整');
+      return;
+    }
+    if (times.days > 30) {
+      message.error('请假时长不得超过 30 天');
+      return;
+    }
     const location = await getCurrentLocation();
     if (!location) {
       message.warning('未获取到定位（用户可能拒绝了授权），仍可提交但不会记录位置。');
     }
     mutation.mutate({
       leave_type_code: values.leave_type_code,
-      start_time: values.date_range[0].toISOString(),
-      end_time: values.date_range[1].toISOString(),
+      start_time: times.start.toISOString(),
+      end_time: times.end.toISOString(),
       reason: values.reason,
       extra_data,
       ...(aiDraftSnapshotRef.current ? { ai_draft: aiDraftSnapshotRef.current } : {}),
@@ -327,16 +363,13 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
       width="min(640px, 100vw)"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 8 }}>
-        {termUsage?.exceeded && termUsage.cap_days != null && (
-          <Alert
-            type="error"
-            showIcon
-            style={{ marginBottom: 16, borderRadius: 8 }}
-            message={`本学期已累计请假 ${termUsage.accumulated_days} 天,超出全校上限 ${termUsage.cap_days} 天`}
-            description="本次申请仍可提交,但会被自动标记为高风险,辅导员审批时会重点关注。"
-          />
-        )}
+      <Form
+        form={form}
+        layout="vertical"
+        style={{ marginTop: 8 }}
+        initialValues={{ leave_mode: 'single', single_seg: 'FULL', start_seg: 'FULL', end_seg: 'FULL' }}
+      >
+        <LeaveTermUsageCard usage={termUsage} variant="apply" />
 
         <SectionTitle>基本信息</SectionTitle>
 
@@ -348,79 +381,113 @@ export default function LeaveApplyModal({ open, onClose, prefill }: Props) {
           <Select placeholder="请选择假别" options={leaveTypes.map((t) => ({ label: t.name, value: t.code }))} />
         </Form.Item>
 
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <Form.Item
-            name="date_range"
-            label="请假时间"
-            style={{ flex: 1, marginBottom: 12 }}
-            rules={[
-              { required: true, message: '请选择请假时间' },
-              {
-                validator: (_, value?: [Dayjs, Dayjs]) => {
-                  if (!value || !value[0] || !value[1]) return Promise.resolve();
-                  if (!value[1].isAfter(value[0])) {
-                    return Promise.reject(new Error('结束时间必须晚于开始时间'));
-                  }
-                  const days = calcWorkingDays(value[0].toDate(), value[1].toDate());
-                  if (days > 30) {
-                    return Promise.reject(new Error('请假时长不得超过 30 个工作日'));
-                  }
-                  return Promise.resolve();
-                },
-              },
-            ]}
-          >
-            <RangePicker
-              style={{ width: '100%' }}
-              showTime={{
-                format: 'HH:mm',
-                minuteStep: 15,
-                defaultValue: (() => {
-                  // start_default = max(下一个整点, 08:00)
-                  // end_default   = max(18:00, start_default + 1h)
-                  // 必须保证 end > start，否则同日选择会同时落到 18:00 / 18:00
-                  // 或更晚——用户提交后开始结束时间会变成同一时刻。
-                  const eight = dayjs().hour(8).minute(0).second(0).millisecond(0);
-                  const nextHour = dayjs().add(1, 'hour').minute(0).second(0).millisecond(0);
-                  const startDefault = nextHour.isAfter(eight) ? nextHour : eight;
-                  const sixPM = dayjs().hour(18).minute(0).second(0).millisecond(0);
-                  const endDefault = sixPM.isAfter(startDefault)
-                    ? sixPM
-                    : startDefault.add(1, 'hour');
-                  return [startDefault, endDefault];
-                })(),
-              }}
-              format="YYYY-MM-DD HH:mm"
-              disabledDate={(d) => !!d && d.isBefore(dayjs().startOf('day'))}
-              disabledTime={(d, type) => {
-                // Only constrain hours/minutes when the user is editing TODAY's
-                // range — past hours of today shouldn't be selectable. Future
-                // dates are unconstrained.
-                if (!d || !d.isSame(dayjs(), 'day')) return {};
-                if (type === 'end') return {};
-                const now = dayjs();
-                const minHour = now.hour();
-                const minMinute = now.hour() === d.hour() ? now.minute() : 0;
-                return {
-                  disabledHours: () =>
-                    Array.from({ length: minHour }, (_, i) => i),
-                  disabledMinutes: (selectedHour: number) =>
-                    selectedHour === minHour
-                      ? Array.from({ length: minMinute }, (_, i) => i)
-                      : [],
-                };
-              }}
+        <Form.Item label="请假时长" style={{ marginBottom: 12 }}>
+          <Form.Item name="leave_mode" noStyle>
+            <Segmented
+              options={[
+                { label: '单日', value: 'single' },
+                { label: '跨天', value: 'range' },
+              ]}
             />
           </Form.Item>
+          <span style={{ marginLeft: 12, color: 'var(--fg-3, #6b7280)', fontSize: 13 }}>
+            共 <b style={{ color: 'var(--fg, #111827)' }}>{durationDays}</b> 天
+            <span style={{ marginLeft: 8, fontSize: 12 }}>(每个半日 slot = 0.5 天)</span>
+          </span>
+        </Form.Item>
 
-          <Form.Item
-            label="请假天数"
-            style={{ width: 140, marginBottom: 12 }}
-            tooltip="按上课时段计算:09:00–12:00 + 13:00–18:00,8 课时 = 1 天。中午不计;周末/节假日同口径。"
-          >
-            <InputNumber value={durationDays} disabled style={{ width: '100%' }} suffix="天" />
-          </Form.Item>
-        </div>
+        {leaveMode === 'range' ? (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <Form.Item
+                name="start_date"
+                label="起始日"
+                rules={[{ required: true, message: '请选择起始日' }]}
+                style={{ marginBottom: 8 }}
+              >
+                <DatePicker
+                  style={{ width: '100%' }}
+                  disabledDate={(d) => !!d && d.isBefore(dayjs().startOf('day'))}
+                />
+              </Form.Item>
+              <Form.Item name="start_seg" noStyle>
+                <Segmented
+                  block
+                  options={[
+                    { label: '下午开始 (0.5 天)', value: 'PM' },
+                    { label: '全天 (1 天)', value: 'FULL' },
+                  ]}
+                />
+              </Form.Item>
+            </div>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <Form.Item
+                name="end_date"
+                label="结束日"
+                rules={[
+                  { required: true, message: '请选择结束日' },
+                  {
+                    validator: (_, value?: Dayjs) => {
+                      const s = form.getFieldValue('start_date') as Dayjs | undefined;
+                      if (!value || !s) return Promise.resolve();
+                      if (!value.isAfter(s, 'day')) {
+                        return Promise.reject(new Error('结束日必须晚于起始日'));
+                      }
+                      return Promise.resolve();
+                    },
+                  },
+                ]}
+                style={{ marginBottom: 8 }}
+              >
+                <DatePicker
+                  style={{ width: '100%' }}
+                  disabledDate={(d) => {
+                    const s = form.getFieldValue('start_date') as Dayjs | undefined;
+                    const earliest = s ?? dayjs().startOf('day');
+                    return !!d && !d.isAfter(earliest, 'day');
+                  }}
+                />
+              </Form.Item>
+              <Form.Item name="end_seg" noStyle>
+                <Segmented
+                  block
+                  options={[
+                    { label: '上午结束 (0.5 天)', value: 'AM' },
+                    { label: '全天 (1 天)', value: 'FULL' },
+                  ]}
+                />
+              </Form.Item>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <Form.Item
+              name="single_date"
+              label="日期"
+              rules={[{ required: true, message: '请选择日期' }]}
+              style={{ flex: '0 0 200px', marginBottom: 12 }}
+            >
+              <DatePicker
+                style={{ width: '100%' }}
+                disabledDate={(d) => !!d && d.isBefore(dayjs().startOf('day'))}
+              />
+            </Form.Item>
+            <Form.Item
+              name="single_seg"
+              label="时段"
+              style={{ flex: 1, minWidth: 280, marginBottom: 12 }}
+            >
+              <Segmented
+                block
+                options={[
+                  { label: '上午 (0.5 天)', value: 'AM' },
+                  { label: '下午 (0.5 天)', value: 'PM' },
+                  { label: '全天 (1 天)', value: 'FULL' },
+                ]}
+              />
+            </Form.Item>
+          </div>
+        )}
 
         {impact && impact.total_periods > 0 && (
           <Tooltip

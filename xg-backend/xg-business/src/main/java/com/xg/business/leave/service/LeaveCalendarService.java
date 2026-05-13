@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -72,22 +71,21 @@ public class LeaveCalendarService {
         }
     }
 
-    /** 工作时段:上午段 09:00–12:00,下午段 13:00–18:00。一天 = 8 工作小时。 */
+    /** 工作时段:上午 slot 09:00–12:00,下午 slot 13:00–18:00。一天 = 2 slot,每 slot = 0.5 天。 */
     private static final LocalTime MORNING_START = LocalTime.of(9, 0);
     private static final LocalTime MORNING_END = LocalTime.of(12, 0);
     private static final LocalTime AFTERNOON_START = LocalTime.of(13, 0);
     private static final LocalTime AFTERNOON_END = LocalTime.of(18, 0);
-    private static final long WORKING_SECONDS_PER_DAY = 8 * 3600L;
 
     /**
-     * 请假天数 = 区间内**工作时段**累计秒数 / 28800(8h)。规则:
+     * 请假天数 = 区间内被占用的"半日 slot"数 × 0.5。规则:
      * <ul>
-     *   <li>每个日历日按 {@code 09:00–12:00} + {@code 13:00–18:00} 切两段
-     *       (午休 12:00–13:00 不计;19:00 之后 / 09:00 之前不计)</li>
-     *   <li><b>不区分周末/节假日</b>——每天都当工作日切。简化决定:
-     *       学校无法稳定拿到法定节假日数据,与其降级出错不如统一按工作时段算,
-     *       公平 ≥ 完美。学生周六全天请假 = 1 天,接受这个轻微不公平的边界</li>
-     *   <li>结果保留 2 位小数,跟 V097 列 NUMERIC(5,2) 对齐</li>
+     *   <li>每个日历日两个 slot:上午 {@code 09:00–12:00} / 下午 {@code 13:00–18:00}</li>
+     *   <li>请假区间与 slot 有任何重叠即算占用,+0.5 天(午休 12:00–13:00 自身不构成 slot,
+     *       仅落在午休里的极端请假返回 0)</li>
+     *   <li><b>不区分周末/节假日</b>——每天都当工作日切。学校拿不到稳定法定假期数据,
+     *       公平 ≥ 完美;周末全天请假 = 1 天,接受这个轻微不公平的边界</li>
+     *   <li>结果落在 0.5 倍数,scale=2 跟 NUMERIC(5,2) 列对齐</li>
      * </ul>
      *
      * <p>{@code excludeHolidays} 参数保留只为 backward-compat,实际无效。
@@ -99,33 +97,25 @@ public class LeaveCalendarService {
         LocalDate from = start.toLocalDate();
         LocalDate to = end.toLocalDate();
 
-        long workingSeconds = 0;
+        int halfSlots = 0;
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
-            workingSeconds += workingSecondsOnDay(d, start, end);
+            if (slotCovered(d, MORNING_START, MORNING_END, start, end)) halfSlots++;
+            if (slotCovered(d, AFTERNOON_START, AFTERNOON_END, start, end)) halfSlots++;
         }
 
-        return BigDecimal.valueOf(workingSeconds)
-                .divide(BigDecimal.valueOf(WORKING_SECONDS_PER_DAY), 2, RoundingMode.HALF_UP);
+        return BigDecimal.valueOf(halfSlots)
+                .divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
     }
 
     /**
-     * 单日工作时段与 [reqStart, reqEnd] 求交,返回相交秒数。
-     * 把 day 的两段工作时间各跟请假区间夹一下,clamp 到 [0, ∞)。
+     * 请假区间是否与 day 的指定 slot 有任何重叠。
+     * 经典区间相交:{@code reqStart < segEnd && reqEnd > segStart}。
      */
-    private long workingSecondsOnDay(LocalDate day, OffsetDateTime reqStart, OffsetDateTime reqEnd) {
-        long s = intersectSeconds(day, MORNING_START, MORNING_END, reqStart, reqEnd);
-        s += intersectSeconds(day, AFTERNOON_START, AFTERNOON_END, reqStart, reqEnd);
-        return s;
-    }
-
-    private long intersectSeconds(LocalDate day, LocalTime segStart, LocalTime segEnd,
-                                   OffsetDateTime reqStart, OffsetDateTime reqEnd) {
+    private boolean slotCovered(LocalDate day, LocalTime segStart, LocalTime segEnd,
+                                 OffsetDateTime reqStart, OffsetDateTime reqEnd) {
         OffsetDateTime segStartDt = day.atTime(segStart).atOffset(reqStart.getOffset());
         OffsetDateTime segEndDt = day.atTime(segEnd).atOffset(reqStart.getOffset());
-        OffsetDateTime lo = reqStart.isAfter(segStartDt) ? reqStart : segStartDt;
-        OffsetDateTime hi = reqEnd.isBefore(segEndDt) ? reqEnd : segEndDt;
-        long sec = Duration.between(lo, hi).getSeconds();
-        return Math.max(sec, 0L);
+        return reqStart.isBefore(segEndDt) && reqEnd.isAfter(segStartDt);
     }
 
     /** Public for endpoint listing; returns the raw rows. */

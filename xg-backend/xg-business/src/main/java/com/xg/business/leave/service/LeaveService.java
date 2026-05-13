@@ -395,11 +395,13 @@ public class LeaveService {
     }
 
     /**
-     * 计算指定学生本学期"全部假别"累计请假天数,以及是否超过全局上限。
+     * 计算指定学生本学期"全部假别"累计请假天数,按假别拆分 + 近 30 天请假频次,
+     * 用于学生申请页 / 辅导员审批 drawer 的常驻累计卡片。
      * 规则:
      *   1) 没有 is_current=true 的学期 → termName=null,accumulated=0,exceeded=false
      *   2) 累计口径:status ∈ {pending, approved} 且 start_time 落在当前学期内
      *   3) capDays = leave_global_config.term_max_days(NULL = 不限,不会判 exceeded)
+     *   4) byType 按 days 倒序;recentCount30d 跨学期按 start_time ≥ now-30d 数条数
      */
     public com.xg.business.leave.dto.LeaveTermUsageView getTermUsage(Long studentId) {
         com.xg.business.leave.dto.LeaveTermUsageView view = new com.xg.business.leave.dto.LeaveTermUsageView();
@@ -407,6 +409,17 @@ public class LeaveService {
         view.setCapDays(cap);
         view.setAccumulatedDays(BigDecimal.ZERO);
         view.setExceeded(false);
+        view.setByType(java.util.Collections.emptyList());
+        view.setRecentCount30d(0);
+
+        // 近 30 天频次:跨学期口径,即使没设当前学期也要返回(辅助辅导员判异常)。
+        OffsetDateTime since30d = OffsetDateTime.now().minusDays(30);
+        Long recentCount = leaveRequestMapper.selectCount(
+                new LambdaQueryWrapper<LeaveRequest>()
+                        .eq(LeaveRequest::getStudentId, studentId)
+                        .in(LeaveRequest::getStatus, List.of("pending", "approved"))
+                        .ge(LeaveRequest::getStartTime, since30d));
+        view.setRecentCount30d(recentCount == null ? 0 : recentCount.intValue());
 
         AcademicTerm term = academicTermMapper.selectOne(
                 new LambdaQueryWrapper<AcademicTerm>()
@@ -421,18 +434,42 @@ public class LeaveService {
         OffsetDateTime termStart = term.getStartDate().atStartOfDay().atOffset(offset);
         OffsetDateTime termEndExclusive = term.getEndDate().plusDays(1).atStartOfDay().atOffset(offset);
 
-        BigDecimal accumulated = leaveRequestMapper.selectList(
+        List<LeaveRequest> termLeaves = leaveRequestMapper.selectList(
                 new LambdaQueryWrapper<LeaveRequest>()
                         .eq(LeaveRequest::getStudentId, studentId)
                         .in(LeaveRequest::getStatus, List.of("pending", "approved"))
                         .ge(LeaveRequest::getStartTime, termStart)
-                        .lt(LeaveRequest::getStartTime, termEndExclusive))
-                .stream()
+                        .lt(LeaveRequest::getStartTime, termEndExclusive));
+
+        BigDecimal accumulated = termLeaves.stream()
                 .map(LeaveRequest::getDurationDays)
                 .filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         view.setAccumulatedDays(accumulated);
         view.setExceeded(cap != null && accumulated.compareTo(cap) > 0);
+
+        // 按假别 group:LinkedHashMap 保留首次出现顺序作为同 days 的稳定排序,
+        // 最后再按 days 倒序排,让"事假最多"出现在最前。
+        java.util.LinkedHashMap<String, com.xg.business.leave.dto.LeaveTermUsageView.TypeUsage> byTypeMap =
+                new java.util.LinkedHashMap<>();
+        for (LeaveRequest r : termLeaves) {
+            if (r.getDurationDays() == null || r.getLeaveTypeCode() == null) continue;
+            com.xg.business.leave.dto.LeaveTermUsageView.TypeUsage u = byTypeMap.computeIfAbsent(
+                    r.getLeaveTypeCode(),
+                    code -> {
+                        var nu = new com.xg.business.leave.dto.LeaveTermUsageView.TypeUsage();
+                        nu.setCode(code);
+                        nu.setName(r.getLeaveTypeName());
+                        nu.setDays(BigDecimal.ZERO);
+                        return nu;
+                    });
+            u.setDays(u.getDays().add(r.getDurationDays()));
+        }
+        List<com.xg.business.leave.dto.LeaveTermUsageView.TypeUsage> byType =
+                new java.util.ArrayList<>(byTypeMap.values());
+        byType.sort((a, b) -> b.getDays().compareTo(a.getDays()));
+        view.setByType(byType);
+
         return view;
     }
 

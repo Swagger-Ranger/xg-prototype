@@ -188,6 +188,135 @@
   line-height: 1.5;
 }
 
+/* ── 常驻累计卡片(总累计 + by-type + 近 30 天频次) ────────
+   exceeded 时叠红色变体(termUsageExceeded)。
+   按 mini CLAUDE.md:不消耗 --ac accent 预算,统一中性灰阶。 */
+.termUsage {
+  margin: 0 24rpx 14rpx;
+  padding: 18rpx 24rpx;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r);
+}
+
+.termUsageExceeded {
+  background: rgba(220, 38, 38, 0.06);
+  border-color: rgba(220, 38, 38, 0.24);
+}
+
+.termUsageRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12rpx;
+}
+
+.termUsageMain {
+  font-size: 26rpx;
+  color: var(--fg-2);
+  line-height: 1.5;
+}
+
+.termUsageNum {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.termUsageCap {
+  color: var(--fg-3);
+}
+
+.termUsageRecent {
+  font-size: 22rpx;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.termUsageChips {
+  margin-top: 10rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+
+.termUsageChip {
+  padding: 4rpx 14rpx;
+  background: var(--bd);
+  border-radius: var(--r-xs);
+}
+
+.termUsageChipText {
+  font-size: 22rpx;
+  color: var(--fg-2);
+}
+
+.termUsageWarn {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: var(--danger);
+  line-height: 1.5;
+}
+
+/* ── 段选(单日/跨天 + 上午/下午/全天) ──────────────────────
+   不消耗 --ac:选中态用白色+弱阴影,自然区分。 */
+.segmented {
+  display: flex;
+  background: var(--bd);
+  border-radius: var(--r-sm);
+  padding: 4rpx;
+  gap: 4rpx;
+  margin-top: 6rpx;
+}
+
+.segOpt {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-xs);
+  padding: 10rpx 4rpx;
+  transition: background 0.15s;
+}
+
+.segOptActive {
+  background: #ffffff;
+  box-shadow: 0 2rpx 6rpx rgba(15, 20, 33, 0.08);
+}
+
+.segOptLabel {
+  font-size: 24rpx;
+  color: var(--fg-2);
+  text-align: center;
+}
+
+.segOptActive .segOptLabel {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.modeBlock {
+  margin-top: 14rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.segGap {
+  margin-top: 4rpx;
+}
+
+.subLabel {
+  display: block;
+  font-size: 22rpx;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+}
+
+.subLabelGap {
+  margin-top: 14rpx;
+}
+
 /* ── Input cell ────────────────────────────────────────── */
 .inputCell {
   min-height: 60rpx;

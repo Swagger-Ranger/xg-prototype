@@ -16,7 +16,8 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 覆盖工作时段口径:09:00–12:00 + 13:00–18:00,8h = 1 天。
+ * 覆盖半日 slot 口径:每日 2 slot(上午 09:00–12:00 / 下午 13:00–18:00),
+ * 请假区间与 slot 有任何重叠 = +0.5 天。
  *
  * <p>简化决定:**不区分周末/节假日**——学校无法稳定拿到法定节假日数据,
  * 与其降级出错不如统一口径。每天都按工作日切片,周六全天 = 1 天。
@@ -50,17 +51,17 @@ class LeaveCalendarServiceTest {
     }
 
     @Test
-    @DisplayName("仅上午 09:00–12:00 = 0.38 天")
+    @DisplayName("仅上午 09:00–12:00 = 0.5 天(覆盖上午 slot)")
     void morningOnly() {
         BigDecimal d = service.calcEffectiveDays(at(2026, 5, 12, 9, 0), at(2026, 5, 12, 12, 0), true);
-        assertThat(d).isEqualByComparingTo("0.38");
+        assertThat(d).isEqualByComparingTo("0.50");
     }
 
     @Test
-    @DisplayName("仅下午 13:00–18:00 = 0.63 天")
+    @DisplayName("仅下午 13:00–18:00 = 0.5 天(覆盖下午 slot)")
     void afternoonOnly() {
         BigDecimal d = service.calcEffectiveDays(at(2026, 5, 12, 13, 0), at(2026, 5, 12, 18, 0), true);
-        assertThat(d).isEqualByComparingTo("0.63");
+        assertThat(d).isEqualByComparingTo("0.50");
     }
 
     @Test
@@ -78,24 +79,24 @@ class LeaveCalendarServiceTest {
     }
 
     @Test
-    @DisplayName("超出边界两端 08:00–19:00 仍 clamp 到 9–18(扣午休)= 1.0 天")
+    @DisplayName("超出边界两端 08:00–19:00 仍占两个 slot = 1.0 天")
     void clampsToWorkingWindow() {
         BigDecimal d = service.calcEffectiveDays(at(2026, 5, 12, 8, 0), at(2026, 5, 12, 19, 0), true);
         assertThat(d).isEqualByComparingTo("1.00");
     }
 
     @Test
-    @DisplayName("用户场景:第一天 15:00–19:00 = 0.38 天(下午段相交 3h)")
+    @DisplayName("用户场景:第一天 15:00–19:00 = 0.5 天(占下午 slot)")
     void userExampleDay1() {
         BigDecimal d = service.calcEffectiveDays(at(2026, 5, 12, 15, 0), at(2026, 5, 12, 19, 0), true);
-        assertThat(d).isEqualByComparingTo("0.38");
+        assertThat(d).isEqualByComparingTo("0.50");
     }
 
     @Test
-    @DisplayName("用户场景:第二天 09:00–12:00 = 0.38 天(上午段相交 3h)")
+    @DisplayName("用户场景:第二天 09:00–12:00 = 0.5 天(占上午 slot)")
     void userExampleDay2() {
         BigDecimal d = service.calcEffectiveDays(at(2026, 5, 13, 9, 0), at(2026, 5, 13, 12, 0), true);
-        assertThat(d).isEqualByComparingTo("0.38");
+        assertThat(d).isEqualByComparingTo("0.50");
     }
 
     // ── 跨日 ──────────────────────────────
