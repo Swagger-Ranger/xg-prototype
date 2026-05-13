@@ -50,14 +50,29 @@ class DeepSeekProvider(LLMProvider):
     """DeepSeek LLM provider via OpenAI-compatible API."""
 
     def __init__(self):
-        self.client = AsyncOpenAI(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-        )
         self.model = settings.deepseek_model
+        key = (settings.deepseek_api_key or "").strip()
+        # AsyncOpenAI 在 api_key 为空时会抛 OpenAIError，导致 FastAPI 模块导入失败、
+        # 容器无限重启。这里改成：缺密钥不创建 client，让 Sidecar 能正常起来；
+        # 真正用到 LLM 的接口在调用时会得到一条明确的运行期错误（业务降级）。
+        if key:
+            self.client = AsyncOpenAI(api_key=key, base_url=settings.deepseek_base_url)
+        else:
+            self.client = None
+            logger.warning(
+                "DEEPSEEK_API_KEY is empty; DeepSeek client disabled. "
+                "Chat/agent endpoints will return an error until the env var is set."
+            )
+
+    def _client(self) -> AsyncOpenAI:
+        if self.client is None:
+            raise RuntimeError(
+                "DeepSeek API key not configured. Set DEEPSEEK_API_KEY in the container env."
+            )
+        return self.client
 
     async def chat(self, messages: list[ChatMessage], **kwargs) -> ChatResult:
-        response = await self.client.chat.completions.create(
+        response = await self._client().chat.completions.create(
             model=kwargs.get("model", self.model),
             messages=[{"role": m.role, "content": m.content} for m in messages],
             temperature=kwargs.get("temperature", 0.7),
@@ -92,7 +107,7 @@ class DeepSeekProvider(LLMProvider):
             params["tools"] = [_to_openai_tool(t) for t in tools]
             params["tool_choice"] = "auto"
 
-        response = await self.client.chat.completions.create(**params)
+        response = await self._client().chat.completions.create(**params)
         choice = response.choices[0]
         msg = choice.message
 
