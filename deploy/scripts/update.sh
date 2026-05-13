@@ -18,7 +18,6 @@ PROFILE="lite"
 SKIP_BUILD=false
 KEEP_DATA=true
 QUICK_MODE=false
-USE_DEMO_ENV=false
 
 # 智能构建检测
 NEED_REBUILD_JAVA=false
@@ -57,7 +56,6 @@ show_help() {
   -s, --skip-pull        跳过 git pull 步骤
   -b, --skip-build       跳过构建步骤，只重启服务
   -q, --quick            快速模式：只重启，不构建、不拉取（演示环境推荐）
-  --demo                 使用演示环境配置 (.env.demo)
   -h, --help             显示帮助信息
 
 智能构建检测:
@@ -72,7 +70,6 @@ show_help() {
   $0 -q                  # 快速重启（演示环境日常使用）
   $0 -f                  # full 模式更新
   $0 -p full -n          # full 模式，无缓存构建
-  $0 --demo              # 使用演示环境配置启动
   $0 -s                  # 跳过 git pull，直接重新构建
 
 快速更新流程（演示环境）:
@@ -129,10 +126,6 @@ parse_args() {
                 SKIP_PULL=true
                 shift
                 ;;
-            --demo)
-                USE_DEMO_ENV=true
-                shift
-                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -159,20 +152,6 @@ check_environment() {
         else
             log_error "未找到 docker-compose.yml，请在项目根目录或 deploy 目录运行此脚本"
             exit 1
-        fi
-    fi
-
-    # 演示环境使用 .env.demo
-    if [ "$USE_DEMO_ENV" = true ]; then
-        if [ -f ".env.demo" ]; then
-            log_info "使用演示环境配置 (.env.demo)"
-            # 备份当前 .env
-            if [ -f ".env" ] && [ ! -f ".env.backup" ]; then
-                cp .env .env.backup
-            fi
-            cp .env.demo .env
-        else
-            log_warn ".env.demo 不存在，使用默认 .env"
         fi
     fi
 

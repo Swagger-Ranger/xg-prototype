@@ -53,7 +53,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d
-      - /data/logs/postgres:/var/log/postgresql
+      - ${HOST_LOG_DIR:-/data/logs}/postgres:/var/log/postgresql
     ports:
       - "${DB_PORT:-5432}:5432"
     healthcheck:
@@ -162,7 +162,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - /data/logs/java:/app/logs
+      - ${HOST_LOG_DIR:-/data/logs}/java:/app/logs
       - /etc/localtime:/etc/localtime:ro
       - /usr/share/zoneinfo/Asia/Shanghai:/usr/share/zoneinfo/Asia/Shanghai:ro
     depends_on:
@@ -212,7 +212,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - /data/logs/python:/app/logs
+      - ${HOST_LOG_DIR:-/data/logs}/python:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -261,7 +261,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - web_dist:/usr/share/nginx/html:ro
-      - /data/logs/nginx:/var/log/nginx
+      - ${HOST_LOG_DIR:-/data/logs}/nginx:/var/log/nginx
     ports:
       - "80:80"
       - "443:443"

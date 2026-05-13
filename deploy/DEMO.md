@@ -37,8 +37,12 @@ Git 仓库
 ```bash
 cd /opt/xg-prototype/deploy
 
-# 使用演示环境配置启动
-./scripts/update.sh --demo -p lite
+# 配置 .env（首次：复制模板并取消"低配机器内存优化"段注释以适配 4 核 8G 演示机）
+cp .env.example .env
+vim .env
+
+# 启动
+./scripts/update.sh -p lite
 ```
 
 首次部署流程：
@@ -247,7 +251,7 @@ netstat -tlnp | grep -E '80|8080|8000'
 2. **后续更新很快**：智能检测只重建变更部分，通常 1-3 分钟
 3. **前端构建在 Docker 中**：服务器不需要 Node.js，完全隔离
 4. **本地开发和服务器部署解耦**：本地任意修改，push 后服务器自动更新
-5. **演示环境内存限制**：如果服务 OOM，请检查 `.env.demo` 中的内存配置
+5. **演示环境内存限制**：如果服务 OOM，在 `.env` 中取消"低配机器内存优化"段的注释（参考 `.env.example` 末尾）
 
 ## 完整更新示例
 
