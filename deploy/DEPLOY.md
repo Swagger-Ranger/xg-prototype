@@ -35,7 +35,7 @@ vim .env
 
 ### 4. 启动服务
 
-#### 方式一：使用一键部署脚本（推荐）
+#### 方式一：使用一键部署脚本（推荐）--todo 后续要检查一下这个脚本
 
 ```bash
 cd /opt/xg-prototype/deploy
@@ -58,6 +58,36 @@ docker compose --profile lite up -d --build
 # 标准模式（8核16G推荐，含监控）
 docker compose --profile full up -d --build
 ```
+
+> **命令详解：**
+>
+> ```sh
+> docker compose --profile lite up -d --build
+> │             │              │   │     │
+> │             │              │   │     └─ 强制重新构建镜像（有 build: 字段的 service）
+> │             │              │   └────── detached：后台运行，不阻塞终端
+> │             │              └────────── 子命令：创建并启动容器
+> │             └───────────────────────── 启用 lite profile（profile 机制下面详讲）
+> └─────────────────────────────────────── docker compose v2 写法（v1 是 docker-compose）
+> ```
+>
+> **项目的 profile 分布**
+>
+> | Service          | profile 字段      | `--profile lite` | `--profile full` | 不带 profile |
+> | :--------------- | :---------------- | :--------------: | :--------------: | :----------: |
+> | `postgres`       | 无                |        ✅         |        ✅         |      ✅       |
+> | `redis`          | 无                |        ✅         |        ✅         |      ✅       |
+> | `minio`          | 无                |        ✅         |        ✅         |      ✅       |
+> | `xg-java`        | `["lite","full"]` |        ✅         |        ✅         |      ❌       |
+> | `xg-python`      | `["lite","full"]` |        ✅         |        ✅         |      ❌       |
+> | `xg-web-builder` | `["lite","full"]` |        ✅         |        ✅         |      ❌       |
+> | `nginx`          | `["lite","full"]` |        ✅         |        ✅         |      ❌       |
+> | `prometheus`     | `["full"]`        |        ❌         |        ✅         |      ❌       |
+> | `grafana`        | `["full"]`        |        ❌         |        ✅         |      ❌       |
+
+
+
+
 
 ### 5. 验证部署
 
