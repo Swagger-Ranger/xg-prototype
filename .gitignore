@@ -41,6 +41,10 @@ dist/
 .project
 .classpath
 .settings/
+.claude/
+.cursor/
+.cursorrules/
+
 
 # OS
 .DS_Store
@@ -60,6 +64,11 @@ xg-ai/.env
 # Vite local env (per-developer keys, never commit)
 xg-frontend/apps/*/.env.local
 xg-frontend/apps/*/.env.*.local
+
+
+# Gitee Go CI (keep .github/ for GitHub, ignore .workflow/ if not using Gitee)
+# Uncomment next line if you don't use Gitee Go:
+.workflow/
 
 # Logs
 *.log
