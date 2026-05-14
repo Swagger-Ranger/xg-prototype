@@ -7,7 +7,7 @@
 >
 > **本文的定位**：把"我们现在在哪 → 想去哪 → 怎么去 → 谁先谁后 → 怎么避免新老并行变成技术债"一次性写清楚，让架构调优与业务开发并行而不冲突。
 
----
+
 
 ## 0. 三条铁律（任何 PR 必须遵守）
 
@@ -15,7 +15,7 @@
 2. **改动只在 `xg-prototype` 内部**：不引用外部仓库；如需外部设计内容，**拷贝内联**到 `docs/` 下。
 3. **新老并行有保质期**：所有新建占位文件必须带 `# STATUS: skeleton-only, target: M-x`；老文件被取代时必须带 `# DEPRECATED-by: <new path>, planned removal: M-x`。任何 deprecated 文件每个里程碑结束必须 **清账 / 续期 + 写明原因**，不允许默默延期。
 
----
+
 
 ## 1. 目标架构（一张图说清楚）
 
@@ -116,7 +116,7 @@ flowchart TB
 1. **`Python AI → One-API → 大模型`** — 取代当前 Python 直连 `dashscope / zenmux`，统一成 OpenAI 协议出口，便于切换 / 路由 / 成本统计。
 2. **`Python AI → Java MCP Server → 业务`** — 新工具走 MCP；老的 `Python ↔ Java` REST 调用（`AiSidecarClient` 之类）**全部原样保留**，不强迁。
 
----
+
 
 ## 2. 我们现在在哪：xg-prototype 现状 vs 目标架构对照表
 
@@ -125,8 +125,8 @@ flowchart TB
 | Java 模块化单体 | `platform / biz / workflow / ai / infra / common` | `xg-common / xg-platform / xg-business / xg-app / xg-tool-registry` | ✅ 已对齐 |
 | Python AI Sidecar | FastAPI + LangGraph | FastAPI + 部分 LangGraph (`agent/*_author`) | ⚠️ 目录组织偏弱 |
 | 多租户 Schema 隔离 | `tenant_<id>_biz` | `TenantContext` + `TenantSchemaInterceptor` + `TenantMigrationRunner` | ✅ 已完整 |
-| 业务模块 | 10 个 P0 模块 | 16 个（leave/collection/checkin/counselortalk/worklog/student/workstudy/violation/academic/observer/ai/dataimport/org/fieldcatalog/fielddef/...） | ✅ 超出目标 |
-| 平台能力 | auth/file/notification/audit | + event/insight/alert/knowledge/queryguard/schemacatalog/system/weather/workflow/platformaudit/platformadmin | ✅ 超出目标 |
+| 业务模块 | 10 个 P0 模块 | 16 个（leave/collection/checkin/counselortalk/worklog/... student/workstudy/violation/academic/observer/ai/... dataimport/org/fieldcatalog/fielddef/...） | ✅ 超出目标 |
+| 平台能力 | auth/file/notification/audit | + event/insight/alert/knowledge/queryguard/... schemacatalog/system/weather/workflow/... platformaudit/platformadmin | ✅ 超出目标 |
 | RAG | pgvector + KB 管理 | pgvector + hybrid（vector+keyword+RRF）+ reranker + chunker + parsers + eval | ✅ 已超出 |
 | Java↔Python 通信 | MCP HTTP/SSE | Java→Python REST (`AiSidecarClient`) + Python→Java REST | ❌ 协议未升级（但功能完整） |
 | 模型网关 One-API | OpenAI 兼容统一入口 | Python 直连 dashscope/zenmux | ❌ 未引入 |
@@ -138,9 +138,52 @@ flowchart TB
 
 **结论**：xg-prototype 业务侧已经**超出** QiCheng 调研稿的设计；缺的是 **4 件基础设施**（One-API / Langfuse / Checkpoint / MCP）+ **2 张能力地图**（Agent 25 / RAG 18）的批量补齐 + **1 次门户层**（P1）。
 
----
+
 
 ## 3. 4 个里程碑（每个都"独立可验收，独立不破坏"）
+
+```
+M1: 基础设施 + 目录骨架（1-2 天，不动业务代码）
+   ├─ deploy/ 加 one-api 容器 + langfuse 容器
+   ├─ xg-ai/app/ 按 LEARN_AI 3.8.1 重组目录（仅建空文件 + __init__）
+   │   ├─ 新建: graph/ memory/ observability/ security/ core/
+   │   ├─ 重命名(可选): agent/→agents/  tool/→tools/
+   │   └─ 老文件保留原位 + 软迁移（import 别名 + 重定向）
+   ├─ xg-backend/ 加 xg-mcp-server 子模块（独立 gradle 模块，空骨架）
+   └─ docs/ 加 ARCHITECTURE.md（QiCheng 架构图 + xg-prototype 现状对照）
+
+M2: One-API + Langfuse 接入（2-3 天，全程不影响接口契约）
+   ├─ Python LLM 抽象层：app/llm/openai_client.py（统一 AsyncOpenAI 单例）
+   ├─ app/llm/{deepseek,qwen}.py 改薄壳转发
+   ├─ app/llm/routing.py（场景→模型映射）
+   ├─ app/llm/fallback.py（One-API 失败→直连厂商）
+   ├─ app/observability/langfuse.py（CallbackHandler 工厂）
+   ├─ chat/agent/insight 等已有入口注入 callbacks
+   └─ 一键回归测试：现有 chat / kb / insight / asr 全跑一遍
+
+M3: AI 能力地图补齐 (Agent + RAG，分批，每批 2-3 天)
+   M3.1 Agent 底盘:
+      ├─ memory/checkpoint.py（PostgresSaver）
+      ├─ security/{auth,rate_limit,input_filter,output_filter}.py
+      ├─ observability/{logger,audit}.py
+      └─ tools/{mcp_client,tool_registry}.py（按角色筛选工具）
+   M3.2 RAG 补强:
+      ├─ rag/query_transform.py（HyDE / Multi-Query）
+      ├─ rag/filters.py（metadata filter / 权限过滤）
+      ├─ rag/cache.py（Redis 缓存）
+      └─ rag/feedback.py + 反馈闭环
+   M3.3 Agent 形态:
+      ├─ agents/{student,teacher,admin}_agent.py（角色化）
+      ├─ graph/approval_flow.py（HITL）
+      └─ api/approval.py + api/feedback.py
+
+M4: SaaS 门户 + 反向隧道（P1，先不做，预留接入点）
+   └─ 在 nginx 配置里预留外部 portal 反代位
+```
+
+
+
+
 
 ### M1 — 基础设施 + 目录骨架（1-2 天，仅"加文件"，业务无感）
 
@@ -185,6 +228,8 @@ flowchart TB
 - [ ] 开启 langfuse，刷新 Langfuse UI，能看到 chat / agent 调用的 trace 树
 - [ ] 跑一次 `xg-ai/eval/`（现有评估脚本）回归无下降
 
+
+
 ### M3 — AI 能力地图补齐（分 3 批，每批 2-3 天）
 
 #### M3.1 — Agent 底盘（Checkpoint / 安全 / 审计 / MCP Client）
@@ -220,13 +265,15 @@ flowchart TB
 - `app/api/agent.py` 新增 `agent_type` 路由（默认沿用现有 agent，新角色显式指定）
 - `app/api/approval.py`（HITL 审批接口）
 
+
+
 ### M4 — SaaS 门户 + 反向隧道（P1，暂不动）
 
 **预留接入点**（M1 一并标注，但不实现）：
 - `deploy/nginx/conf.d/portal.conf.example`（注释占位）
 - Java 端 `TenantFilter` 已支持从 header 解析租户，未来门户透传即可
 
----
+
 
 ## 4. 清账清单（防止"新老并行"变成沉积）
 
@@ -250,7 +297,9 @@ flowchart TB
 - 引用数 = 0 且过了 planned removal 时间 → 删除（PR 标题 `chore(cleanup): remove deprecated xxx`）
 - 引用数 > 0 → 续期一个里程碑 + 在本文件追加"续期原因"行
 
----
+
+
+
 
 ## 5. M1 立即可落地的清单（执行依据）
 
@@ -358,7 +407,9 @@ cd xg-ai && uv run python -c "from app.main import app; print(app.title)"
 cd ../xg-backend && ./gradlew :xg-app:build --no-daemon
 ```
 
----
+
+
+
 
 ## 6. 后续里程碑入口（待 M1 完成后填充）
 
@@ -366,7 +417,9 @@ cd ../xg-backend && ./gradlew :xg-app:build --no-daemon
 - M3 详细任务清单 → 同上
 - M4（SaaS 门户）路线 → 单开 `docs/saas-portal-plan.md`（P1 启动时）
 
----
+
+
+
 
 ## 附录：QiCheng 架构方案的"原文要点"（内联，避免回看外部文件）
 
