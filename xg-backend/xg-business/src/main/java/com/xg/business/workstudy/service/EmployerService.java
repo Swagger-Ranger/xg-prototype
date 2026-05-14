@@ -132,18 +132,6 @@ public class EmployerService {
     }
 
     /**
-     * 批查给定 id 集合中状态为 disabled 的 employer.id。空入参返回空集，不打 SQL。
-     * 用于 listPositions 学生场景下过滤掉已禁用单位的岗位，避免 N+1。
-     */
-    public Set<Long> findDisabledEmployerIds(java.util.Collection<Long> ids) {
-        if (ids == null || ids.isEmpty()) return Set.of();
-        List<Employer> rows = employerMapper.selectList(new LambdaQueryWrapper<Employer>()
-                .in(Employer::getId, ids)
-                .eq(Employer::getStatus, "disabled"));
-        return rows.stream().map(Employer::getId).collect(Collectors.toSet());
-    }
-
-    /**
      * userId 是否是该用人单位的负责人或操作员。归属判断的核心 helper —
      * Position 创建 / owner 指定 / 单位自服务等场景调用。
      * operator_user_ids JSONB 可能存 number 数组也可能存 string 数组（前端历史），都兼容。

@@ -183,11 +183,25 @@ public class WorkStudyService {
         return listPositions(query, null);
     }
 
+    /** 学生场景下追加到 SQL 的资格过滤片段。下推后分页 total = 真实可见数。 */
+    private static final String SQL_HEADCOUNT_AVAILABLE =
+            "(headcount IS NULL OR hired_count IS NULL OR hired_count < headcount)";
+    private static final String SQL_ACCEPTING =
+            "(accepting_applications IS NULL OR accepting_applications = TRUE)";
+    private static final String SQL_EMPLOYER_NOT_DISABLED =
+            "(employer_id IS NULL OR employer_id NOT IN (SELECT id FROM employer WHERE status = 'disabled'))";
+    private static final String SQL_GENDER_OK =
+            "(gender_limit IS NULL OR gender_limit = '' OR LOWER(gender_limit) = LOWER({0}))";
+
+    /** JSONB array 包含 string 值；NULL / 空数组视为"不限制"。{0} 必须是 String 参数。 */
+    private static String sqlJsonbContainsOrEmpty(String column) {
+        return "(" + column + " IS NULL OR jsonb_array_length(" + column + ") = 0"
+                + " OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(" + column + ") elem WHERE elem = {0}))";
+    }
+
     /**
-     * Student-scoped list when {@code query.studentScope=true} and {@code currentStudentId != null}:
-     * after the SQL page, drop positions whose gender/grade/college/headcount restrictions
-     * the student does not satisfy. aid_level filter is intentionally skipped — student profile
-     * does not yet store financial aid level (TODO once that field lands).
+     * P1-5：学生场景下，资格过滤全部下推 PG（jsonb_exists / jsonb_array_length / 子查询排除 disabled employer）；
+     * 分页 total = 学生真实可见岗位数。非学生场景保持原 wrapper，admin / employer 后台仍能看到 disabled 单位下的岗位。
      */
     public PageResult<WorkStudyPosition> listPositions(PositionQueryRequest query, Long currentStudentId) {
         Page<WorkStudyPosition> page = query.toPage();
@@ -196,27 +210,22 @@ public class WorkStudyService {
                 .eq(query.getPositionType() != null, WorkStudyPosition::getPositionType, query.getPositionType())
                 .eq(query.getPreferFinancialAid() != null, WorkStudyPosition::getPreferFinancialAid, query.getPreferFinancialAid())
                 .eq(query.getAcademicYear() != null, WorkStudyPosition::getAcademicYear, query.getAcademicYear())
-                .eq(query.getEmployerId() != null, WorkStudyPosition::getEmployerId, query.getEmployerId())
-                .orderByDesc(WorkStudyPosition::getCreatedAt);
-        Page<WorkStudyPosition> pageResult = positionMapper.selectPage(page, wrapper);
+                .eq(query.getEmployerId() != null, WorkStudyPosition::getEmployerId, query.getEmployerId());
 
         if (Boolean.TRUE.equals(query.getStudentScope()) && currentStudentId != null) {
             StudentEligibility ctx = loadStudentEligibility(currentStudentId);
-            // 批查 disabled employer，避免 N+1。已禁用单位的岗位对学生不可见。
-            java.util.Set<Long> employerIds = pageResult.getRecords().stream()
-                    .map(WorkStudyPosition::getEmployerId)
-                    .filter(java.util.Objects::nonNull)
-                    .collect(java.util.stream.Collectors.toSet());
-            java.util.Set<Long> disabledEmployerIds = employerService.findDisabledEmployerIds(employerIds);
-            List<WorkStudyPosition> filtered = pageResult.getRecords().stream()
-                    .filter(p -> p.getEmployerId() == null || !disabledEmployerIds.contains(p.getEmployerId()))
-                    .filter(p -> isEligible(p, ctx))
-                    .toList();
-            pageResult.setRecords(filtered);
-            // Note: page total is the unfiltered count from SQL — accurate "eligible total"
-            // would require a second query; acceptable for student browse UX.
+            String aidLevel = ctx.aidLevel() == null || ctx.aidLevel().isBlank() ? "none" : ctx.aidLevel();
+            wrapper.apply(SQL_HEADCOUNT_AVAILABLE)
+                    .apply(SQL_ACCEPTING)
+                    .apply(SQL_EMPLOYER_NOT_DISABLED)
+                    .apply(ctx.gender() != null, SQL_GENDER_OK, ctx.gender())
+                    .apply(ctx.grade() != null, sqlJsonbContainsOrEmpty("grade_limits"), ctx.grade())
+                    .apply(ctx.college() != null, sqlJsonbContainsOrEmpty("college_limits"), ctx.college())
+                    .apply(sqlJsonbContainsOrEmpty("aid_levels"), aidLevel);
         }
-        return PageResult.of(pageResult);
+
+        wrapper.orderByDesc(WorkStudyPosition::getCreatedAt);
+        return PageResult.of(positionMapper.selectPage(page, wrapper));
     }
 
     // ==========================================================================
