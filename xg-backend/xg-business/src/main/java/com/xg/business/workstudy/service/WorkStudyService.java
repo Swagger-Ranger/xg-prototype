@@ -128,7 +128,7 @@ public class WorkStudyService {
         p.setDescription(req.getDescription());
         p.setRequirements(req.getRequirements());
         p.setPreferFinancialAid(Boolean.TRUE.equals(req.getPreferFinancialAid()));
-        p.setHourlyRate(req.getHourlyRate());
+        // P1-6 Step1: 不再写入 legacy hourly_rate；下方在 salaryAmount 为空且 hourlyRate 有值时自动提升。
         p.setWeeklyHours(req.getWeeklyHours() == null ? 10 : req.getWeeklyHours());
         p.setHeadcount(req.getHeadcount() == null ? 1 : req.getHeadcount());
         p.setHiredCount(0);
@@ -147,8 +147,15 @@ public class WorkStudyService {
         p.setDurationMonths(req.getDurationMonths());
         p.setTimeSlots(toJson(req.getTimeSlots()));
         p.setApplicationDeadline(req.getApplicationDeadline());
-        p.setSalaryUnit(req.getSalaryUnit());
-        p.setSalaryAmount(req.getSalaryAmount());
+        // 兼容旧客户端：若只填了 hourlyRate 而未填 salaryAmount，自动提升为 unit='hour'。
+        java.math.BigDecimal resolvedAmount = req.getSalaryAmount();
+        String resolvedUnit = req.getSalaryUnit();
+        if (resolvedAmount == null && req.getHourlyRate() != null) {
+            resolvedAmount = req.getHourlyRate();
+            resolvedUnit = "hour";
+        }
+        p.setSalaryUnit(resolvedUnit);
+        p.setSalaryAmount(resolvedAmount);
         p.setReason(req.getReason());
         p.setGenderLimit(req.getGenderLimit());
         p.setAidLevels(toJson(req.getAidLevels()));
@@ -479,14 +486,7 @@ public class WorkStudyService {
         List<WorkStudyPosition> positions = positionMapper.selectBatchIds(ids);
         java.util.Map<Long, WorkStudyApplication.PositionSummary> byId = new java.util.HashMap<>();
         for (WorkStudyPosition p : positions) {
-            byId.put(p.getId(), new WorkStudyApplication.PositionSummary(
-                    p.getId(),
-                    p.getTitle(),
-                    p.getPositionType(),
-                    p.getDepartmentName(),
-                    p.getSalaryUnit(),
-                    p.getSalaryAmount()
-            ));
+            byId.put(p.getId(), WorkStudyApplication.PositionSummary.fromPosition(p));
         }
         for (WorkStudyApplication a : apps) {
             a.setPositionSummary(byId.get(a.getPositionId()));
@@ -720,47 +720,34 @@ public class WorkStudyService {
 
     private void notifyOffboardToStudent(WorkStudyApplication app, WorkStudyPosition pos, String reason) {
         if (app.getStudentId() == null) return;
-        String title = pos.getTitle() != null ? pos.getTitle() : "勤工岗位";
-        String reasonLabel = "completed".equals(reason) ? "任期已满" : "用人单位终止上岗";
-        StringBuilder body = new StringBuilder(String.format("您在「%s」岗位的工作已结束（%s）。", title, reasonLabel));
-        if (app.getOffboardNote() != null && !app.getOffboardNote().isBlank()) {
-            body.append("说明：").append(app.getOffboardNote());
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("position_title", pos.getTitle() != null ? pos.getTitle() : "勤工岗位");
+        vars.put("reason_label", "completed".equals(reason) ? "任期已满" : "用人单位终止上岗");
+        vars.put("note_clause", app.getOffboardNote() != null && !app.getOffboardNote().isBlank()
+                ? "说明：" + app.getOffboardNote() : "");
+        try {
+            notificationOrchestrator.send(
+                    "WORKSTUDY_OFFBOARD_TO_STUDENT", "workstudy_application", app.getId(),
+                    RecipientContext.applicant(app.getStudentId()), vars);
+        } catch (Exception e) {
+            log.warn("send WORKSTUDY_OFFBOARD_TO_STUDENT failed application_id={}: {}", app.getId(), e.getMessage());
         }
-        SendNotificationRequest req = new SendNotificationRequest();
-        req.setSourceType("workstudy_application");
-        req.setSourceId(app.getId());
-        req.setRecipientUserIds(List.of(app.getStudentId()));
-        req.setChannels(List.of("in_app"));
-        req.setTitle("勤工助学：已离岗");
-        req.setContent(body.toString());
-        req.setLevel("normal");
-        safeSendNotification(req, "offboard_to_student", app.getId());
     }
 
     private void notifyOffboardToEmployer(WorkStudyApplication app, WorkStudyPosition pos) {
         if (pos.getOwnerUserId() == null) return;
-        String title = pos.getTitle() != null ? pos.getTitle() : "勤工岗位";
-        String studentName = app.getStudentName() != null ? app.getStudentName() : "学生";
-        StringBuilder body = new StringBuilder(String.format("%s 已主动从「%s」岗位离岗。", studentName, title));
-        if (app.getOffboardNote() != null && !app.getOffboardNote().isBlank()) {
-            body.append("说明：").append(app.getOffboardNote());
-        }
-        SendNotificationRequest req = new SendNotificationRequest();
-        req.setSourceType("workstudy_application");
-        req.setSourceId(app.getId());
-        req.setRecipientUserIds(List.of(pos.getOwnerUserId()));
-        req.setChannels(List.of("in_app"));
-        req.setTitle("勤工助学：学生已离岗");
-        req.setContent(body.toString());
-        req.setLevel("normal");
-        safeSendNotification(req, "offboard_to_employer", app.getId());
-    }
-
-    private void safeSendNotification(SendNotificationRequest req, String label, Long sourceId) {
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("position_title", pos.getTitle() != null ? pos.getTitle() : "勤工岗位");
+        vars.put("student_name", app.getStudentName() != null ? app.getStudentName() : "学生");
+        vars.put("note_clause", app.getOffboardNote() != null && !app.getOffboardNote().isBlank()
+                ? "说明：" + app.getOffboardNote() : "");
         try {
-            notificationService.send(req);
+            // applicant slot 复用 — 实际收件人是岗位负责人(owner_user_id),模板 recipients=[applicant]
+            notificationOrchestrator.send(
+                    "WORKSTUDY_OFFBOARD_TO_EMPLOYER", "workstudy_application", app.getId(),
+                    RecipientContext.applicant(pos.getOwnerUserId()), vars);
         } catch (Exception e) {
-            log.warn("send {} notification failed source_id={}: {}", label, sourceId, e.getMessage());
+            log.warn("send WORKSTUDY_OFFBOARD_TO_EMPLOYER failed application_id={}: {}", app.getId(), e.getMessage());
         }
     }
 

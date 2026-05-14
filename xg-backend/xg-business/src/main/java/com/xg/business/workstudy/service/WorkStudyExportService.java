@@ -178,9 +178,7 @@ public class WorkStudyExportService {
         List<WorkStudyPosition> positions = positionMapper.selectBatchIds(ids);
         Map<Long, WorkStudyApplication.PositionSummary> byId = new HashMap<>();
         for (WorkStudyPosition p : positions) {
-            byId.put(p.getId(), new WorkStudyApplication.PositionSummary(
-                    p.getId(), p.getTitle(), p.getPositionType(), p.getDepartmentName(),
-                    p.getSalaryUnit(), p.getSalaryAmount()));
+            byId.put(p.getId(), WorkStudyApplication.PositionSummary.fromPosition(p));
         }
         for (WorkStudyApplication a : apps) a.setPositionSummary(byId.get(a.getPositionId()));
     }

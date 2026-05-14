@@ -199,14 +199,7 @@ public class WorkStudySalaryService {
         List<WorkStudyPosition> positions = positionMapper.selectBatchIds(ids);
         java.util.Map<Long, com.xg.business.workstudy.model.WorkStudyApplication.PositionSummary> byId = new java.util.HashMap<>();
         for (WorkStudyPosition p : positions) {
-            byId.put(p.getId(), new com.xg.business.workstudy.model.WorkStudyApplication.PositionSummary(
-                    p.getId(),
-                    p.getTitle(),
-                    p.getPositionType(),
-                    p.getDepartmentName(),
-                    p.getSalaryUnit(),
-                    p.getSalaryAmount()
-            ));
+            byId.put(p.getId(), com.xg.business.workstudy.model.WorkStudyApplication.PositionSummary.fromPosition(p));
         }
         for (WorkStudySalary s : rows) {
             s.setPositionSummary(byId.get(s.getPositionId()));

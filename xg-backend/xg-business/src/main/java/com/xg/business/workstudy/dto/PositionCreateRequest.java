@@ -38,7 +38,11 @@ public class PositionCreateRequest {
 
     private Boolean preferFinancialAid;
 
-    /** Legacy field (元/小时). New code should use salaryUnit + salaryAmount. */
+    /**
+     * Legacy field (元/小时)。已废弃，请用 salaryUnit + salaryAmount。
+     * 兼容期：服务端收到 hourlyRate 但 salaryAmount 为空时自动提升为 unit='hour'。
+     */
+    @Deprecated
     @DecimalMin("0.00")
     private BigDecimal hourlyRate;
 
