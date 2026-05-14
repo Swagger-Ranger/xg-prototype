@@ -5,12 +5,16 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xg.business.workstudy.dto.SalaryDecisionRequest;
 import com.xg.business.workstudy.dto.SalaryQueryRequest;
 import com.xg.business.workstudy.dto.SalarySubmitRequest;
+import com.xg.business.workstudy.mapper.EmployerMapper;
 import com.xg.business.workstudy.mapper.WorkStudyApplicationMapper;
 import com.xg.business.workstudy.mapper.WorkStudyPositionMapper;
 import com.xg.business.workstudy.mapper.WorkStudySalaryMapper;
+import com.xg.business.workstudy.mapper.WorkStudyYearSettingMapper;
+import com.xg.business.workstudy.model.Employer;
 import com.xg.business.workstudy.model.WorkStudyApplication;
 import com.xg.business.workstudy.model.WorkStudyPosition;
 import com.xg.business.workstudy.model.WorkStudySalary;
+import com.xg.business.workstudy.model.WorkStudyYearSetting;
 import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
 import com.xg.platform.notification.recipient.RecipientContext;
@@ -50,6 +54,8 @@ public class WorkStudySalaryService {
     private final WorkStudySalaryMapper salaryMapper;
     private final WorkStudyApplicationMapper applicationMapper;
     private final WorkStudyPositionMapper positionMapper;
+    private final EmployerMapper employerMapper;
+    private final WorkStudyYearSettingMapper yearSettingMapper;
     private final WorkflowEngine workflowEngine;
     private final TaskInstanceMapper taskInstanceMapper;
     private final NotificationOrchestrator notificationOrchestrator;
@@ -68,13 +74,34 @@ public class WorkStudySalaryService {
         WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
         if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
 
-        // Resolve unit + rate. Prefer V051 fields; fall back to legacy hourly_rate.
         String unitType = pos.getSalaryUnit() != null ? pos.getSalaryUnit() : "hour";
-        BigDecimal unitRate = pos.getSalaryAmount() != null ? pos.getSalaryAmount() : pos.getHourlyRate();
+        BigDecimal unitRate = pos.getSalaryAmount();
         if (unitRate == null) {
             throw WorkStudyErrorCode.SALARY_INVALID_POSITION_RATE.exception();
         }
         BigDecimal amount = unitRate.multiply(req.getUnits()).setScale(2, RoundingMode.HALF_UP);
+
+        // 业务时间三阶段窗口(V114):薪酬申报窗。无配置则放行。
+        if (pos.getAcademicYear() != null) {
+            WorkStudyYearSetting setting = yearSettingMapper.selectOne(new LambdaQueryWrapper<WorkStudyYearSetting>()
+                    .eq(WorkStudyYearSetting::getAcademicYear, pos.getAcademicYear()));
+            if (setting != null && !YearSettingService.inWindow(setting.getSalaryWindowStart(), setting.getSalaryWindowEnd())) {
+                throw WorkStudyErrorCode.OUT_OF_SALARY_WINDOW.exception();
+            }
+        }
+
+        // 用单月度薪酬上限(V113):本月该单位所有非 rejected 薪资 + 当前申报 不能超过 cap。
+        // 同月多次申报视作累计;同月也可能有多个岗位 → 按 employer_id 维度聚合,而非 position_id。
+        if (pos.getEmployerId() != null) {
+            Employer emp = employerMapper.selectById(pos.getEmployerId());
+            if (emp != null && emp.getMonthlySalaryCap() != null) {
+                BigDecimal soFar = sumEmployerMonthSalary(pos.getEmployerId(), req.getMonth());
+                BigDecimal projected = soFar.add(amount);
+                if (projected.compareTo(emp.getMonthlySalaryCap()) > 0) {
+                    throw WorkStudyErrorCode.SALARY_CAP_EXCEEDED.exception();
+                }
+            }
+        }
 
         WorkStudySalary s = new WorkStudySalary();
         s.setStudentId(app.getStudentId());
@@ -131,6 +158,24 @@ public class WorkStudySalaryService {
             }
         }
         return s;
+    }
+
+    /** 累计本月该用人单位所有非 rejected 状态的已申报金额(不含当前正在创建的)。 */
+    private BigDecimal sumEmployerMonthSalary(Long employerId, String month) {
+        // 先取该 employer 的全部 position id,然后用 IN 过滤 salary。岗位数通常 < 50 不构成性能问题。
+        List<Long> posIds = positionMapper.selectList(new LambdaQueryWrapper<WorkStudyPosition>()
+                .eq(WorkStudyPosition::getEmployerId, employerId)
+                .select(WorkStudyPosition::getId))
+                .stream().map(WorkStudyPosition::getId).toList();
+        if (posIds.isEmpty()) return BigDecimal.ZERO;
+        List<WorkStudySalary> existing = salaryMapper.selectList(new LambdaQueryWrapper<WorkStudySalary>()
+                .in(WorkStudySalary::getPositionId, posIds)
+                .eq(WorkStudySalary::getMonth, month)
+                .ne(WorkStudySalary::getStatus, "rejected"));
+        return existing.stream()
+                .map(WorkStudySalary::getAmount)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     /**

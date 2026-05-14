@@ -37,9 +37,6 @@ public class WorkStudyPosition extends BaseEntity {
     @TableField("prefer_financial_aid")
     private Boolean preferFinancialAid;
 
-    @TableField("hourly_rate")
-    private BigDecimal hourlyRate;
-
     @TableField("weekly_hours")
     private Integer weeklyHours;
 

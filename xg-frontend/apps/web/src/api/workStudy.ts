@@ -19,7 +19,6 @@ export interface WorkStudyPosition {
   description: string;
   requirements: string | null;
   prefer_financial_aid: boolean | null;
-  hourly_rate: string | null;         // legacy
   weekly_hours: number | null;
   headcount: number | null;
   hired_count: number | null;
@@ -48,6 +47,14 @@ export interface WorkStudyPosition {
   college_limits: (string | number)[] | string | null;
   self_arranged: boolean | null;
 
+  // A1 — false 表示暂停招新（status 仍可能是 open）
+  accepting_applications: boolean | null;
+  paused_reason: string | null;
+
+  // B3 困难生策略
+  financial_aid_policy: 'none' | 'bonus' | 'reserved' | 'only' | null;
+  reserved_count: number | null;
+
   created_at: string;
   updated_at: string;
 }
@@ -70,7 +77,6 @@ export interface CreatePositionData {
   description: string;
   requirements?: string;
   prefer_financial_aid?: boolean;
-  hourly_rate?: string;
   weekly_hours?: number;
   headcount?: number;
   start_date?: string;
@@ -93,6 +99,9 @@ export interface CreatePositionData {
   grade_limits?: string[];
   college_limits?: (string | number)[];
   self_arranged?: boolean;
+  // B3
+  financial_aid_policy?: 'none' | 'bonus' | 'reserved' | 'only';
+  reserved_count?: number;
 }
 
 // =====================================================================
@@ -111,8 +120,31 @@ export interface WorkStudyApplication {
   decided_by: string | null;
   decided_at: string | null;
   workflow_instance_id: string | null;
+  // A2 在岗生命周期（hired 之后才会有值）
+  engagement_status: 'on_duty' | 'offboarded' | null;
+  engaged_at: string | null;
+  offboarded_at: string | null;
+  offboard_reason: 'completed' | 'terminated_by_employer' | 'resigned_by_student' | null;
+  offboard_note: string | null;
+  offboard_operator_id: string | null;
+  // B2 面试通知（status=pending 时可发）
+  interview_at: string | null;
+  interview_location: string | null;
+  interview_notes: string | null;
+  interview_notified_at: string | null;
   created_at: string;
   updated_at: string;
+  // 后端在 include=position 时附带的岗位摘要
+  position_summary?: PositionSummary | null;
+}
+
+export interface PositionSummary {
+  id: string;
+  title: string;
+  position_type: 'fixed' | 'temporary' | null;
+  department_name: string | null;
+  salary_unit: string | null;
+  salary_amount: string | number | null;
 }
 
 export interface ApplicationQueryParams {
@@ -121,6 +153,12 @@ export interface ApplicationQueryParams {
   position_id?: string;
   student_id?: string;
   status?: string;
+  /** Backend DTO field is camelCase (engagementStatus) — Spring data binding
+   * doesn't snake-case-to-camelCase for query params, so we must send the
+   * camel name on the wire even though response objects use snake_case. */
+  engagementStatus?: 'on_duty' | 'offboarded';
+  /** 让后端 join 一段岗位摘要进来：`include=position`。 */
+  include?: string;
 }
 
 export interface ApplyData {
@@ -150,6 +188,8 @@ export interface Employer {
   email: string | null;
   status: 'active' | 'disabled';
   allow_self_arrange: boolean;
+  /** 月薪酬发放上限(元字符串,精度 2 位);null=不限 */
+  monthly_salary_cap: string | null;
   remark: string | null;
   created_at: string;
   updated_at: string;
@@ -171,6 +211,7 @@ export interface EmployerUpsert {
   contact_phone?: string;
   email?: string;
   allow_self_arrange?: boolean;
+  monthly_salary_cap?: number | string | null;
   remark?: string;
 }
 
@@ -185,6 +226,13 @@ export interface WorkStudyYearSetting {
   max_temp_per_student: number;
   application_open: boolean;
   default_allow_self_arrange: boolean;
+  // 三阶段时间窗(V114),null = 该阶段不限时段
+  position_window_start: string | null;
+  position_window_end: string | null;
+  application_window_start: string | null;
+  application_window_end: string | null;
+  salary_window_start: string | null;
+  salary_window_end: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -195,6 +243,12 @@ export interface YearSettingUpsert {
   max_temp_per_student?: number;
   application_open?: boolean;
   default_allow_self_arrange?: boolean;
+  position_window_start?: string | null;
+  position_window_end?: string | null;
+  application_window_start?: string | null;
+  application_window_end?: string | null;
+  salary_window_start?: string | null;
+  salary_window_end?: string | null;
 }
 
 // =====================================================================
@@ -223,6 +277,8 @@ export interface WorkStudySalary {
   paid_at: string | null;
   created_at: string;
   updated_at: string;
+  // include=position 时附带
+  position_summary?: PositionSummary | null;
 }
 
 export interface SalaryQuery {
@@ -233,6 +289,7 @@ export interface SalaryQuery {
   month?: string;
   status?: string;
   positionType?: string;
+  include?: string;
 }
 
 export interface SalarySubmit {
@@ -267,6 +324,19 @@ export function closePosition(id: string): Promise<void> {
   return api.put(`/work-study/positions/${id}/close`).then(() => undefined);
 }
 
+/** A1 暂停 / 恢复招新。reason 仅在暂停时（accepting=false）有意义。 */
+export function setPositionAcceptingApplications(
+  id: string,
+  accepting: boolean,
+  reason?: string,
+): Promise<void> {
+  return api
+    .put(`/work-study/positions/${id}/accepting-applications`, null, {
+      params: { accepting, reason },
+    })
+    .then(() => undefined);
+}
+
 export function decidePosition(id: string, action: 'approve' | 'reject', note?: string): Promise<void> {
   return api
     .put(`/work-study/positions/${id}/decide`, null, { params: { action, note } })
@@ -291,6 +361,238 @@ export function apply(data: ApplyData): Promise<WorkStudyApplication> {
 
 export function decideApplication(id: string, data: DecisionData): Promise<void> {
   return api.put(`/work-study/applications/${id}/decide`, data).then(() => undefined);
+}
+
+// --- Offboarding (A2) ---
+
+export interface OffboardByEmployerPayload {
+  /** completed = 任期到期；terminated_by_employer = 单位主动终止（默认） */
+  reason?: 'completed' | 'terminated_by_employer';
+  note?: string;
+}
+
+export interface OffboardByStudentPayload {
+  note?: string;
+}
+
+export function offboardByEmployer(id: string, data: OffboardByEmployerPayload): Promise<void> {
+  return api.post(`/work-study/applications/${id}/offboard-by-employer`, data).then(() => undefined);
+}
+
+export function offboardByStudent(id: string, data: OffboardByStudentPayload): Promise<void> {
+  return api.post(`/work-study/applications/${id}/offboard-by-student`, data).then(() => undefined);
+}
+
+// --- Interview notice (B2) ---
+
+export interface ScheduleInterviewPayload {
+  /** ISO datetime — JavaScript Date#toISOString() / Dayjs#toISOString() */
+  interview_at: string;
+  interview_location: string;
+  /** Employer 端内部备注（不发给学生） */
+  interview_notes?: string;
+  /** 发给学生的通知正文（AI 起草 + 用户编辑后） */
+  body: string;
+}
+
+export function scheduleInterview(id: string, data: ScheduleInterviewPayload): Promise<void> {
+  return api.post(`/work-study/applications/${id}/schedule-interview`, data).then(() => undefined);
+}
+
+export interface DraftInterviewNoticeReq {
+  student_name: string;
+  position_title: string;
+  department_name?: string;
+  /** 已格式化的可读时间，如 "2026-05-20 14:00" */
+  interview_at: string;
+  interview_location: string;
+  employer_note?: string;
+}
+
+export interface DraftInterviewNoticeResp {
+  draft: string;
+  model: string;
+  error_message: string | null;
+}
+
+/** AI 起草面试通知文案 — 直连 sidecar，失败时返回 error_message 不阻塞。 */
+export async function draftInterviewNotice(
+  payload: DraftInterviewNoticeReq,
+): Promise<DraftInterviewNoticeResp> {
+  const res = await fetch('/ai/api/v1/workstudy/draft-interview-notice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// --- P2.1 自荐说明 AI 起草 ---
+
+export interface DraftApplyIntroReq {
+  student_name: string;
+  grade?: string;
+  college?: string;
+  major?: string;
+  financial_aid_level?: string;
+  position_title: string;
+  department_name?: string;
+  position_type?: string;
+  position_description?: string;
+  keywords?: string;
+}
+
+export interface DraftApplyIntroResp {
+  draft: string;
+  model: string;
+  error_message: string | null;
+}
+
+export async function draftApplyIntro(payload: DraftApplyIntroReq): Promise<DraftApplyIntroResp> {
+  const res = await fetch('/ai/api/v1/workstudy/draft-apply-intro', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// --- Batch actions (A3) ---
+
+export interface BatchOffboardPayload {
+  application_ids: string[];
+  reason?: 'completed' | 'terminated_by_employer';
+  note?: string;
+}
+
+export interface BatchNotifyPayload {
+  application_ids: string[];
+  title: string;
+  body: string;
+}
+
+export interface BatchActionResult {
+  succeeded: number;
+  skipped: number;
+  failures: Array<{ application_id: string; code: string; message: string }>;
+}
+
+export function batchOffboardApplications(data: BatchOffboardPayload): Promise<BatchActionResult> {
+  return api.post('/work-study/applications/batch/offboard', data).then((res) => res.data);
+}
+
+export function batchNotifyApplications(data: BatchNotifyPayload): Promise<BatchActionResult> {
+  return api.post('/work-study/applications/batch/notify', data).then((res) => res.data);
+}
+
+// --- B3 学生侧推荐 ---
+
+export interface PositionRecommendation {
+  position_id: string;
+  title: string;
+  department_name: string | null;
+  campus: string | null;
+  work_location: string | null;
+  salary_unit: 'hour' | 'day' | 'month' | 'per_task' | null;
+  salary_amount: string | null;
+  weekly_hours: number | null;
+  headcount: number | null;
+  hired_count: number | null;
+  financial_aid_policy: 'none' | 'bonus' | 'reserved' | 'only' | null;
+  reserved_count: number | null;
+  score: number;
+  /** AI 写的友好理由；sidecar 失败时为空 */
+  reason: string;
+  scoring_signals: Record<string, unknown>;
+}
+
+export function getMyRecommendedPositions(topK = 5): Promise<PositionRecommendation[]> {
+  return api
+    .get('/work-study/me/recommended-positions', { params: { topK } })
+    .then((res) => res.data);
+}
+
+// --- A4 导出 + AI 报表 ---
+
+export interface WorkStudyReportDsl {
+  title: string;
+  summary: string;
+  entity: 'application';
+  filters: Record<string, unknown>;
+  columns: string[];
+}
+
+export interface NlToReportResp extends WorkStudyReportDsl {
+  model: string;
+  error_message: string | null;
+}
+
+/** P0 仅 application 实体的可选列；与 Java COLUMN_REGISTRY 保持一致。 */
+export const WORKSTUDY_REPORT_COLUMNS: { key: string; label: string }[] = [
+  { key: 'id', label: '申请ID' },
+  { key: 'student_name', label: '学生姓名' },
+  { key: 'student_id', label: '学生ID' },
+  { key: 'position_id', label: '岗位ID' },
+  { key: 'position_title', label: '岗位' },
+  { key: 'financial_aid_level', label: '资助等级' },
+  { key: 'intro', label: '自荐' },
+  { key: 'status', label: '状态' },
+  { key: 'decision_note', label: '处理意见' },
+  { key: 'decided_at', label: '处理时间' },
+  { key: 'engagement_status', label: '在岗状态' },
+  { key: 'engaged_at', label: '到岗时间' },
+  { key: 'offboarded_at', label: '离岗时间' },
+  { key: 'offboard_reason', label: '离岗原因' },
+  { key: 'offboard_note', label: '离岗备注' },
+  { key: 'created_at', label: '提交时间' },
+];
+
+/** AI 把 NL 翻译成 DSL（直连 sidecar；失败时 error_message 兜底）。 */
+export async function nlToWorkstudyReport(payload: {
+  query: string;
+  today?: string;
+  academic_year?: string;
+  allowed_columns?: string[];
+}): Promise<NlToReportResp> {
+  const res = await fetch('/ai/api/v1/workstudy/nl-to-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/** 把 Java 后端返回的 xlsx blob 触发浏览器下载。 */
+function triggerXlsxDownload(blob: Blob, fallbackName: string, contentDisposition?: string | null) {
+  let filename = `${fallbackName}.xlsx`;
+  if (contentDisposition) {
+    const m = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
+    if (m) try { filename = decodeURIComponent(m[1]); } catch { /* keep fallback */ }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportApplicationsCurrentView(query: ApplicationQueryParams): Promise<void> {
+  const res = await api.get('/work-study/export/applications', {
+    params: query,
+    responseType: 'blob',
+  });
+  triggerXlsxDownload(res.data, 'workstudy_applications', res.headers?.['content-disposition']);
+}
+
+export async function exportWorkstudyByDsl(dsl: WorkStudyReportDsl): Promise<void> {
+  const res = await api.post('/work-study/export/nl-report', dsl, { responseType: 'blob' });
+  triggerXlsxDownload(res.data, 'workstudy_report', res.headers?.['content-disposition']);
 }
 
 // =====================================================================

@@ -140,7 +140,6 @@ public class WorkStudyRecommendationService {
         r.setWorkLocation(p.getWorkLocation());
         r.setSalaryUnit(p.getSalaryUnit());
         r.setSalaryAmount(p.getSalaryAmount());
-        r.setHourlyRate(p.getHourlyRate());
         r.setWeeklyHours(p.getWeeklyHours());
         r.setHeadcount(p.getHeadcount());
         r.setHiredCount(p.getHiredCount());
@@ -178,8 +177,8 @@ public class WorkStudyRecommendationService {
             signals.put("type_match", "+10");
         }
 
-        // 偏好匹配 — 薪资范围（以 salaryAmount 优先；fallback hourlyRate）
-        BigDecimal rate = p.getSalaryAmount() != null ? p.getSalaryAmount() : p.getHourlyRate();
+        // 偏好匹配 — 薪资范围
+        BigDecimal rate = p.getSalaryAmount();
         if (rate != null) {
             Double rateMin = toDouble(prefMap.get("rate_min"));
             Double rateMax = toDouble(prefMap.get("rate_max"));

@@ -121,6 +121,15 @@ public class WorkStudyService {
     @Transactional
     public WorkStudyPosition createPosition(PositionCreateRequest req, Long creatorId, boolean bypassOwnership) {
         assertCanCreateForEmployer(req.getEmployerId(), req.getOwnerUserId(), creatorId, bypassOwnership);
+        // 业务时间三阶段窗口(V114):岗位设定窗。bypassOwnership=true 的校管理员可绕过窗口限制
+        // (校方临时插岗位的场景),普通用单只能在窗口内创建。
+        if (!bypassOwnership && req.getAcademicYear() != null) {
+            WorkStudyYearSetting setting = yearSettingMapper.selectOne(new LambdaQueryWrapper<WorkStudyYearSetting>()
+                    .eq(WorkStudyYearSetting::getAcademicYear, req.getAcademicYear()));
+            if (setting != null && !YearSettingService.inWindow(setting.getPositionWindowStart(), setting.getPositionWindowEnd())) {
+                throw WorkStudyErrorCode.OUT_OF_POSITION_WINDOW.exception();
+            }
+        }
         WorkStudyPosition p = new WorkStudyPosition();
         p.setTitle(req.getTitle());
         p.setPositionType(req.getPositionType() == null ? "fixed" : req.getPositionType());
@@ -128,7 +137,6 @@ public class WorkStudyService {
         p.setDescription(req.getDescription());
         p.setRequirements(req.getRequirements());
         p.setPreferFinancialAid(Boolean.TRUE.equals(req.getPreferFinancialAid()));
-        // P1-6 Step1: 不再写入 legacy hourly_rate；下方在 salaryAmount 为空且 hourlyRate 有值时自动提升。
         p.setWeeklyHours(req.getWeeklyHours() == null ? 10 : req.getWeeklyHours());
         p.setHeadcount(req.getHeadcount() == null ? 1 : req.getHeadcount());
         p.setHiredCount(0);
@@ -147,15 +155,8 @@ public class WorkStudyService {
         p.setDurationMonths(req.getDurationMonths());
         p.setTimeSlots(toJson(req.getTimeSlots()));
         p.setApplicationDeadline(req.getApplicationDeadline());
-        // 兼容旧客户端：若只填了 hourlyRate 而未填 salaryAmount，自动提升为 unit='hour'。
-        java.math.BigDecimal resolvedAmount = req.getSalaryAmount();
-        String resolvedUnit = req.getSalaryUnit();
-        if (resolvedAmount == null && req.getHourlyRate() != null) {
-            resolvedAmount = req.getHourlyRate();
-            resolvedUnit = "hour";
-        }
-        p.setSalaryUnit(resolvedUnit);
-        p.setSalaryAmount(resolvedAmount);
+        p.setSalaryUnit(req.getSalaryUnit());
+        p.setSalaryAmount(req.getSalaryAmount());
         p.setReason(req.getReason());
         p.setGenderLimit(req.getGenderLimit());
         p.setAidLevels(toJson(req.getAidLevels()));
@@ -170,7 +171,8 @@ public class WorkStudyService {
 
         Map<String, Object> formData = new HashMap<>();
         formData.put("title", p.getTitle());
-        formData.put("hourly_rate", p.getHourlyRate());
+        formData.put("salary_unit", p.getSalaryUnit());
+        formData.put("salary_amount", p.getSalaryAmount());
         formData.put("position_id", p.getId());
         formData.put("creator_id", creatorId);
 
@@ -410,6 +412,14 @@ public class WorkStudyService {
         if (Boolean.FALSE.equals(pos.getAcceptingApplications())) {
             throw WorkStudyErrorCode.POSITION_NOT_ACCEPTING.exception();
         }
+        // 业务时间三阶段窗口(V114):学生上岗(申请)窗。无对应学年配置时不限制(legacy 岗位兼容)。
+        if (pos.getAcademicYear() != null) {
+            WorkStudyYearSetting setting = yearSettingMapper.selectOne(new LambdaQueryWrapper<WorkStudyYearSetting>()
+                    .eq(WorkStudyYearSetting::getAcademicYear, pos.getAcademicYear()));
+            if (setting != null && !YearSettingService.inWindow(setting.getApplicationWindowStart(), setting.getApplicationWindowEnd())) {
+                throw WorkStudyErrorCode.OUT_OF_APPLICATION_WINDOW.exception();
+            }
+        }
         if (pos.getHiredCount() != null && pos.getHeadcount() != null
                 && pos.getHiredCount() >= pos.getHeadcount()) {
             throw WorkStudyErrorCode.POSITION_FULL.exception();
@@ -468,6 +478,7 @@ public class WorkStudyService {
                 .eq(query.getPositionId() != null, WorkStudyApplication::getPositionId, query.getPositionId())
                 .eq(query.getStudentId() != null, WorkStudyApplication::getStudentId, query.getStudentId())
                 .eq(query.getStatus() != null, WorkStudyApplication::getStatus, query.getStatus())
+                .eq(query.getEngagementStatus() != null, WorkStudyApplication::getEngagementStatus, query.getEngagementStatus())
                 .orderByDesc(WorkStudyApplication::getCreatedAt);
         Page<WorkStudyApplication> pageResult = applicationMapper.selectPage(page, wrapper);
 

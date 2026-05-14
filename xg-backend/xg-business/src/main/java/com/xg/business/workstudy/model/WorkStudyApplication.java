@@ -95,19 +95,9 @@ public class WorkStudyApplication extends BaseEntity {
         private String salaryUnit;
         private java.math.BigDecimal salaryAmount;
 
-        /**
-         * 从 Position 构建 Summary，对历史 legacy 数据自动 fallback：
-         * salary_amount 为空但有 hourly_rate 时，按 unit='hour' 提升，确保前端申请视图能展示薪资。
-         */
         public static PositionSummary fromPosition(WorkStudyPosition p) {
-            String unit = p.getSalaryUnit();
-            java.math.BigDecimal amount = p.getSalaryAmount();
-            if (amount == null && p.getHourlyRate() != null) {
-                unit = "hour";
-                amount = p.getHourlyRate();
-            }
             return new PositionSummary(p.getId(), p.getTitle(), p.getPositionType(),
-                    p.getDepartmentName(), unit, amount);
+                    p.getDepartmentName(), p.getSalaryUnit(), p.getSalaryAmount());
         }
     }
 }

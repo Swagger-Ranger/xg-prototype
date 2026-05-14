@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { describeApiError } from '@/utils/api-error';
 import StepNav, { type StepDef } from './StepNav';
 import {
@@ -68,7 +69,7 @@ import EmployerSelect from './EmployerSelect';
 import EmployersTab from './EmployersTab';
 import PreferenceTab from './PreferenceTab';
 import SalariesTab from './SalariesTab';
-import YearSettingsTab from './YearSettingsTab';
+import BusinessConfigTab from './BusinessConfigTab';
 import styles from './index.module.css';
 
 const { TextArea } = Input;
@@ -150,7 +151,7 @@ const SALARY_UNIT_LABEL: Record<string, string> = {
 
 const PAGE_SIZE = 20;
 
-type Tab = 'dashboard' | 'preference' | 'positions' | 'applications' | 'employers' | 'salaries' | 'year_settings';
+type Tab = 'dashboard' | 'preference' | 'positions' | 'applications' | 'employers' | 'salaries' | 'business_config';
 
 /** Role-aware workflow ordering. Each role sees the steps in the order they
  *  naturally do them — staff start with employer setup, employers start with
@@ -158,11 +159,15 @@ type Tab = 'dashboard' | 'preference' | 'positions' | 'applications' | 'employer
 const STAFF_STEPS: StepDef<Tab>[] = [
   { value: 'dashboard',     n: 1, title: '总览',     hint: '今日待办速览' },
   { value: 'employers',     n: 2, title: '用人单位', hint: '先把单位建好' },
-  { value: 'year_settings', n: 3, title: '学年配置', hint: '设当年招岗规则' },
-  { value: 'positions',     n: 4, title: '岗位审批', hint: '审 / 管在招岗位' },
-  { value: 'applications',  n: 5, title: '申请审批', hint: '把候选人审完' },
-  { value: 'salaries',      n: 6, title: '薪资审批', hint: '月底薪酬复核' },
+  { value: 'positions',     n: 3, title: '岗位审批', hint: '审 / 管在招岗位' },
+  { value: 'applications',  n: 4, title: '申请审批', hint: '把候选人审完' },
+  { value: 'salaries',      n: 5, title: '薪资审批', hint: '月底薪酬复核' },
 ];
+// school_admin 专属:学年规则 + 三阶段时间窗 + 审批工作流 统一管理(仿请假规则页样式)。
+// 后端 requireDefinitionAdmin 是 school_admin gate,前端先把入口隐藏防止 staff 误点 403。
+const BUSINESS_CONFIG_STEP: StepDef<Tab> = {
+  value: 'business_config', n: 6, title: '业务配置', hint: '学年规则 / 时段 / 审批流',
+};
 const EMPLOYER_STEPS: StepDef<Tab>[] = [
   { value: 'dashboard',    n: 1, title: '总览',     hint: '本单位概况' },
   { value: 'positions',    n: 2, title: '岗位',     hint: '发布 / 维护本单位岗位' },
@@ -179,7 +184,7 @@ const STUDENT_STEPS: StepDef<Tab>[] = [
 
 export default function WorkStudyManagement() {
   const queryClient = useQueryClient();
-  const { isStudent, isEmployer, hasPermission, user } = useAuth();
+  const { isStudent, isEmployer, isAdmin, hasPermission, user } = useAuth();
   // 多 persona 页：isStudent/isEmployer 决定步骤集 / 数据 scope（视角层），
   // 实际动作按钮按权限码 gate（能力层）。校院级 college_admin 只有 umbrella
   // workstudy:manage 而无 granular 码，新逻辑下不会再误显「发布/关闭/处理」按钮。
@@ -213,7 +218,13 @@ export default function WorkStudyManagement() {
     staleTime: 30_000,
   });
 
-  const baseSteps = isStudent ? STUDENT_STEPS : isEmployer ? EMPLOYER_STEPS : STAFF_STEPS;
+  const baseSteps = isStudent
+    ? STUDENT_STEPS
+    : isEmployer
+      ? EMPLOYER_STEPS
+      : isAdmin
+        ? [...STAFF_STEPS, BUSINESS_CONFIG_STEP]
+        : STAFF_STEPS;
   const stepBadges: Partial<Record<Tab, number>> = {
     positions: Number(pendingPositionsQ.data?.total ?? 0),
     applications: Number(pendingAppsQ.data?.total ?? 0),
@@ -232,7 +243,12 @@ export default function WorkStudyManagement() {
     approvalSet.has(s.value) ? { ...s, badge: stepBadges[s.value] } : s,
   );
 
-  const [tab, setTab] = useState<Tab>('dashboard');
+  // ?tab=xxx 由 AI 小夕 navigate 时透传(如 navigate(page=work-study, tab=business_config))。
+  // 仅 baseSteps 里存在的 tab 才接受,避免脏 URL 把视图打到不该看的 tab。
+  const [searchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as Tab | null;
+  const initialTab: Tab = urlTab && baseSteps.some((s) => s.value === urlTab) ? urlTab : 'dashboard';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [page, setPage] = useState(1);
   const [yearFilter, setYearFilter] = useState<string | undefined>();
   // 学生总览卡片点击 → 跳到「我的申请」并按状态/在岗过滤。空 = 不过滤。
@@ -314,7 +330,7 @@ export default function WorkStudyManagement() {
   // 把单学生的历史申请一次拉完（学生一般 < 50 条）；staff/employer 仍走分页。
   const studentAppPageSize = 200;
   const applicationsQuery = useQuery({
-    queryKey: ['wsApplications', page, appsStatusFilter, isStudent],
+    queryKey: ['wsApplications', page, appsStatusFilter, appsEngagementFilter, isStudent],
     queryFn: () =>
       listApplications({
         page: isStudent ? 1 : page,
@@ -322,6 +338,8 @@ export default function WorkStudyManagement() {
         include: 'position',
         // 学生侧：Segmented 自己在前端过滤，不再传 status；staff 仍用筛选 chip。
         status: isStudent ? undefined : appsStatusFilter,
+        // 「在岗学生」卡片跳转过来时给后端透传，避免分页错过在岗行。
+        engagementStatus: isStudent ? undefined : appsEngagementFilter,
       }),
     enabled: tab === 'applications',
   });
@@ -771,10 +789,9 @@ export default function WorkStudyManagement() {
       key: 'salary',
       width: 130,
       render: (_, r) => {
-        const amount = r.salary_amount ?? r.hourly_rate;
+        if (!r.salary_amount) return <span style={{ color: 'var(--fg-4)' }}>—</span>;
         const unit = r.salary_unit ?? 'hour';
-        if (!amount) return <span style={{ color: 'var(--fg-4)' }}>—</span>;
-        return `¥${Number(amount).toFixed(2)} / ${SALARY_UNIT_LABEL[unit] ?? '时'}`;
+        return `¥${Number(r.salary_amount).toFixed(2)} / ${SALARY_UNIT_LABEL[unit] ?? '时'}`;
       },
     },
     {
@@ -1487,7 +1504,7 @@ export default function WorkStudyManagement() {
         )}
         {tab === 'employers' && <div style={{ padding: 16 }}><EmployersTab /></div>}
         {tab === 'salaries' && <div style={{ padding: 16 }}><SalariesTab /></div>}
-        {tab === 'year_settings' && <div style={{ padding: 16 }}><YearSettingsTab /></div>}
+        {tab === 'business_config' && <div style={{ padding: 16 }}><BusinessConfigTab /></div>}
       </div>
 
       {/* Position detail drawer */}
@@ -2030,8 +2047,6 @@ function PositionDetailBody({ p }: { p: WorkStudyPosition }) {
 
   const salary = p.salary_amount
     ? `¥${Number(p.salary_amount).toFixed(2)} / ${SALARY_UNIT_LABEL[p.salary_unit ?? 'hour'] ?? '时'}`
-    : p.hourly_rate
-    ? `¥${Number(p.hourly_rate).toFixed(2)} / 时（旧字段）`
     : '—';
 
   const handlePin = () => {
@@ -2184,8 +2199,6 @@ function RecommendationSection({
         {data.map((rec) => {
           const salary = rec.salary_amount
             ? `¥${Number(rec.salary_amount).toFixed(0)} / ${SALARY_UNIT_LABEL[rec.salary_unit ?? 'hour'] ?? '时'}`
-            : rec.hourly_rate
-            ? `¥${Number(rec.hourly_rate).toFixed(0)} / 时`
             : null;
           return (
             <div key={rec.position_id} className={styles.recommendCard}>
@@ -2247,8 +2260,7 @@ function StudentPositionGrid({
     <>
       <div className={styles.posGrid}>
         {positions.map((p) => {
-          const rawSalary = p.salary_amount ?? p.hourly_rate;
-          const salaryNum = rawSalary != null ? Number(rawSalary) : null;
+          const salaryNum = p.salary_amount != null ? Number(p.salary_amount) : null;
           const salaryUnit = SALARY_UNIT_LABEL[p.salary_unit ?? 'hour'] ?? '时';
           const policy =
             p.financial_aid_policy && p.financial_aid_policy !== 'none'

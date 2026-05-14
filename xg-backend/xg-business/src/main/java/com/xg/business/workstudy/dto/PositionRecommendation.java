@@ -22,7 +22,6 @@ public class PositionRecommendation {
     private String workLocation;
     private String salaryUnit;
     private BigDecimal salaryAmount;
-    private BigDecimal hourlyRate;
     private Integer weeklyHours;
     private Integer headcount;
     private Integer hiredCount;

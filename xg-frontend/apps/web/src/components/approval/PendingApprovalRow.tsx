@@ -90,7 +90,11 @@ function WorkstudyDetailBlock({ applicationId }: { applicationId: string }) {
       <div className={styles.section}>岗位信息</div>
       <div className={styles.kv}>岗位：{position?.title ?? '-'}</div>
       {position?.department_name && <div className={styles.kv}>用人部门：{position.department_name}</div>}
-      {position?.hourly_rate && <div className={styles.kv}>时薪：{position.hourly_rate} 元</div>}
+      {position?.salary_amount && (
+        <div className={styles.kv}>
+          薪资：{position.salary_amount} 元 / {position.salary_unit ?? 'hour'}
+        </div>
+      )}
 
       <div className={styles.section}>申请信息</div>
       {app.financial_aid_level && <div className={styles.kv}>资助等级：{app.financial_aid_level}</div>}
