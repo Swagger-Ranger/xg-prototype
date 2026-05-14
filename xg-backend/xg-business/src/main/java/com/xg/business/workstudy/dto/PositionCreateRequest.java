@@ -96,4 +96,11 @@ public class PositionCreateRequest {
     private List<Long> collegeLimits;
 
     private Boolean selfArranged;
+
+    /** B3 困难生策略：none / bonus / reserved / only。null 视为 none。 */
+    @Size(max = 16)
+    private String financialAidPolicy;
+
+    @Min(0)
+    private Integer reservedCount;
 }

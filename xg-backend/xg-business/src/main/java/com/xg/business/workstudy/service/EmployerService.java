@@ -3,9 +3,11 @@ package com.xg.business.workstudy.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.business.workstudy.dto.EmployerCreateRequest;
 import com.xg.business.workstudy.dto.EmployerQueryRequest;
+import com.xg.business.workstudy.dto.EmployerSelfUpdateRequest;
 import com.xg.business.workstudy.dto.EmployerUpdateRequest;
 import com.xg.business.workstudy.mapper.EmployerMapper;
 import com.xg.business.workstudy.model.Employer;
@@ -15,6 +17,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -89,5 +95,84 @@ public class EmployerService {
             log.warn("Failed to serialize employer field: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 列出当前 user 作为 leader 或 operator 的 active 用人单位。常见是 1 家，理论上可多家。
+     */
+    public List<Employer> listMine(Long userId) {
+        if (userId == null) return List.of();
+        List<Employer> all = employerMapper.selectList(new LambdaQueryWrapper<Employer>()
+                .eq(Employer::getStatus, "active"));
+        return all.stream()
+                .filter(e -> userId.equals(e.getLeaderUserId())
+                        || parseOperatorIds(e.getOperatorUserIds()).contains(userId))
+                .toList();
+    }
+
+    /**
+     * Employer 自服务修改：仅 contactName / contactPhone / email / remark；其余字段须走 admin 接口。
+     * 校验 userId 必须是该单位的 leader 或 operator，且单位 status='active'。
+     */
+    @Transactional
+    public Employer selfUpdate(Long id, Long userId, EmployerSelfUpdateRequest req) {
+        Employer e = detail(id);
+        if (!"active".equals(e.getStatus())) {
+            throw new BizException("EMPLOYER_DISABLED", "用人单位已被禁用，无法修改");
+        }
+        if (!isUserOperatorOrLeader(id, userId)) {
+            throw new BizException("FORBIDDEN", "你不是该用人单位的负责人或操作员");
+        }
+        if (req.getContactName() != null) e.setContactName(req.getContactName());
+        if (req.getContactPhone() != null) e.setContactPhone(req.getContactPhone());
+        if (req.getEmail() != null) e.setEmail(req.getEmail());
+        if (req.getRemark() != null) e.setRemark(req.getRemark());
+        employerMapper.updateById(e);
+        return e;
+    }
+
+    /**
+     * 批查给定 id 集合中状态为 disabled 的 employer.id。空入参返回空集，不打 SQL。
+     * 用于 listPositions 学生场景下过滤掉已禁用单位的岗位，避免 N+1。
+     */
+    public Set<Long> findDisabledEmployerIds(java.util.Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) return Set.of();
+        List<Employer> rows = employerMapper.selectList(new LambdaQueryWrapper<Employer>()
+                .in(Employer::getId, ids)
+                .eq(Employer::getStatus, "disabled"));
+        return rows.stream().map(Employer::getId).collect(Collectors.toSet());
+    }
+
+    /**
+     * userId 是否是该用人单位的负责人或操作员。归属判断的核心 helper —
+     * Position 创建 / owner 指定 / 单位自服务等场景调用。
+     * operator_user_ids JSONB 可能存 number 数组也可能存 string 数组（前端历史），都兼容。
+     */
+    public boolean isUserOperatorOrLeader(Long employerId, Long userId) {
+        if (employerId == null || userId == null) return false;
+        Employer e = employerMapper.selectById(employerId);
+        if (e == null) return false;
+        if (userId.equals(e.getLeaderUserId())) return true;
+        return parseOperatorIds(e.getOperatorUserIds()).contains(userId);
+    }
+
+    private Set<Long> parseOperatorIds(String json) {
+        if (json == null || json.isBlank()) return Set.of();
+        try {
+            List<Object> raw = objectMapper.readValue(json, new TypeReference<List<Object>>() {});
+            return raw.stream().map(EmployerService::toLong).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
+        } catch (Exception ex) {
+            log.warn("Failed to parse employer.operator_user_ids: {}", ex.getMessage());
+            return Set.of();
+        }
+    }
+
+    private static Long toLong(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number n) return n.longValue();
+        if (v instanceof String s) {
+            try { return Long.valueOf(s.trim()); } catch (NumberFormatException ex) { return null; }
+        }
+        return null;
     }
 }

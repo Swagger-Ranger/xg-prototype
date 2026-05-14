@@ -3,18 +3,28 @@ package com.xg.business.workstudy.controller;
 import com.xg.business.workstudy.dto.ApplicationCreateRequest;
 import com.xg.business.workstudy.dto.ApplicationDecisionRequest;
 import com.xg.business.workstudy.dto.ApplicationQueryRequest;
+import com.xg.business.workstudy.dto.BatchActionResult;
+import com.xg.business.workstudy.dto.BatchNotifyRequest;
+import com.xg.business.workstudy.dto.BatchOffboardRequest;
+import com.xg.business.workstudy.dto.OffboardByEmployerRequest;
+import com.xg.business.workstudy.dto.OffboardByStudentRequest;
 import com.xg.business.workstudy.dto.PositionCreateRequest;
 import com.xg.business.workstudy.dto.PositionQueryRequest;
+import com.xg.business.workstudy.dto.PositionRecommendation;
 import com.xg.business.workstudy.dto.SalaryDecisionRequest;
+import com.xg.business.workstudy.dto.ScheduleInterviewRequest;
 import com.xg.business.workstudy.dto.SalaryQueryRequest;
 import com.xg.business.workstudy.dto.SalarySubmitRequest;
 import com.xg.business.workstudy.dto.TimesheetDisputeRequest;
 import com.xg.business.workstudy.dto.TimesheetFinalizeRequest;
 import com.xg.business.workstudy.dto.TimesheetReportRequest;
+import com.xg.business.workstudy.dto.WorkStudyReportDsl;
 import com.xg.business.workstudy.model.WorkStudyApplication;
 import com.xg.business.workstudy.model.WorkStudyPosition;
 import com.xg.business.workstudy.model.WorkStudySalary;
 import com.xg.business.workstudy.model.WorkStudyTimesheet;
+import com.xg.business.workstudy.service.WorkStudyExportService;
+import com.xg.business.workstudy.service.WorkStudyRecommendationService;
 import com.xg.business.workstudy.service.WorkStudySalarySettlementService;
 import com.xg.business.workstudy.service.WorkStudySalaryService;
 import com.xg.business.workstudy.service.WorkStudyService;
@@ -22,6 +32,8 @@ import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
 import com.xg.common.exception.BizException;
 import com.xg.platform.auth.CurrentUser;
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.stp.StpUtil;
 import com.xg.platform.workflow.mapper.AssigneeLookupMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,19 +51,28 @@ public class WorkStudyController {
     private final WorkStudyService workStudyService;
     private final WorkStudySalarySettlementService salarySettlementService;
     private final WorkStudySalaryService salaryService;
+    private final WorkStudyRecommendationService recommendationService;
+    private final WorkStudyExportService exportService;
     private final AssigneeLookupMapper roleLookup;
 
     private static final Set<String> AID_CENTER_ROLES = Set.of("aid_center_officer", "student_affairs_officer", "school_admin");
 
     private static final Set<String> SALARY_OPS_ROLES = Set.of("student_affairs_officer", "school_admin");
 
+    /** A3 批量动作的粗粒度 gate；细粒度（"是否岗位负责人"）由 service 逐条判断。 */
+    private static final Set<String> BATCH_OPS_ROLES = Set.of(
+            "school_admin", "student_affairs_officer", "employer");
+
     // --- Positions -----------------------------------------------------------
 
     @PostMapping("/api/v1/work-study/positions")
+    @SaCheckPermission("workstudy:position:setup")
     public R<WorkStudyPosition> createPosition(
             @RequestBody @Validated PositionCreateRequest req) {
         Long userId = CurrentUser.id();
-        return R.ok(workStudyService.createPosition(req, userId));
+        // 学工处 / 校管理员（workstudy:employer:manage）可代任意单位发布；employer 角色须归属其本单位。
+        boolean bypassOwnership = StpUtil.hasPermission("workstudy:employer:manage");
+        return R.ok(workStudyService.createPosition(req, userId, bypassOwnership));
     }
 
     @GetMapping("/api/v1/work-study/positions")
@@ -67,15 +88,33 @@ public class WorkStudyController {
     }
 
     @PutMapping("/api/v1/work-study/positions/{id}/close")
+    @SaCheckPermission("workstudy:position:manage")
     public R<Void> closePosition(@PathVariable Long id) {
-        workStudyService.closePosition(id);
+        Long userId = CurrentUser.id();
+        boolean bypassOwnership = StpUtil.hasPermission("workstudy:employer:manage");
+        workStudyService.closePosition(id, userId, bypassOwnership);
+        return R.ok();
+    }
+
+    /** A1 暂停 / 恢复招新（status 不动）。{@code accepting=false} 时可附 {@code reason}。 */
+    @PutMapping("/api/v1/work-study/positions/{id}/accepting-applications")
+    @SaCheckPermission("workstudy:position:manage")
+    public R<Void> setAcceptingApplications(
+            @PathVariable Long id,
+            @RequestParam boolean accepting,
+            @RequestParam(required = false) String reason) {
+        Long userId = CurrentUser.id();
+        boolean bypassOwnership = StpUtil.hasPermission("workstudy:employer:manage");
+        workStudyService.togglePositionAccepting(id, accepting, reason, userId, bypassOwnership);
         return R.ok();
     }
 
     /**
      * Officer approves (action=approve) or rejects (action=reject) a pending position-approval task.
+     * 工作流引擎内部会按 taskInstance.assignee 二次校验当前用户是否为该任务受理人。
      */
     @PutMapping("/api/v1/work-study/positions/{id}/decide")
+    @SaCheckPermission("workstudy:position:approve")
     public R<Void> decidePosition(
             @PathVariable Long id,
             @RequestParam String action,
@@ -83,6 +122,14 @@ public class WorkStudyController {
         Long userId = CurrentUser.id();
         workStudyService.decidePosition(id, action, note, userId);
         return R.ok();
+    }
+
+    /** B3 学生侧 "为你推荐" — Java 评分 + AI 理由的混合推荐。失败时降级为只返回评分排序无理由。 */
+    @GetMapping("/api/v1/work-study/me/recommended-positions")
+    public R<List<PositionRecommendation>> myRecommendedPositions(
+            @RequestParam(defaultValue = "5") int topK) {
+        Long userId = CurrentUser.id();
+        return R.ok(recommendationService.recommendForStudent(userId, topK));
     }
 
     // --- Applications --------------------------------------------------------
@@ -96,6 +143,13 @@ public class WorkStudyController {
 
     @GetMapping("/api/v1/work-study/applications")
     public R<PageResult<WorkStudyApplication>> listApplications(@Validated ApplicationQueryRequest query) {
+        Long userId = CurrentUser.id();
+        List<String> roles = roleLookup.findRoleCodesByUserId(userId);
+        // 学生只能看自己的申请；防越权 + 避免「我的申请」tab 把全校申请都堆出来。
+        // employer / 学工 / 校管理员保持原行为（FE 决定 scope）。
+        if (roles.contains("student")) {
+            query.setStudentId(userId);
+        }
         return R.ok(workStudyService.listApplications(query));
     }
 
@@ -111,6 +165,112 @@ public class WorkStudyController {
         Long userId = CurrentUser.id();
         workStudyService.decideApplication(id, req, userId);
         return R.ok();
+    }
+
+    /** 用人单位（岗位负责人）/ 学工处 / 校级管理员 主动让在岗学生离岗。 */
+    @PostMapping("/api/v1/work-study/applications/{id}/offboard-by-employer")
+    public R<Void> offboardByEmployer(
+            @PathVariable Long id,
+            @RequestBody @Validated OffboardByEmployerRequest req) {
+        Long userId = CurrentUser.id();
+        List<String> roles = roleLookup.findRoleCodesByUserId(userId);
+        workStudyService.assertEmployerOffboardAuthority(id, userId, roles);
+        workStudyService.offboardByEmployer(id, req, userId);
+        return R.ok();
+    }
+
+    /** 学生主动从自己当前在岗的勤工岗位离岗。 */
+    @PostMapping("/api/v1/work-study/applications/{id}/offboard-by-student")
+    public R<Void> offboardByStudent(
+            @PathVariable Long id,
+            @RequestBody @Validated OffboardByStudentRequest req) {
+        Long userId = CurrentUser.id();
+        workStudyService.offboardByStudent(id, req, userId);
+        return R.ok();
+    }
+
+    /** A3 批量终止上岗。Service 逐条做岗位负责人 / 状态校验，跳过失败的，返回汇总。 */
+    @PostMapping("/api/v1/work-study/applications/batch/offboard")
+    public R<BatchActionResult> batchOffboard(
+            @RequestBody @Validated BatchOffboardRequest req) {
+        Long userId = CurrentUser.id();
+        List<String> roles = roleLookup.findRoleCodesByUserId(userId);
+        if (roles.stream().noneMatch(BATCH_OPS_ROLES::contains)) {
+            throw new BizException("FORBIDDEN", "无权执行批量操作");
+        }
+        return R.ok(workStudyService.batchOffboard(req, userId, roles));
+    }
+
+    /** A3 批量给选中申请的学生发站内信。Service 逐条做岗位负责人校验。 */
+    @PostMapping("/api/v1/work-study/applications/batch/notify")
+    public R<BatchActionResult> batchNotify(
+            @RequestBody @Validated BatchNotifyRequest req) {
+        Long userId = CurrentUser.id();
+        List<String> roles = roleLookup.findRoleCodesByUserId(userId);
+        if (roles.stream().noneMatch(BATCH_OPS_ROLES::contains)) {
+            throw new BizException("FORBIDDEN", "无权执行批量操作");
+        }
+        return R.ok(workStudyService.batchNotify(req, userId, roles));
+    }
+
+    /**
+     * B2 发送面试通知：记录时间/地点/内部备注 + Orchestrator 走 INTERVIEW_INVITE 模板下发。
+     * 权限与 employer 端离岗相同（岗位负责人 + 学工处 / 校级管理员）。
+     */
+    @PostMapping("/api/v1/work-study/applications/{id}/schedule-interview")
+    public R<Void> scheduleInterview(
+            @PathVariable Long id,
+            @RequestBody @Validated ScheduleInterviewRequest req) {
+        Long userId = CurrentUser.id();
+        List<String> roles = roleLookup.findRoleCodesByUserId(userId);
+        workStudyService.assertEmployerOffboardAuthority(id, userId, roles);
+        workStudyService.scheduleInterview(id, req, userId);
+        return R.ok();
+    }
+
+    // --- Export (A4) ---------------------------------------------------------
+
+    /** A4 — 导出申请当前视图（按筛选条件）。 */
+    @GetMapping("/api/v1/work-study/export/applications")
+    public org.springframework.http.ResponseEntity<byte[]> exportApplicationsCurrentView(
+            @Validated ApplicationQueryRequest query) {
+        Long userId = CurrentUser.id();
+        List<String> roles = roleLookup.findRoleCodesByUserId(userId);
+        if (roles.stream().noneMatch(BATCH_OPS_ROLES::contains)) {
+            throw new BizException("FORBIDDEN", "无权导出");
+        }
+        byte[] xlsx = exportService.exportApplicationsCurrentView(query);
+        return xlsxResponse("workstudy_applications", xlsx);
+    }
+
+    /** A4 — 按 AI 解析出的 DSL 导出。 */
+    @PostMapping("/api/v1/work-study/export/nl-report")
+    public org.springframework.http.ResponseEntity<byte[]> exportNlReport(
+            @RequestBody @Validated WorkStudyReportDsl dsl) {
+        Long userId = CurrentUser.id();
+        List<String> roles = roleLookup.findRoleCodesByUserId(userId);
+        if (roles.stream().noneMatch(BATCH_OPS_ROLES::contains)) {
+            throw new BizException("FORBIDDEN", "无权导出");
+        }
+        byte[] xlsx = exportService.exportByDsl(dsl);
+        String filenameBase = dsl.getTitle() == null || dsl.getTitle().isBlank()
+                ? "workstudy_report" : dsl.getTitle();
+        return xlsxResponse(filenameBase, xlsx);
+    }
+
+    private static org.springframework.http.ResponseEntity<byte[]> xlsxResponse(String filenameBase, byte[] data) {
+        String stamp = java.time.LocalDate.now().toString();
+        String filename = filenameBase + "_" + stamp + ".xlsx";
+        // RFC 5987: UTF-8 filename* 段，避免浏览器对中文乱码
+        String encoded = java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8)
+                .replace("+", "%20");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.set("Content-Type",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        headers.set("Content-Disposition",
+                "attachment; filename=\"export.xlsx\"; filename*=UTF-8''" + encoded);
+        headers.set("Content-Length", String.valueOf(data.length));
+        return new org.springframework.http.ResponseEntity<>(data, headers, org.springframework.http.HttpStatus.OK);
     }
 
     // --- Timesheets ----------------------------------------------------------
@@ -191,6 +351,13 @@ public class WorkStudyController {
 
     @GetMapping("/api/v1/work-study/salaries")
     public R<PageResult<WorkStudySalary>> listSalaries(@Validated SalaryQueryRequest query) {
+        Long userId = CurrentUser.id();
+        List<String> roles = roleLookup.findRoleCodesByUserId(userId);
+        // 学生只能看自己的薪资。强制 scope 防越权。non-student（employer/资助中心/学工）
+        // 仍按入参过滤（employer 端实际由前端只查本单位岗位的 student；后端授权细化在 P1 之外）。
+        if (roles.contains("student")) {
+            query.setStudentId(userId);
+        }
         return R.ok(salaryService.list(query));
     }
 

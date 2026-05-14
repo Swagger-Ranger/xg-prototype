@@ -13,6 +13,8 @@ import com.xg.business.workstudy.model.WorkStudyPosition;
 import com.xg.business.workstudy.model.WorkStudySalary;
 import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
+import com.xg.platform.notification.service.NotificationService;
+import com.xg.platform.notification.service.SendNotificationRequest;
 import com.xg.platform.workflow.engine.WorkflowEngine;
 import com.xg.platform.workflow.mapper.TaskInstanceMapper;
 import com.xg.platform.workflow.model.TaskInstance;
@@ -45,6 +47,7 @@ public class WorkStudySalaryService {
     private final WorkStudyPositionMapper positionMapper;
     private final WorkflowEngine workflowEngine;
     private final TaskInstanceMapper taskInstanceMapper;
+    private final NotificationService notificationService;
 
     /**
      * 用工单位申报某学生在某月的薪资。月内可多次申报（不同 month 多条；同月再次申报视作新行）。
@@ -104,6 +107,28 @@ public class WorkStudySalaryService {
             salaryMapper.updateById(s);
         } catch (Exception e) {
             log.warn("Failed to start salary workflow for salary {}: {}", s.getId(), e.getMessage());
+        }
+
+        // 申报通知 — 让学生知道用人单位已提交他这个月的薪资，正在等资助中心审。
+        // 跟 confirmed/rejected 通知一样走 SendNotificationRequest 直发，不走 Orchestrator
+        // 模板（与 WorkStudyWorkflowListener 一致）。失败只打日志，不阻塞主流程。
+        if (app.getStudentId() != null) {
+            try {
+                String posTitle = pos.getTitle() != null ? pos.getTitle() : "勤工岗位";
+                SendNotificationRequest notif = new SendNotificationRequest();
+                notif.setSourceType("workstudy_salary");
+                notif.setSourceId(s.getId());
+                notif.setRecipientUserIds(List.of(app.getStudentId()));
+                notif.setChannels(List.of("in_app"));
+                notif.setTitle("勤工薪资已申报");
+                notif.setContent(String.format(
+                        "用人单位为你申报了 %s 在「%s」岗位的薪资 ¥%s，资助中心审核中。",
+                        req.getMonth(), posTitle, amount.toPlainString()));
+                notif.setLevel("normal");
+                notificationService.send(notif);
+            } catch (Exception e) {
+                log.warn("Failed to notify student of salary submission for salary {}: {}", s.getId(), e.getMessage());
+            }
         }
         return s;
     }

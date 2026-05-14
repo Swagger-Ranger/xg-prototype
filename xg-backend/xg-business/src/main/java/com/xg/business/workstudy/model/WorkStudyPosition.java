@@ -119,4 +119,19 @@ public class WorkStudyPosition extends BaseEntity {
 
     @TableField("self_arranged")
     private Boolean selfArranged;
+
+    /** A1 — false 表示暂停招新（status 不动）。空值视为 true 兼容旧数据。 */
+    @TableField("accepting_applications")
+    private Boolean acceptingApplications;
+
+    @TableField("paused_reason")
+    private String pausedReason;
+
+    /** B3 — 困难生倾斜策略 enum: none / bonus / reserved / only。null 视为 none。 */
+    @TableField("financial_aid_policy")
+    private String financialAidPolicy;
+
+    /** reserved 策略下，留给困难生的名额数；其他策略下忽略。 */
+    @TableField("reserved_count")
+    private Integer reservedCount;
 }
