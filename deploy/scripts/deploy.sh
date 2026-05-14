@@ -203,22 +203,37 @@ EOF
 }
 
 # 初始化日志目录和轮转配置
+# 支持通过 .env 的 HOST_LOG_DIR 自定义路径（默认 /data/logs）
 init_logs() {
-    log_info "初始化日志目录..."
-
-    # 创建日志目录
-    mkdir -p /data/logs/{java,python,nginx,postgres,redis,minio}
-    chmod 755 /data/logs /data/logs/*
-
-    # 配置 logrotate（如果脚本存在）
-    if [ -f "./scripts/setup-logs.sh" ]; then
-        log_info "配置日志轮转..."
-        ./scripts/setup-logs.sh
-    else
-        log_warn "setup-logs.sh 脚本不存在，跳过 logrotate 配置"
+    # 读取 .env 中的 HOST_LOG_DIR，默认 /data/logs
+    # 解析支持：HOST_LOG_DIR=xxx / HOST_LOG_DIR="xxx" / HOST_LOG_DIR=xxx # 注释
+    local log_dir="/data/logs"
+    if [ -f ".env" ]; then
+        local env_log_dir=$(grep -E '^HOST_LOG_DIR=' .env | head -1 | sed -E 's/^HOST_LOG_DIR=["'"'"']?([^"'"'"' #]+)["'"'"']?.*$/\1/')
+        if [ -n "$env_log_dir" ]; then
+            log_dir="$env_log_dir"
+        fi
     fi
 
-    log_info "日志目录已创建: /data/logs"
+    log_info "初始化日志目录: $log_dir"
+
+    # 创建日志目录
+    mkdir -p "$log_dir"/{java,python,nginx,postgres,redis,minio}
+    chmod 755 "$log_dir" "$log_dir"/*
+
+    # 只有标准云路径才配置系统级 logrotate
+    if [ "$log_dir" = "/data/logs" ]; then
+        if [ -f "./scripts/setup-logs.sh" ]; then
+            log_info "配置日志轮转 (logrotate)..."
+            ./scripts/setup-logs.sh
+        else
+            log_warn "setup-logs.sh 脚本不存在，跳过 logrotate 配置"
+        fi
+    else
+        log_info "自定义日志路径 $log_dir，跳过系统 logrotate（依赖 Docker 日志驱动自动管理）"
+    fi
+
+    log_info "日志目录已创建: $log_dir"
 }
 
 # 启动服务

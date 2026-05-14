@@ -6,14 +6,24 @@
 
 set -e
 
-LOG_BASE_DIR="/data/logs"
-
 # 配置参数（可修改）
 KEEP_DAYS=7
 MAX_SIZE="100M"  # 单日志文件超过 100MB 就轮转
 
+# 从 .env 读取 HOST_LOG_DIR（默认 /data/logs）
+# 解析支持：HOST_LOG_DIR=xxx / HOST_LOG_DIR="xxx" / HOST_LOG_DIR=xxx # 注释
+LOG_BASE_DIR="/data/logs"
 if [ -f ".env" ]; then
-    source .env 2>/dev/null || true
+    env_log_dir=$(grep -E '^HOST_LOG_DIR=' .env | head -1 | sed -E 's/^HOST_LOG_DIR=["'"'"']?([^"'"'"' #]+)["'"'"']?.*$/\1/')
+    if [ -n "$env_log_dir" ]; then
+        LOG_BASE_DIR="$env_log_dir"
+    fi
+fi
+
+# logrotate 只适用于系统标准路径（/var/log、/data/logs 等）
+if [[ ! "$LOG_BASE_DIR" =~ ^/ ]]; then
+    echo "警告: LOG_BASE_DIR=$LOG_BASE_DIR 不是绝对路径，logrotate 可能无法正常工作"
+    echo "建议: 使用 /data/logs 作为云服务器标准路径，或使用 Docker logging driver 管理日志"
 fi
 
 echo "========================================"
@@ -44,7 +54,7 @@ cat > /etc/logrotate.d/xg-services << EOF
 # ============================================================
 
 # Java 服务日志
-/data/logs/java/*.log {
+${LOG_BASE_DIR}/java/*.log {
     daily                    # 每天检查一次
     rotate ${KEEP_DAYS}      # 保留 ${KEEP_DAYS} 个历史文件
     maxsize ${MAX_SIZE}      # 超过 ${MAX_SIZE} 立即轮转（不等到第二天）
@@ -59,7 +69,7 @@ cat > /etc/logrotate.d/xg-services << EOF
 }
 
 # Python 服务日志
-/data/logs/python/*.log {
+${LOG_BASE_DIR}/python/*.log {
     daily
     rotate ${KEEP_DAYS}
     maxsize ${MAX_SIZE}
@@ -74,7 +84,7 @@ cat > /etc/logrotate.d/xg-services << EOF
 }
 
 # Nginx 访问日志
-/data/logs/nginx/access.log {
+${LOG_BASE_DIR}/nginx/access.log {
     daily
     rotate ${KEEP_DAYS}
     maxsize ${MAX_SIZE}
@@ -93,7 +103,7 @@ cat > /etc/logrotate.d/xg-services << EOF
 }
 
 # Nginx 错误日志
-/data/logs/nginx/error.log {
+${LOG_BASE_DIR}/nginx/error.log {
     daily
     rotate ${KEEP_DAYS}
     maxsize ${MAX_SIZE}
@@ -111,7 +121,7 @@ cat > /etc/logrotate.d/xg-services << EOF
 }
 
 # PostgreSQL 日志
-/data/logs/postgres/*.log {
+${LOG_BASE_DIR}/postgres/*.log {
     daily
     rotate ${KEEP_DAYS}
     maxsize 50M                # PG 日志较大，50MB 就轮转
@@ -126,7 +136,7 @@ cat > /etc/logrotate.d/xg-services << EOF
 }
 
 # 打包旧日志目录（每月执行一次）
-/data/logs {
+${LOG_BASE_DIR} {
     monthly
     rotate 3
     compress
@@ -136,7 +146,7 @@ cat > /etc/logrotate.d/xg-services << EOF
     dateext
     lastaction
         # 删除 30 天前的压缩包
-        find /data/logs -name "*.gz" -mtime +30 -delete 2>/dev/null || true
+        find ${LOG_BASE_DIR} -name "*.gz" -mtime +30 -delete 2>/dev/null || true
     endscript
 }
 EOF
@@ -177,8 +187,8 @@ echo "  - 压缩格式: .gz"
 echo "  - 文件名格式: application.log-YYYYMMDD-HHMMSS.gz"
 echo ""
 echo "常用命令:"
-echo "  查看日志:     tail -f /data/logs/java/application.log"
+echo "  查看日志:     tail -f ${LOG_BASE_DIR}/java/application.log"
 echo "  手动轮转:     logrotate -f /etc/logrotate.d/xg-services"
-echo "  查看压缩包:   ls -lh /data/logs/java/*.gz"
-echo "  清理旧日志:   find /data/logs -name '*.gz' -mtime +7 -delete"
+echo "  查看压缩包:   ls -lh ${LOG_BASE_DIR}/java/*.gz"
+echo "  清理旧日志:   find ${LOG_BASE_DIR} -name '*.gz' -mtime +7 -delete"
 echo ""

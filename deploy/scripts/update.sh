@@ -265,18 +265,28 @@ record_deploy_commit() {
 }
 
 # 初始化日志目录
+# 支持通过 .env 的 HOST_LOG_DIR 自定义路径（默认 /data/logs）
 init_logs() {
     log_step "检查日志目录..."
 
-    # 创建日志目录
-    if [ ! -d "/data/logs" ]; then
-        log_info "创建日志目录..."
-        mkdir -p /data/logs/{java,python,nginx,postgres,redis,minio}
-        chmod 755 /data/logs /data/logs/*
+    # 读取 .env 中的 HOST_LOG_DIR，默认 /data/logs
+    local log_dir="/data/logs"
+    if [ -f ".env" ]; then
+        local env_log_dir=$(grep -E '^HOST_LOG_DIR=' .env | head -1 | sed -E 's/^HOST_LOG_DIR=["'"'"']?([^"'"'"' #]+)["'"'"']?.*$/\1/')
+        if [ -n "$env_log_dir" ]; then
+            log_dir="$env_log_dir"
+        fi
     fi
 
-    # 配置 logrotate（如果脚本存在且未配置）
-    if [ -f "./scripts/setup-logs.sh" ] && [ ! -f "/etc/logrotate.d/xg-services" ]; then
+    # 创建日志目录（不存在时）
+    if [ ! -d "$log_dir" ]; then
+        log_info "创建日志目录: $log_dir"
+        mkdir -p "$log_dir"/{java,python,nginx,postgres,redis,minio}
+        chmod 755 "$log_dir" "$log_dir"/*
+    fi
+
+    # 仅标准云路径才配置系统级 logrotate
+    if [ "$log_dir" = "/data/logs" ] && [ -f "./scripts/setup-logs.sh" ] && [ ! -f "/etc/logrotate.d/xg-services" ]; then
         log_info "配置日志轮转..."
         ./scripts/setup-logs.sh
     fi
