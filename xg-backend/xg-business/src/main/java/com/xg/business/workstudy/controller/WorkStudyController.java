@@ -353,12 +353,11 @@ public class WorkStudyController {
     public R<PageResult<WorkStudySalary>> listSalaries(@Validated SalaryQueryRequest query) {
         Long userId = CurrentUser.id();
         List<String> roles = roleLookup.findRoleCodesByUserId(userId);
-        // 学生只能看自己的薪资。强制 scope 防越权。non-student（employer/资助中心/学工）
-        // 仍按入参过滤（employer 端实际由前端只查本单位岗位的 student；后端授权细化在 P1 之外）。
+        // 学生只能看自己的薪资。employer 角色（非 admin）的"本单位"过滤由 service 兜底，不再依赖前端 scope。
         if (roles.contains("student")) {
             query.setStudentId(userId);
         }
-        return R.ok(salaryService.list(query));
+        return R.ok(salaryService.list(query, userId, roles));
     }
 
     @GetMapping("/api/v1/work-study/salaries/{id}")
