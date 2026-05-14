@@ -1,12 +1,15 @@
 import { Card, Spin } from 'antd';
 import { message } from '@/utils/antdApp';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { RoleCode } from '@xg1/shared';
 import { login as loginApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/auth.store';
 import ZhaoxiLogo from '@/components/brand/ZhaoxiLogo';
+import SkyScene from './SkyScene';
+import FloatingSymbols from './FloatingSymbols';
+import { currentPhase, phaseLabel } from './scene-time';
 import styles from './index.module.css';
 
 interface QuickAccount {
@@ -39,6 +42,7 @@ export default function Login() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [pendingUser, setPendingUser] = useState<string | null>(null);
+  const [phase, setPhase] = useState<number>(() => currentPhase());
 
   const loginAs = async (acc: QuickAccount) => {
     if (pendingUser) return;
@@ -61,8 +65,38 @@ export default function Login() {
     }
   };
 
+  // 用 ref 持有最新 loginAs，避免 keydown 闭包过期
+  const loginAsRef = useRef(loginAs);
+  loginAsRef.current = loginAs;
+
+  // 1-9 键盘直登
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // 焦点在输入框时不抢
+      const ae = document.activeElement;
+      if (ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = parseInt(e.key, 10);
+      if (Number.isInteger(k) && k >= 1 && k <= QUICK_ACCOUNTS.length) {
+        const acc = QUICK_ACCOUNTS[k - 1];
+        if (acc) loginAsRef.current(acc);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // 时刻指示：每秒采样一次相位
+  useEffect(() => {
+    const id = setInterval(() => setPhase(currentPhase()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className={styles.container}>
+      <SkyScene />
+      <FloatingSymbols />
+      <div className={styles.timeIndicator}>{phaseLabel(phase)}</div>
       <Card className={styles.card}>
         <div className={styles.logo}>
           <ZhaoxiLogo size={56} />
@@ -71,7 +105,7 @@ export default function Login() {
         </div>
         <div className={styles.roleHint}>{t('login.quickLoginHint', { password: DEFAULT_PASSWORD })}</div>
         <div className={styles.roleGrid}>
-          {QUICK_ACCOUNTS.map((acc) => (
+          {QUICK_ACCOUNTS.map((acc, idx) => (
             <button
               key={acc.username}
               className={styles.roleBtn}
@@ -79,6 +113,7 @@ export default function Login() {
               onClick={() => loginAs(acc)}
               disabled={pendingUser !== null}
             >
+              <span className={styles.kbdBadge} aria-hidden="true">{idx + 1}</span>
               <span className={styles.roleAvatar}>
                 {pendingUser === acc.username ? <Spin size="small" /> : acc.display[0]}
               </span>

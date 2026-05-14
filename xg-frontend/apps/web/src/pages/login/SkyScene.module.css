@@ -1,0 +1,28 @@
+.scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  /* WebGL canvas 装载前的兜底色，避免白闪 */
+  background: linear-gradient(180deg, #0f1433 0%, #4c1d95 60%, #fb923c 100%);
+}
+
+.scene canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  animation: skyFadeIn 0.6s ease-out;
+}
+
+@keyframes skyFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fallback {
+  /* prefers-reduced-motion 用户看到的静态版：晨夕一图 */
+  background:
+    radial-gradient(circle at 78% 30%, rgba(253, 230, 138, 0.55) 0%, transparent 28%),
+    radial-gradient(circle at 18% 78%, rgba(167, 139, 250, 0.35) 0%, transparent 35%),
+    linear-gradient(180deg, #0f1433 0%, #4c1d95 45%, #a78bfa 72%, #fb923c 100%);
+}
