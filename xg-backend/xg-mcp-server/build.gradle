@@ -1,0 +1,23 @@
+// STATUS: skeleton-only, target: M3.1
+//
+// 本模块当前 **不在 settings.gradle 的 include 列表中**，因此不会被构建。
+// 启用步骤见 README.md。
+//
+// 启用后的预期依赖（M3.1 取消注释）：
+//
+// dependencies {
+//     implementation project(':xg-common')
+//     implementation project(':xg-platform')
+//     implementation project(':xg-business')
+//
+//     // Spring AI MCP (1.1.x 已 GA) — 二选一：
+//     // implementation 'org.springframework.ai:spring-ai-mcp-server-spring-boot-starter:1.1.0'
+//     // 或 Anthropic 官方 Java SDK
+//
+//     implementation 'org.springframework.boot:spring-boot-starter-web'
+//     implementation 'org.springframework.boot:spring-boot-starter-webflux'  // for SSE
+// }
+
+dependencies {
+    // 空依赖。本模块当前是骨架，不参与 build。
+}
