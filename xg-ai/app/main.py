@@ -9,8 +9,19 @@ from app.config import settings
 from app.api import health, chat, insight, task_recommendation, agent, tools, kb, polish, asr, workflow_config, notification_config, leave_policy, ai_observer
 
 
+class _NoErrorFilter(logging.Filter):
+    """让 application.log 不收 ERROR 级别（与 Java 端 logback 行为一致）。"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno < logging.ERROR
+
+
 def _configure_logging() -> None:
-    """统一配置 root + uvicorn 日志。LOG_FILE 存在时同时落盘。"""
+    """统一配置 root + uvicorn 日志，按级别分流：
+    - 控制台:        全部
+    - application.log: INFO/WARN（不含 ERROR）
+    - error.log:       ERROR 及以上
+    """
     level_name = os.getenv("LOG_LEVEL", "DEBUG" if settings.debug else "INFO")
     level = logging.getLevelName(level_name.upper())
     formatter = logging.Formatter(
@@ -24,14 +35,26 @@ def _configure_logging() -> None:
         log_dir = os.path.dirname(log_file)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
-        handlers.append(
-            RotatingFileHandler(
-                log_file,
-                maxBytes=10 * 1024 * 1024,
-                backupCount=5,
-                encoding="utf-8",
-            )
+
+        # application.log：INFO/WARN 等（拒绝 ERROR）
+        app_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=100 * 1024 * 1024,
+            backupCount=10,
+            encoding="utf-8",
         )
+        app_handler.addFilter(_NoErrorFilter())
+        handlers.append(app_handler)
+
+        # error.log：仅 ERROR 及以上
+        error_handler = RotatingFileHandler(
+            os.path.join(log_dir, "error.log"),
+            maxBytes=100 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        error_handler.setLevel(logging.ERROR)
+        handlers.append(error_handler)
 
     for h in handlers:
         h.setFormatter(formatter)
@@ -42,7 +65,7 @@ def _configure_logging() -> None:
     for h in handlers:
         root.addHandler(h)
 
-    # uvicorn 维护自己的 logger，需要单独接管才能落到同一文件
+    # uvicorn 维护自己的 logger，需单独接管才能落到同一组 handlers
     for name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
         ulog = logging.getLogger(name)
         ulog.handlers.clear()

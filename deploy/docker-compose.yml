@@ -155,8 +155,8 @@ services:
       AI_SIDECAR_URL: http://xg-python:8000
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-change-me-in-production}
       SUPERADMIN_INITIAL_PASSWORD: ${SUPERADMIN_INITIAL_PASSWORD:-changeme-strong-password-123}
-      # 日志配置：输出到文件（Spring Boot 格式）
-      LOGGING_FILE_NAME: /app/logs/application.log
+      # 日志路径：由 logback-spring.xml 读取，按级别分流到 application.log / error.log
+      LOG_PATH: /app/logs
       # 时区配置
       TZ: Asia/Shanghai
     ports:
