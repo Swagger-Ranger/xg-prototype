@@ -238,6 +238,13 @@ class ProposeReq(BaseModel):
     instruction: str = Field(..., min_length=1, max_length=500, description="老师说的自然语言")
 
 
+class AmbiguityCandidate(BaseModel):
+    """歧义候选项 — 用户点选后,前端把 label 拼到原 instruction 重发 /propose。"""
+    id: str
+    label: str
+    desc: str
+
+
 class ProposeResp(BaseModel):
     ok: bool
     new_yaml: str | None = None
@@ -248,6 +255,16 @@ class ProposeResp(BaseModel):
     # 提案涉及的假别 code(如 ["official"])。前端拿到后滚动到 #leave-type-{code} 卡 + 高亮。
     # 删除假别 / 新增假别也填,前端找不到 DOM 时静默跳过。
     focus_codes: list[str] | None = None
+    # 改动语义分类(deterministic,sidecar 算出来,不是 LLM 自己说的)。前端在提案卡顶部
+    # 高亮显示这个 label,防止 AI 把"上限"理解成"分档阈值"而老师没看出来就点了确认。
+    # code 见 _categorize_ops;label 是给老师看的中文。
+    change_category: str | None = None
+    change_category_label: str | None = None
+    # 歧义澄清:LLM 检测到老师指令在系统里有 ≥2 种等可能解读时,不直接 propose,
+    # 而是把候选项列出来让老师二选一。前端渲染 button list,点选后把 label 拼到
+    # instruction 重发一次 /propose,这次不再触发歧义分支。
+    ambiguity_question: str | None = None
+    ambiguity_candidates: list[AmbiguityCandidate] | None = None
 
 
 SYSTEM_PROMPT = """你是工作流配置助手。给定 YAML 工作流定义 + 老师指令,你输出**结构化 op**(JSON),
@@ -395,6 +412,33 @@ V096 起从 per-假别上限改成租户级单一上限,行为是软警告 + 高
 入参:
   - new_yaml:完整新 YAML 文本
 
+# 歧义检测 — 仅对"上限/封顶/最多"类指令触发,避免 AI 把"硬上限"误解成"分档阈值"
+
+老师说"把 X 天数上限改成 N"时,「上限」在请假规则里可能指 3 种不同的东西:
+  a) 硬上限(单次请假超过 N 天直接不允许提交)
+  b) 审批分档最高档阈值(N 天以上要走更多人审批,N 天以内少走一档)
+  c) 全学期累计上限(整学期所有假合计 ≤ N 天,软警告不阻断)
+
+**满足以下所有条件**时,**不要直接 propose**,改返回歧义候选让老师二选一:
+  - 指令含"上限 / 封顶 / 最多 / 不能超过"等模糊词
+  - 没有"硬""分档""最高一档""分档阈值""学期累计 / 学期总共"等限定词
+  - 提到了具体天数
+
+输出:
+{
+  "needs_ambiguity_clarification": true,
+  "ambiguity_question": "<反问。如『你说的「上限」是哪一种?』>",
+  "ambiguity_candidates": [
+    {"id": "hard_cap",        "label": "硬上限(单次请假超过 N 天不允许)",   "desc": "禁止学生提交超期申请"},
+    {"id": "tier_threshold",  "label": "审批最高档阈值(N 天以上走 3 级审批)", "desc": "改 set_chain 分档"},
+    {"id": "term_cap",        "label": "全学期累计上限(整学期总共 N 天)",     "desc": "改 set_term_cap"}
+  ],
+  "ai_message": "<≤80 字的中文反问,告诉老师选了哪种就执行哪种>",
+  "change_summary": "<≤30 字,等待澄清>"
+}
+
+老师已经用"最高一档 / 分档阈值 / 硬上限 / 学期累计"等明确词时,**不要触发歧义分支**,直接出 ops。
+
 # 输出格式 — 严格 JSON,无 markdown
 信息齐全:
 {
@@ -427,6 +471,121 @@ V096 起从 per-假别上限改成租户级单一上限,行为是软警告 + 高
 - **set_term_cap / set_leave_type_enabled 不能跟 set_chain / complex_rewrite 在同一个 ops 数组里混用**(实现限制),
   老师同时要改两件时,优先按指令里更明确的那一项做,另一项可以在 ai_message 提示「请单独再说一次」
 """
+
+
+def _extract_old_tiers(cfg: dict, leave_type: str) -> list[dict]:
+    """从 cfg(已 yaml.safe_load 的 dict)反推某假别现在的 tiers 结构,跟
+    `_build_chain_for_leave_type` 的输出格式对齐:list[{threshold, roles}]。
+    用于改动前后对比,推出"分档阈值调整 / 加档 / 删档 / 改审批角色"等语义分类。
+    走不到目标假别(找不到 router branch)时返回空数组。
+    """
+    nodes = cfg.get("nodes") or []
+    router_node = next((n for n in nodes if n.get("id") == "type_router"), None)
+    if not router_node:
+        return []
+    branches = router_node.get("branches") or []
+    branch = next(
+        (b for b in branches if f"== '{leave_type}'" in (b.get("when") or "")),
+        None,
+    )
+    if not branch:
+        return []
+
+    tiers: list[dict] = []
+    accumulated_roles: list[str] = []
+    nid = branch.get("next")
+    visited: set[str] = set()
+    while nid and nid not in ("approved", "rejected"):
+        if nid in visited:
+            break  # cycle 保护,正常 YAML 不会出现
+        visited.add(nid)
+        node = next((n for n in nodes if n.get("id") == nid), None)
+        if not node:
+            break
+        if node.get("type") == "approval":
+            role = (node.get("assignee") or {}).get("role")
+            if role:
+                accumulated_roles.append(role)
+            nid = node.get("next")
+        elif node.get("type") == "condition":
+            threshold: int | None = None
+            default_next: str | None = None
+            for b in node.get("branches") or []:
+                w = b.get("when") or ""
+                if "duration_days <=" in w:
+                    try:
+                        threshold = int(w.split("<=")[1].strip())
+                    except (ValueError, IndexError):
+                        pass
+                if w == "default":
+                    default_next = b.get("next")
+            tiers.append({"threshold": threshold, "roles": list(accumulated_roles)})
+            nid = default_next
+        else:
+            break
+    tiers.append({"threshold": None, "roles": list(accumulated_roles)})
+    return tiers
+
+
+def _categorize_set_chain(old_tiers: list[dict], new_tiers: list[dict]) -> tuple[str, str]:
+    """对比一对 tiers 列表,推出本次 set_chain 的语义分类。
+    用户在提案卡上看到 label 一眼就能判断 AI 是不是按预期的维度改的。
+    """
+    old_n = len(old_tiers)
+    new_n = len(new_tiers)
+    if new_n > old_n:
+        return ("tier_add", "新增审批分档")
+    if new_n < old_n:
+        return ("tier_truncate", "分档裁剪(降低封顶)")
+    old_thr = [t.get("threshold") for t in old_tiers]
+    new_thr = [t.get("threshold") for t in new_tiers]
+    old_roles = [tuple(t.get("roles") or []) for t in old_tiers]
+    new_roles = [tuple(t.get("roles") or []) for t in new_tiers]
+    thr_changed = old_thr != new_thr
+    roles_changed = old_roles != new_roles
+    if thr_changed and not roles_changed:
+        return ("threshold_adjustment", "分档阈值调整(不改硬上限)")
+    if roles_changed and not thr_changed:
+        return ("approver_chain_adjustment", "审批角色调整")
+    if thr_changed and roles_changed:
+        return ("chain_rewrite", "审批链重写(阈值 + 角色)")
+    return ("set_chain_no_change", "无实际改动")
+
+
+def _categorize_ops(
+    ops: list[dict],
+    old_cfg: dict | None,
+) -> tuple[str | None, str | None]:
+    """根据 ops + 改动前 cfg 推出本次提案的分类。多 op 走 mixed 兜底。"""
+    if not ops:
+        return (None, None)
+    if all(op.get("op") == "set_term_cap" for op in ops):
+        return ("term_cap_adjustment", "全学期累计上限调整")
+    if all(op.get("op") == "set_leave_type_enabled" for op in ops):
+        all_disable = all(op.get("enabled") is False for op in ops)
+        all_enable = all(op.get("enabled") is True for op in ops)
+        if all_disable:
+            return ("leave_type_disable", "停用假别")
+        if all_enable:
+            return ("leave_type_enable", "启用假别")
+        return ("leave_type_toggle", "假别启停(批量)")
+    if len(ops) == 1 and ops[0].get("op") == "complex_rewrite":
+        return ("complex_rewrite", "复杂改动(整体重写)")
+    if all(op.get("op") == "set_chain" for op in ops):
+        if old_cfg is None:
+            return ("chain_rewrite", "审批链调整")
+        # 多个 set_chain 不同假别:取主导分类(以第一个为代表,加批量提示)
+        cats: list[tuple[str, str]] = []
+        for op in ops:
+            lt = op.get("leave_type")
+            new_tiers = op.get("tiers") or []
+            old_tiers = _extract_old_tiers(old_cfg, lt) if lt else []
+            cats.append(_categorize_set_chain(old_tiers, new_tiers))
+        unique_codes = {c[0] for c in cats}
+        if len(unique_codes) == 1:
+            return cats[0]
+        return ("chain_rewrite", "多假别审批链调整")
+    return ("mixed", "多类配置调整")
 
 
 def _de_role_code(text: str) -> str:
@@ -572,6 +731,29 @@ async def propose(
             error_code="LLM_BAD_OUTPUT",
         )
 
+    if parsed.get("needs_ambiguity_clarification"):
+        raw_candidates = parsed.get("ambiguity_candidates") or []
+        candidates: list[AmbiguityCandidate] = []
+        for c in raw_candidates:
+            if not isinstance(c, dict):
+                continue
+            cid = c.get("id")
+            clabel = c.get("label")
+            cdesc = c.get("desc") or ""
+            if isinstance(cid, str) and isinstance(clabel, str) and cid and clabel:
+                candidates.append(AmbiguityCandidate(id=cid, label=clabel, desc=cdesc))
+        if len(candidates) >= 2:
+            return ProposeResp(
+                ok=False,
+                ai_message=parsed.get("ai_message") or "你说的可能是几种解读,请选一个。",
+                change_summary=parsed.get("change_summary") or "等待澄清",
+                error_code="NEEDS_AMBIGUITY_CLARIFICATION",
+                ambiguity_question=parsed.get("ambiguity_question") or "请确认你的意图:",
+                ambiguity_candidates=candidates,
+            )
+        # 候选少于 2 个走不通,退化到普通澄清提示
+        logger.warning("propose: ambiguity branch with <2 valid candidates, falling back")
+
     if parsed.get("needs_clarification"):
         return ProposeResp(
             ok=False,
@@ -580,7 +762,16 @@ async def propose(
             error_code="NEEDS_CLARIFICATION",
         )
 
-    diff_zh = _de_role_code(parsed.get("diff_zh") or "(AI 未给出 diff 描述)")
+    # diff_zh 容错:LLM 偶发把它输出成 list[str](bullets 数组)而不是字符串,
+    # 直接进 _de_role_code 会 AttributeError。统一 coerce 成 string。
+    raw_diff = parsed.get("diff_zh")
+    if isinstance(raw_diff, list):
+        raw_diff = "\n".join(str(x) for x in raw_diff)
+    elif raw_diff is None:
+        raw_diff = "(AI 未给出 diff 描述)"
+    elif not isinstance(raw_diff, str):
+        raw_diff = str(raw_diff)
+    diff_zh = _de_role_code(raw_diff)
     change_summary = parsed.get("change_summary") or req.instruction[:30]
     ai_message = parsed.get("ai_message") or "已生成改动建议,请审核后确认。"
 
@@ -641,6 +832,7 @@ async def propose(
                 logger.exception("set_term_cap call failed")
                 return ProposeResp(ok=False, ai_message=f"调用后端失败:{e}", error_code="BACKEND_FAIL")
         applied = "不限" if payload_days is None else f"{payload_days} 天"
+        cat_code, cat_label = _categorize_ops(ops, cfg)
         return ProposeResp(
             ok=True,
             new_yaml=None,
@@ -648,6 +840,8 @@ async def propose(
             change_summary=change_summary,
             ai_message=ai_message or f"✓ 已设置全学期累计上限:{applied}",
             focus_codes=focus_codes or None,
+            change_category=cat_code,
+            change_category_label=cat_label,
         )
 
     # 全部是 set_leave_type_enabled → 不动 YAML,逐个调 backend PUT 翻 leave_type_config.enabled。
@@ -694,6 +888,7 @@ async def propose(
             en = op.get("enabled")
             zh = next((t["name"] for t in leave_type_map if t["code"] == lt), lt)
             zh_pairs.append(f"{'启用' if en else '停用'}「{zh}」")
+        cat_code, cat_label = _categorize_ops(ops, cfg)
         return ProposeResp(
             ok=True,
             new_yaml=None,
@@ -702,6 +897,8 @@ async def propose(
             ai_message="✓ " + "、".join(zh_pairs)
                 + "。学生端列表已即时刷新,工作流配置不变。",
             focus_codes=toggled_focus or None,
+            change_category=cat_code,
+            change_category_label=cat_label,
         )
 
     # 检查是不是单 complex_rewrite,如果是直接走整 YAML 路径
@@ -777,6 +974,7 @@ async def propose(
     except Exception as e:
         return ProposeResp(ok=False, ai_message=f"YAML 序列化失败:{e}", error_code="YAML_DUMP_FAILED")
 
+    cat_code, cat_label = _categorize_ops(ops, cfg)
     return ProposeResp(
         ok=True,
         new_yaml=new_yaml_text,
@@ -784,4 +982,6 @@ async def propose(
         change_summary=change_summary,
         ai_message=ai_message,
         focus_codes=focus_codes or None,
+        change_category=cat_code,
+        change_category_label=cat_label,
     )

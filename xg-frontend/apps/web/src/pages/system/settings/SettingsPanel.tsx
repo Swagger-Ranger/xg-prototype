@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tabs } from 'antd';
 import SchoolInfoSection from './SchoolInfoSection';
 import TermsSection from './TermsSection';
 import EventsSection from './EventsSection';
 import SchedulesSection from './SchedulesSection';
+import OrgAssignmentPanel from '../OrgAssignmentPanel';
 
 /**
  * "基础设置" inside the system management page. Houses tenant-level config
@@ -13,10 +15,18 @@ import SchedulesSection from './SchedulesSection';
  */
 export default function SettingsPanel() {
   const [activeKey, setActiveKey] = useState('school');
+  const navigate = useNavigate();
   return (
     <Tabs
       activeKey={activeKey}
-      onChange={setActiveKey}
+      onChange={(k) => {
+        // 「数据初始化」是整页向导，不内嵌 — 直接跳独立路由
+        if (k === 'import') {
+          navigate('/data-import');
+          return;
+        }
+        setActiveKey(k);
+      }}
       size="small"
       tabPosition="left"
       style={{ minHeight: 400 }}
@@ -25,6 +35,8 @@ export default function SettingsPanel() {
         { key: 'terms', label: '学期', children: <TermsSection /> },
         { key: 'events', label: '考试 / 假期', children: <EventsSection /> },
         { key: 'schedules', label: '班级课表', children: <SchedulesSection /> },
+        { key: 'import', label: '数据初始化', children: null },
+        { key: 'org', label: '组织派班', children: <OrgAssignmentPanel /> },
       ]}
     />
   );

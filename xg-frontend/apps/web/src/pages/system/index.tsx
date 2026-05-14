@@ -12,7 +12,6 @@ import styles from './index.module.css';
 import { describeApiError } from '@/utils/api-error';
 import AiMetricsPanel from './AiMetricsPanel';
 import KnowledgePanel from './KnowledgePanel';
-import OrgAssignmentPanel from './OrgAssignmentPanel';
 import RolePermissionPanel from './RolePermissionPanel';
 import SettingsPanel from './settings/SettingsPanel';
 import NotificationCenterPanel from './notification/NotificationCenterPanel';
@@ -438,8 +437,9 @@ export default function SystemManagement() {
 }
 
 /**
- * Tabs 控制器：把 active tab 跟 URL `?tab=` 同步，外部链接（HealthCard 的
- * `去给班级指派班主任`）可直接 `?tab=org` 跳到「组织派班」。
+ * Tabs 控制器：把 active tab 跟 URL `?tab=` 同步。
+ * 「组织派班」已挪进「基础设置」的子 tab；如有老的 ?tab=org 深链需要新走
+ * ?tab=settings&sub=org 之类的方案，目前没人用，先不做。
  */
 function SystemTabs({ userManagement }: { userManagement: React.ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -457,7 +457,6 @@ function SystemTabs({ userManagement }: { userManagement: React.ReactNode }) {
       items={[
         { key: 'users', label: '用户管理', children: userManagement },
         { key: 'roles', label: '角色权限', children: <RolePermissionPanel /> },
-        { key: 'org', label: '组织派班', children: <OrgAssignmentPanel /> },
         { key: 'settings', label: '基础设置', children: <SettingsPanel /> },
         { key: 'notif', label: '通知管理', children: <NotificationCenterPanel /> },
         { key: 'ai', label: 'AI 表现', children: <AiMetricsPanel /> },

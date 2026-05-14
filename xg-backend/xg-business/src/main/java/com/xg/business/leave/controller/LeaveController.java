@@ -1,5 +1,6 @@
 package com.xg.business.leave.controller;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.xg.business.leave.dto.LeaveApplyRequest;
 import com.xg.business.leave.dto.LeaveImpactView;
 import com.xg.business.leave.dto.LeaveProxyRequest;
@@ -48,6 +49,7 @@ public class LeaveController {
      * 工作流 YAML 不动,管理端卡仍展示(渲染 已停用 tag)。
      */
     @PutMapping("/api/v1/leave-types/{code}/enabled")
+    @SaCheckPermission("leave:config")
     public R<LeaveTypeConfig> setLeaveTypeEnabled(
             @PathVariable String code,
             @RequestBody java.util.Map<String, Object> body) {
@@ -62,6 +64,7 @@ public class LeaveController {
      * row.
      */
     @PutMapping("/api/v1/leave-types/{code}/extra-fields")
+    @SaCheckPermission("leave:config")
     public R<LeaveTypeConfig> updateLeaveTypeFields(
             @PathVariable String code,
             @RequestBody @Valid UpdateLeaveTypeFieldsRequest req) {
@@ -86,6 +89,7 @@ public class LeaveController {
 
     /** 改全局学期累计上限。term_max_days = null 表示不限。 */
     @PutMapping("/api/v1/leaves/global-config")
+    @SaCheckPermission("leave:config")
     public R<com.xg.business.leave.model.LeaveGlobalConfig> updateGlobalConfig(
             @RequestBody @Valid com.xg.business.leave.dto.UpdateTermMaxDaysRequest req) {
         Long userId = CurrentUser.id();
@@ -94,6 +98,7 @@ public class LeaveController {
 
     /** 改「证明材料」开关。term_max_days 不动。 */
     @PutMapping("/api/v1/leaves/global-config/require-proof")
+    @SaCheckPermission("leave:config")
     public R<com.xg.business.leave.model.LeaveGlobalConfig> updateRequireProof(
             @RequestBody java.util.Map<String, Object> body) {
         boolean v = body.get("require_proof") instanceof Boolean b ? b : false;
@@ -122,6 +127,7 @@ public class LeaveController {
     }
 
     @PostMapping("/api/v1/leaves")
+    @SaCheckPermission("leave:submit")
     public R<LeaveRequest> apply(
             @RequestBody @Validated LeaveApplyRequest req) {
         Long userId = CurrentUser.id();
@@ -129,6 +135,7 @@ public class LeaveController {
     }
 
     @PostMapping("/api/v1/leaves/proxy")
+    @SaCheckPermission("leave:proxy_submit")
     public R<LeaveRequest> proxyApply(
             @RequestBody @Validated LeaveProxyRequest req) {
         Long userId = CurrentUser.id();
@@ -176,6 +183,7 @@ public class LeaveController {
 
     /** 改「请假影响课程」开关。关闭后 preview / 审批 drawer 都拿到 zero 视图,UI 自动隐藏。 */
     @PutMapping("/api/v1/leaves/impact/config")
+    @SaCheckPermission("leave:config")
     public R<Map<String, Object>> updateImpactConfig(
             @RequestBody Map<String, Object> body) {
         Object v = body.get("enabled");
@@ -192,6 +200,7 @@ public class LeaveController {
 
     /** 改「请假须知」配置 —— 部分字段更新,未传字段保持原值。 */
     @PutMapping("/api/v1/leaves/notice/config")
+    @SaCheckPermission("leave:config")
     public R<com.xg.business.leave.dto.LeaveNoticeConfig> updateNoticeConfig(
             @RequestBody @Valid com.xg.business.leave.dto.LeaveNoticeConfig req) {
         return R.ok(leaveNoticeConfigService.update(req));
@@ -219,6 +228,7 @@ public class LeaveController {
     }
 
     @PostMapping("/api/v1/leaves/{id}/force-cancel")
+    @SaCheckPermission("leave:manage")
     public R<Void> forceCancel(@PathVariable Long id) {
         Long userId = CurrentUser.id();
         leaveService.forceCancel(id, userId);
@@ -237,11 +247,13 @@ public class LeaveController {
     }
 
     @GetMapping("/api/v1/leaves/pending-manual-returns")
+    @SaCheckPermission("leave:return:manual")
     public R<PageResult<LeaveRequest>> pendingManualReturns(@Validated LeaveQueryRequest query) {
         return R.ok(leaveService.pendingManualReturns(query));
     }
 
     @GetMapping("/api/v1/leaves/stats")
+    @SaCheckPermission("leave:stats")
     public R<Map<String, Object>> leaveStats(@Validated LeaveQueryRequest query) {
         return R.ok(leaveService.leaveStats(query));
     }

@@ -76,6 +76,9 @@ interface WorkflowProposalMessage {
   new_yaml: string;
   /** AI 提案涉及的假别 code,用于滚动到 #leave-type-{code} 卡 + 高亮闪烁 */
   focus_codes?: string[];
+  /** sidecar 推出的语义分类标签(如"分档阈值调整(不改硬上限)"),用于在卡顶部高亮,
+   * 让老师快速识别 AI 是否按预期维度改的。 */
+  change_category_label?: string;
   /** 状态:pending=未点确认,applying=正在写库,applied=已成功,cancelled=取消 */
   status: 'pending' | 'applying' | 'applied' | 'cancelled' | 'failed';
   /** 失败时的错误文本 */
@@ -93,11 +96,34 @@ interface NotificationProposalMessage {
   ai_message: string;
   /** apply 时 POST 给 backend 的 op pipeline */
   ops: unknown[];
+  /** sidecar 推出的语义分类标签(如"停用通知" / "通知渠道调整"),卡顶部高亮显示 */
+  change_category_label?: string;
   status: 'pending' | 'applying' | 'applied' | 'cancelled' | 'failed';
   error?: string;
 }
 
-type Message = TextMessage | CardMessage | EventMessage | WorkflowProposalMessage | NotificationProposalMessage;
+/**
+ * 歧义澄清回合 — sidecar /workflow-config/propose 检测到指令在系统里有 ≥2 种等可能
+ * 解读时返回的消息。前端渲染候选按钮,老师点哪个就把对应 label 拼到原 instruction
+ * 重发 /propose,这次不再触发歧义分支。例:"把公假天数上限改成 5 天" →
+ * 硬上限 / 分档最高档阈值 / 学期累计上限 三选一。
+ */
+interface AmbiguityClarificationMessage {
+  id: string;
+  role: 'assistant';
+  kind: 'ambiguity_clarification';
+  question: string;
+  ai_message: string;
+  candidates: Array<{ id: string; label: string; desc: string }>;
+  /** 重发 /propose 用 — 透传原 propose 上下文 */
+  biz_type: string;
+  college_id: number | null;
+  original_instruction: string;
+  /** 是否已选过(选完后禁用按钮,避免重复触发) */
+  resolved: boolean;
+}
+
+type Message = TextMessage | CardMessage | EventMessage | WorkflowProposalMessage | NotificationProposalMessage | AmbiguityClarificationMessage;
 
 /* ── Helpers ── */
 
@@ -272,6 +298,38 @@ export default function AIPanel() {
       const data = await res.json();
       // remove loading
       setMessages((prev) => prev.filter((m) => m.id !== loadingId));
+      // 歧义澄清优先 — sidecar 检测到指令模糊时,渲染候选按钮让老师选,不直接落改动卡
+      if (
+        data.error_code === 'NEEDS_AMBIGUITY_CLARIFICATION' &&
+        Array.isArray(data.ambiguity_candidates) &&
+        data.ambiguity_candidates.length >= 2
+      ) {
+        const candidates = data.ambiguity_candidates
+          .filter((c: unknown): c is { id: string; label: string; desc?: string } =>
+            !!c && typeof c === 'object' && 'id' in c && 'label' in c)
+          .map((c: { id: string; label: string; desc?: string }) => ({
+            id: c.id,
+            label: c.label,
+            desc: c.desc || '',
+          }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 3).toString(),
+            role: 'assistant',
+            kind: 'ambiguity_clarification',
+            question: data.ambiguity_question || '请确认你的意图:',
+            ai_message: data.ai_message || '',
+            candidates,
+            biz_type: bizType,
+            college_id: collegeId,
+            original_instruction: instruction,
+            resolved: false,
+          },
+        ]);
+        setTimeout(scrollToBottom, 50);
+        return;
+      }
       if (!data.ok) {
         setMessages((prev) => [
           ...prev,
@@ -316,6 +374,9 @@ export default function AIPanel() {
         ai_message: data.ai_message,
         new_yaml: data.new_yaml,
         focus_codes: Array.isArray(data.focus_codes) ? data.focus_codes : undefined,
+        change_category_label: typeof data.change_category_label === 'string'
+          ? data.change_category_label
+          : undefined,
         status: 'pending',
       };
       setMessages((prev) => [...prev, proposal]);
@@ -438,6 +499,9 @@ export default function AIPanel() {
         diff_zh: data.diff_zh || '',
         ai_message: data.ai_message || '',
         ops: data.ops,
+        change_category_label: typeof data.change_category_label === 'string'
+          ? data.change_category_label
+          : undefined,
         status: 'pending',
       };
       setMessages((prev) => [...prev, proposal]);
@@ -719,12 +783,82 @@ export default function AIPanel() {
 
   /* ── Render message ── */
 
+  /** 老师点了歧义候选按钮:把选项 label 拼到原 instruction,重发 /propose。
+   * 同时 mark 这条消息 resolved,按钮禁用避免重复触发。 */
+  function resolveAmbiguity(msgId: string, candidate: { id: string; label: string }) {
+    const target = messages.find(
+      (m): m is AmbiguityClarificationMessage =>
+        m.id === msgId && m.kind === 'ambiguity_clarification',
+    );
+    if (!target || target.resolved) return;
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.kind === 'ambiguity_clarification' ? { ...m, resolved: true } : m,
+      ),
+    );
+    const disambiguated = `${target.original_instruction}(我要的是:${candidate.label})`;
+    void runWorkflowProposal(target.biz_type, target.college_id, disambiguated);
+  }
+
   const renderMessage = (msg: Message) => {
     if (msg.kind === 'event') {
       return (
         <div key={msg.id} className={styles.eventMsg}>
           <CheckCircleOutlined className={styles.eventIcon} />
           <span>{msg.content}</span>
+        </div>
+      );
+    }
+
+    if (msg.kind === 'ambiguity_clarification') {
+      const m = msg;
+      return (
+        <div key={m.id} className={`${styles.msg} ${styles.assistant}`}>
+          <div className={styles.msgBubble}>
+            <div className={styles.markdown}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {m.ai_message || m.question}
+              </ReactMarkdown>
+            </div>
+          </div>
+          <div className={styles.actionCard} style={{ borderColor: '#f59e0b' }}>
+            <div className={styles.cardTitle}>
+              <QuestionCircleOutlined className={styles.cardTitleIcon} />
+              <span>{m.question}</span>
+              <span className={styles.cardTitleDot} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px' }}>
+              {m.candidates.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  disabled={m.resolved}
+                  onClick={() => resolveAmbiguity(m.id, c)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    border: '1px solid var(--bd-2, #e5e7eb)',
+                    borderRadius: 6,
+                    background: m.resolved ? '#f9fafb' : '#fff',
+                    cursor: m.resolved ? 'not-allowed' : 'pointer',
+                    opacity: m.resolved ? 0.6 : 1,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: 13, color: '#111827' }}>{c.label}</div>
+                  {c.desc && (
+                    <div style={{ marginTop: 2, fontSize: 12, color: 'var(--fg-3)' }}>
+                      {c.desc}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+            {m.resolved && (
+              <div style={{ padding: '0 12px 12px', fontSize: 12, color: 'var(--fg-3)' }}>
+                已按所选意图重新分析…
+              </div>
+            )}
+          </div>
         </div>
       );
     }
@@ -748,6 +882,22 @@ export default function AIPanel() {
               <span>{titleByBiz[m.biz_type] || '配置改动'}</span>
               <span className={styles.cardTitleDot} />
             </div>
+            {m.change_category_label && (
+              <div style={{ padding: '8px 12px 0' }}>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '2px 8px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#7c3aed',
+                  background: '#f5f3ff',
+                  border: '1px solid #c4b5fd',
+                  borderRadius: 4,
+                }}>
+                  {m.change_category_label}
+                </span>
+              </div>
+            )}
             <div style={{ padding: '8px 12px 4px', fontSize: 12, color: 'var(--fg-3)' }}>
               老师指令:{m.instruction}
             </div>
@@ -842,6 +992,22 @@ export default function AIPanel() {
               <span>通知规则改动</span>
               <span className={styles.cardTitleDot} />
             </div>
+            {m.change_category_label && (
+              <div style={{ padding: '8px 12px 0' }}>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '2px 8px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#7c3aed',
+                  background: '#f5f3ff',
+                  border: '1px solid #c4b5fd',
+                  borderRadius: 4,
+                }}>
+                  {m.change_category_label}
+                </span>
+              </div>
+            )}
             <div style={{ padding: '8px 12px 4px', fontSize: 12, color: 'var(--fg-3)' }}>
               老师指令:{m.instruction}
             </div>

@@ -83,7 +83,7 @@ public class WorkflowConfigController {
      * 顺序按 version DESC,前端做时间轴。
      */
     @GetMapping("/versions")
-    @SaCheckPermission("system:manage")
+    @SaCheckPermission("leave:config")
     public R<List<Map<String, Object>>> versions(
             @RequestParam("biz_type") String bizType,
             @RequestParam(value = "college_id", required = false) Long collegeId) {
@@ -110,7 +110,7 @@ public class WorkflowConfigController {
      * 历史不删,可继续往前回滚。失败原因(目标==当前 / 找不到等)走 BizException。
      */
     @PostMapping("/rollback")
-    @SaCheckPermission("system:manage")
+    @SaCheckPermission("leave:config")
     public R<Map<String, Object>> rollback(@RequestBody Map<String, Object> body) {
         String bizType = (String) body.get("biz_type");
         if (bizType == null || bizType.isBlank()) {
@@ -140,7 +140,7 @@ public class WorkflowConfigController {
      * 仅改 change_summary 文案,不改 yaml/不开新版本。空串清空。
      */
     @org.springframework.web.bind.annotation.PatchMapping("/versions/{version}/summary")
-    @SaCheckPermission("system:manage")
+    @SaCheckPermission("leave:config")
     public R<Map<String, Object>> updateSummary(
             @org.springframework.web.bind.annotation.PathVariable("version") int version,
             @RequestBody Map<String, Object> body) {
@@ -166,7 +166,7 @@ public class WorkflowConfigController {
      * 验证 + 发布新 YAML 作为下一版 published。
      */
     @PostMapping("/apply")
-    @SaCheckPermission("system:manage")
+    @SaCheckPermission("leave:config")
     public R<Map<String, Object>> apply(@RequestBody @Valid ApplyYamlRequest req) {
         if (req.getNewYaml() == null || req.getNewYaml().isBlank()) {
             throw new BizException("YAML_EMPTY", "新 YAML 为空");

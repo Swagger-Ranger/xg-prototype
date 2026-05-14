@@ -54,6 +54,8 @@ export default function LeaveManagement({ embedded = false }: { embedded?: boole
   // 即可改变行为，无需重新发版。视角类判断（标题、column 集）继续看 isStudent。
   const canSubmitOwn = hasPermission('leave:submit');
   const canApprove = hasPermission('leave:approve');
+  const canManage = hasPermission('leave:manage');
+  const canReturnManual = hasPermission('leave:return:manual');
   const [searchParams] = useSearchParams();
   const initialStatus = STATUS_OPTIONS.some((o) => o.value === searchParams.get('status'))
     ? searchParams.get('status') ?? ''
@@ -119,7 +121,7 @@ export default function LeaveManagement({ embedded = false }: { embedded?: boole
   const { data: pendingManualData, isFetching: pendingManualFetching } = useQuery({
     queryKey: ['pendingManualReturns', queryParams],
     queryFn: () => getPendingManualReturns(queryParams),
-    enabled: canApprove && tab === 'pending_manual_return',
+    enabled: canReturnManual && tab === 'pending_manual_return',
   });
 
   const reviewManualMutation = useMutation({
@@ -575,7 +577,7 @@ export default function LeaveManagement({ embedded = false }: { embedded?: boole
               </button>
             </>
           )}
-          {record.status === 'approved' && (
+          {canManage && record.status === 'approved' && (
             <button
               className={`${styles.actionLink} ${styles.danger}`}
               onClick={() => Modal.confirm({
@@ -627,7 +629,9 @@ export default function LeaveManagement({ embedded = false }: { embedded?: boole
           options={[
             { label: '全部请假', value: 'all' },
             { label: '未销假', value: 'uncancelled' },
-            { label: '人工销假申请', value: 'pending_manual_return' },
+            ...(canReturnManual
+              ? [{ label: '人工销假申请', value: 'pending_manual_return' as const }]
+              : []),
           ]}
           value={tab}
           onChange={handleTabChange}
