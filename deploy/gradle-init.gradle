@@ -1,0 +1,42 @@
+// =============================================================
+// 容器内 gradle 构建专用：注入国内 maven 镜像源
+// =============================================================
+//
+// 仅供 deploy/Dockerfile.java 内的 builder 容器使用（COPY 到 /root/.gradle/init.d/）。
+//
+// **不影响本地 IDE 开发**：本地 ~/.gradle/init.d/ 由开发者自管，本文件只在容器里生效。
+//
+// 缘起：从国内 docker 构建容器直连 plugins.gradle.org / repo.maven.apache.org，
+// 经常出现 "Remote host terminated the handshake" 的 TLS 握手失败；
+// 阿里云 maven 镜像作为前置代理，gradlePluginPortal / mavenCentral 仅作为兜底。
+//
+// 镜像源选择阿里云（覆盖最全：public / spring / spring-plugin / gradle-plugin）。
+// 如阿里云某天也不可用，可改清华 / 华为云：
+//   https://mirrors.tuna.tsinghua.edu.cn/maven/
+//   https://repo.huaweicloud.com/repository/maven/
+//
+// =============================================================
+
+// `pluginManagement` 必须在 settings 评估**之前**改，所以用 beforeSettings 钩子。
+// 这是 gradle 6.0+ 引入的标准做法。
+beforeSettings { settings ->
+    settings.pluginManagement {
+        repositories {
+            maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+            maven { url 'https://maven.aliyun.com/repository/spring-plugin' }
+            maven { url 'https://maven.aliyun.com/repository/public' }
+            gradlePluginPortal()
+            mavenCentral()
+        }
+    }
+}
+
+// 普通依赖走的 repositories（业务 build.gradle 里 `mavenCentral()` 会与本列表合并）
+allprojects {
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/spring' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        mavenCentral()
+    }
+}
