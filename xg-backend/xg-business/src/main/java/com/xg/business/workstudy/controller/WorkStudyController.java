@@ -146,9 +146,18 @@ public class WorkStudyController {
         Long userId = CurrentUser.id();
         List<String> roles = roleLookup.findRoleCodesByUserId(userId);
         // 学生只能看自己的申请；防越权 + 避免「我的申请」tab 把全校申请都堆出来。
-        // employer / 学工 / 校管理员保持原行为（FE 决定 scope）。
         if (roles.contains("student")) {
             query.setStudentId(userId);
+            return R.ok(workStudyService.listApplications(query));
+        }
+        // employer 角色无 admin 加成时,服务端强制限定到自己单位的岗位范围内。
+        // 防止 AI 工具或直接 API 传任意 positionId 拿到其他单位候选人的姓名 / 困难等级 / 申请理由 PII。
+        // 学工处 / 校管理员保持原行为(跨单位汇总),counselor / dean 等也保持原行为。
+        boolean isEmployerOnly = roles.contains("employer")
+                && !roles.contains("school_admin")
+                && !roles.contains("student_affairs_officer");
+        if (isEmployerOnly) {
+            return R.ok(workStudyService.listApplicationsScopedToEmployers(query, userId));
         }
         return R.ok(workStudyService.listApplications(query));
     }

@@ -8,12 +8,12 @@ import {
   DatePicker,
   Divider,
   Drawer,
+  Dropdown,
   Form,
   Input,
   InputNumber,
   Modal,
   Pagination,
-  Popconfirm,
   Radio,
   Segmented,
   Select,
@@ -21,6 +21,7 @@ import {
   Tag,
   message,
 } from 'antd';
+import { MoreOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -58,7 +59,6 @@ import type { NlToReportResp, WorkStudyReportDsl } from '@/api/workStudy';
 import { useAuth } from '@/hooks/useAuth';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import DynamicFormFields from '@/components/form/DynamicFormFields';
-import AskAIChip from '@/components/ai/AskAIChip';
 import InstanceTimeline from '@/components/workflow/InstanceTimeline';
 import TimeSlotsEditor, {
   timeSlotsToApi,
@@ -66,6 +66,8 @@ import TimeSlotsEditor, {
 } from './TimeSlotsEditor';
 import DashboardTab from './DashboardTab';
 import EmployerSelect from './EmployerSelect';
+import OwnerUserSelect from './OwnerUserSelect';
+import ApplicantCompareDrawer from './ApplicantCompareDrawer';
 import EmployersTab from './EmployersTab';
 import PreferenceTab from './PreferenceTab';
 import SalariesTab from './SalariesTab';
@@ -158,7 +160,7 @@ type Tab = 'dashboard' | 'preference' | 'positions' | 'applications' | 'employer
  *  their own positions, students start with finding a position. */
 const STAFF_STEPS: StepDef<Tab>[] = [
   { value: 'dashboard',     n: 1, title: '总览',     hint: '今日待办速览' },
-  { value: 'employers',     n: 2, title: '用人单位', hint: '先把单位建好' },
+  { value: 'employers',     n: 2, title: '用人单位 / 资助中心', hint: '先把单位建好' },
   { value: 'positions',     n: 3, title: '岗位审批', hint: '审 / 管在招岗位' },
   { value: 'applications',  n: 4, title: '申请审批', hint: '把候选人审完' },
   { value: 'salaries',      n: 5, title: '薪资审批', hint: '月底薪酬复核' },
@@ -218,12 +220,21 @@ export default function WorkStudyManagement() {
     staleTime: 30_000,
   });
 
+  // school_admin 视角:把"业务配置"插到"用人单位"之后(步骤 3 位置),让规则在
+  // 跑业务前就配好,后面的岗位审批/申请审批/薪资审批顺位后挪。其他角色不受影响。
   const baseSteps = isStudent
     ? STUDENT_STEPS
     : isEmployer
       ? EMPLOYER_STEPS
       : isAdmin
-        ? [...STAFF_STEPS, BUSINESS_CONFIG_STEP]
+        ? [
+            STAFF_STEPS[0],                              // 1 总览
+            STAFF_STEPS[1],                              // 2 用人单位
+            { ...BUSINESS_CONFIG_STEP, n: 3 },           // 3 业务配置
+            { ...STAFF_STEPS[2], n: 4 },                 // 4 岗位审批
+            { ...STAFF_STEPS[3], n: 5 },                 // 5 申请审批
+            { ...STAFF_STEPS[4], n: 6 },                 // 6 薪资审批
+          ]
         : STAFF_STEPS;
   const stepBadges: Partial<Record<Tab, number>> = {
     positions: Number(pendingPositionsQ.data?.total ?? 0),
@@ -264,6 +275,8 @@ export default function WorkStudyManagement() {
   const [applyPosition, setApplyPosition] = useState<WorkStudyPosition | null>(null);
   const [decideRecord, setDecideRecord] = useState<WorkStudyApplication | null>(null);
   const [positionDetail, setPositionDetail] = useState<WorkStudyPosition | null>(null);
+  // 「对比卡」打开的岗位 — null = 关闭。同时只展开一张候选对比 Drawer。
+  const [comparePosition, setComparePosition] = useState<WorkStudyPosition | null>(null);
   const [offboardRecord, setOffboardRecord] = useState<{
     app: WorkStudyApplication;
     mode: 'employer' | 'student';
@@ -281,6 +294,8 @@ export default function WorkStudyManagement() {
   const [aiReportDsl, setAiReportDsl] = useState<NlToReportResp | null>(null);
 
   const [createForm] = Form.useForm();
+  // 跟随用户单位变化，决定「岗位负责人」下拉的候选池
+  const createEmployerId = Form.useWatch('employer_id', createForm);
   const [applyForm] = Form.useForm();
   const [decideForm] = Form.useForm();
   const [offboardForm] = Form.useForm();
@@ -671,10 +686,8 @@ export default function WorkStudyManagement() {
     createForm.setFieldsValue({
       title: src.title ? `${src.title}（副本）` : undefined,
       position_type: src.position_type ?? 'fixed',
-      department_name: src.department_name ?? undefined,
       description: src.description ?? undefined,
       requirements: src.requirements ?? undefined,
-      prefer_financial_aid: !!src.prefer_financial_aid,
       weekly_hours: src.weekly_hours ?? undefined,
       headcount: src.headcount ?? undefined,
       // 起止日期 / 截止时间不复用：复制后通常是新一轮招聘，日期应由用户重新设
@@ -704,10 +717,8 @@ export default function WorkStudyManagement() {
       createMutation.mutate({
         title: v.title,
         position_type: v.position_type,
-        department_name: v.department_name,
         description: v.description,
         requirements: v.requirements,
-        prefer_financial_aid: v.prefer_financial_aid ?? false,
         weekly_hours: v.weekly_hours,
         headcount: v.headcount,
         start_date: v.start_date ? (v.start_date as Dayjs).format('YYYY-MM-DD') : undefined,
@@ -847,77 +858,95 @@ export default function WorkStudyManagement() {
     {
       title: '操作',
       key: 'actions',
-      width: 280,
-      render: (_, r) => (
-        <>
-          <button className={styles.actionLink} onClick={() => setPositionDetail(r)}>查看</button>
-          {canApproveApp && (
-            <AskAIChip
-              size="small"
-              className={styles.actionAskAi}
-              label="对比卡"
-              tooltip="把该岗位的所有申请压成候选人对比卡"
-              autoSend
-              refData={{
-                type: 'workstudy_position',
-                id: String(r.id),
-                label: r.title,
-                detail: `${r.title}（${r.position_type === 'fixed' ? '固定岗' : '临时岗'}，已招 ${r.hired_count ?? 0}/${r.headcount ?? '?'}）`,
-              }}
-              prompt="用 summarize_workstudy_applicants 把岗位 #{id} 的所有申请压成候选对比卡"
-            />
-          )}
-          {isStudent && r.status === 'open' && r.accepting_applications !== false && (
-            <button
-              className={styles.actionLink}
-              style={{ marginLeft: 12 }}
-              onClick={() => setApplyPosition(r)}
-            >
-              申请
-            </button>
-          )}
-          {canSetupPos && (
-            <button
-              className={styles.actionLink}
-              style={{ marginLeft: 12 }}
-              onClick={() => handleCopyPosition(r)}
-            >
-              复制
-            </button>
-          )}
-          {canManagePos && r.status === 'open' && (
-            r.accepting_applications === false ? (
-              <Popconfirm
-                title="恢复后将重新接受新申请，确认？"
-                onConfirm={() => acceptingMutation.mutate({ id: r.id, accepting: true })}
-                okText="恢复"
-                cancelText="取消"
+      width: 200,
+      render: (_, r) => {
+        // 次要操作收进「⋯」Dropdown,主操作保留在外层。同样的视觉权重(plain text 链接),
+        // 不再夹 AskAIChip 那种带 background+border 的异类。
+        // Dropdown 自动 close-on-click,所以确认弹窗用 Modal.confirm,不用 Popconfirm。
+        type MenuItem = NonNullable<NonNullable<React.ComponentProps<typeof Dropdown>['menu']>['items']>[number];
+        const moreItems: MenuItem[] = [];
+        if (canSetupPos) {
+          moreItems.push({
+            key: 'copy',
+            label: '复制为模板',
+            onClick: () => handleCopyPosition(r),
+          });
+        }
+        if (canManagePos && r.status === 'open') {
+          if (r.accepting_applications === false) {
+            moreItems.push({
+              key: 'resume',
+              label: '恢复招新',
+              onClick: () => Modal.confirm({
+                title: '恢复后将重新接受新申请，确认？',
+                okText: '恢复',
+                cancelText: '取消',
+                onOk: () => acceptingMutation.mutate({ id: r.id, accepting: true }),
+              }),
+            });
+          } else {
+            moreItems.push({
+              key: 'pause',
+              label: '暂停招新',
+              onClick: () => Modal.confirm({
+                title: '暂停后新申请将被拦截，已申请的不受影响，确认？',
+                okText: '暂停',
+                cancelText: '取消',
+                onOk: () => acceptingMutation.mutate({ id: r.id, accepting: false }),
+              }),
+            });
+          }
+          moreItems.push({
+            key: 'close',
+            label: '关闭岗位',
+            danger: true,
+            onClick: () => Modal.confirm({
+              title: '关闭后不再接受新申请，确认？',
+              okText: '关闭',
+              okButtonProps: { danger: true },
+              cancelText: '取消',
+              onOk: () => closeMutation.mutate(r.id),
+            }),
+          });
+        }
+        return (
+          <>
+            <button className={styles.actionLink} onClick={() => setPositionDetail(r)}>查看</button>
+            {canApproveApp && (
+              <button
+                className={styles.actionLink}
+                style={{ marginLeft: 12 }}
+                onClick={() => setComparePosition(r)}
+                title="查看本岗位所有申请,直接录用 / 拒绝"
               >
-                <button className={styles.actionLink} style={{ marginLeft: 12 }}>恢复招新</button>
-              </Popconfirm>
-            ) : (
-              <Popconfirm
-                title="暂停后新申请将被拦截，已申请的不受影响，确认？"
-                onConfirm={() => acceptingMutation.mutate({ id: r.id, accepting: false })}
-                okText="暂停"
-                cancelText="取消"
+                对比卡
+              </button>
+            )}
+            {isStudent && r.status === 'open' && r.accepting_applications !== false && (
+              <button
+                className={styles.actionLink}
+                style={{ marginLeft: 12 }}
+                onClick={() => setApplyPosition(r)}
               >
-                <button className={styles.actionLink} style={{ marginLeft: 12 }}>暂停招新</button>
-              </Popconfirm>
-            )
-          )}
-          {canManagePos && r.status === 'open' && (
-            <Popconfirm
-              title="关闭后不再接受新申请，确认？"
-              onConfirm={() => closeMutation.mutate(r.id)}
-              okText="关闭"
-              cancelText="取消"
-            >
-              <button className={styles.actionLink} style={{ marginLeft: 12 }}>关闭</button>
-            </Popconfirm>
-          )}
-        </>
-      ),
+                申请
+              </button>
+            )}
+            {moreItems.length > 0 && (
+              <Dropdown menu={{ items: moreItems }} trigger={['click']} placement="bottomRight">
+                <button
+                  className={styles.actionLink}
+                  style={{ marginLeft: 12 }}
+                  aria-label="更多操作"
+                  title="更多操作"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <MoreOutlined />
+                </button>
+              </Dropdown>
+            )}
+          </>
+        );
+      },
     },
   ];
 
@@ -1517,6 +1546,13 @@ export default function WorkStudyManagement() {
         {positionDetail && <PositionDetailBody p={positionDetail} />}
       </Drawer>
 
+      {/* 候选对比 Drawer — 替代原 AskAIChip 文字摘要,结构化展示并支持快速 decide */}
+      <ApplicantCompareDrawer
+        position={comparePosition}
+        onClose={() => setComparePosition(null)}
+        canDecide={canApproveApp}
+      />
+
       {/* Create position modal */}
       <Modal
         title="发布勤工助学岗位"
@@ -1535,7 +1571,16 @@ export default function WorkStudyManagement() {
           form={createForm}
           layout="vertical"
           style={{ marginTop: 16 }}
-          initialValues={{ prefer_financial_aid: false, position_type: 'fixed', salary_unit: 'hour', financial_aid_policy: 'none' }}
+          initialValues={{ position_type: 'fixed', salary_unit: 'hour', financial_aid_policy: 'none' }}
+          onValuesChange={(changed) => {
+            // 用户**手动**换用人单位时,清空岗位负责人 — 否则旧 employer 的负责人
+            // 留在 form value 里,提交会被后端 OWNER_NOT_IN_EMPLOYER 拒绝。
+            // 注意:onValuesChange 只在 UI 交互时触发,setFieldsValue (克隆模板预填) 不触发,
+            // 所以克隆模板同时填的 employer + owner 不会被误清空。
+            if (Object.prototype.hasOwnProperty.call(changed, 'employer_id')) {
+              createForm.setFieldValue('owner_user_id', undefined);
+            }
+          }}
         >
           <Divider orientation="left" plain>基本信息</Divider>
           <Form.Item label="岗位名称" name="title" rules={[{ required: true, message: '请输入岗位名称' }]}>
@@ -1547,16 +1592,17 @@ export default function WorkStudyManagement() {
           <Form.Item label="用人单位" name="employer_id">
             <EmployerSelect />
           </Form.Item>
-          <Form.Item label="用人部门（旧字段）" name="department_name">
-            <Input maxLength={100} placeholder="兼容旧数据，新岗位优先填用人单位 ID" />
-          </Form.Item>
           <Form.Item label="岗位类型" name="position_type">
             <Radio.Group options={TYPE_OPTIONS} optionType="button" />
           </Form.Item>
 
           <Divider orientation="left" plain>负责人 & 地点</Divider>
-          <Form.Item label="岗位负责人 ID" name="owner_user_id" tooltip="学生申请时由该负责人审核">
-            <InputNumber min={1} style={{ width: '100%' }} />
+          <Form.Item
+            label="岗位负责人"
+            name="owner_user_id"
+            tooltip="学生提交申请后由该负责人审核；候选人从所选用人单位的负责人 / 操作员中选"
+          >
+            <OwnerUserSelect employerId={createEmployerId} />
           </Form.Item>
           <Form.Item label="负责人联系电话" name="owner_phone">
             <Input maxLength={32} />
@@ -1629,10 +1675,6 @@ export default function WorkStudyManagement() {
           >
             <InputNumber min={0} style={{ width: '100%' }} placeholder="保底策略下填，其他可留空" />
           </Form.Item>
-          <Form.Item name="prefer_financial_aid" valuePropName="checked">
-            <Checkbox>优先录用家庭经济困难学生（旧字段，新岗位用上面的策略）</Checkbox>
-          </Form.Item>
-
           <Divider orientation="left" plain>描述</Divider>
           <Form.Item label="岗位描述" name="description" rules={[{ required: true, message: '请输入岗位描述' }]}>
             <TextArea rows={4} maxLength={4000} showCount />

@@ -190,7 +190,7 @@ const WORKSTUDY_STAFF_CHIPS = [
 /** Build the "候选对比卡" prompt at click time using a pinned ref if present. */
 function candidatePrompt(pinned: { type: string; id: string }[]): string | null {
   const ref = pinned.find((r) => r.type === 'workstudy_position');
-  if (ref) return `用 summarize_workstudy_applicants 把岗位 #${ref.id} 的所有申请压成候选对比卡`;
+  if (ref) return `把岗位 #${ref.id} 的所有申请整理成候选对比卡`;
   return null;
 }
 
@@ -711,9 +711,13 @@ export default function AIPanel() {
             // 跟其他 enum(同名 URL)的简单拼接处理不一样,在这里做特例映射。
             const page = String(actionData.page);
             // tab/focus 可选,LLM 在「看 X 假别配置」场景下会带上,前端拼成 query string
+            // workflow/prompt 用于勤工助学的「chat 一句话改流程」深链接:前端 BusinessConfigTab
+            // 读到后自动开对应 Drawer + 预填指令 + 自动提交,等同 leave 的 chat-native 体验。
             const params = new URLSearchParams();
             if (actionData.tab) params.set('tab', String(actionData.tab));
             if (actionData.focus) params.set('focus', String(actionData.focus));
+            if (actionData.workflow) params.set('workflow', String(actionData.workflow));
+            if (actionData.prompt) params.set('prompt', String(actionData.prompt));
             const qs = params.toString() ? `?${params.toString()}` : '';
             if (page === 'notification-center') {
               navigate(`/system?tab=notif${qs ? `&${params.toString()}` : ''}`);
@@ -748,6 +752,14 @@ export default function AIPanel() {
               actionData.college_id != null ? Number(actionData.college_id) : null,
               String(actionData.instruction || msgText),
             );
+          } else if (type === 'open_create_role_modal') {
+            // 校管理员新建自定义角色 — 跳「系统管理 → 角色权限」+ 用 ?new=1 标记
+            // 让 RolePermissionPanel 自动弹出 CreateRoleModal。
+            // 用户在 chat 里口述的角色职责通过 prefill 透传，对话框打开后预填到 AI 输入框。
+            const params = new URLSearchParams({ tab: 'roles', new: '1' });
+            const prefill = String(actionData.instruction || '').trim();
+            if (prefill) params.set('prefill', prefill);
+            navigate(`/system?${params.toString()}`);
           } else {
             if (type === 'open_checkin_form') navigate('/checkin');
             else if (type === 'open_collection_form') navigate('/collection');

@@ -25,18 +25,12 @@ public class PositionCreateRequest {
     @Size(max = 16)
     private String positionType;
 
-    /** Legacy free-text department; kept for backward compat. New code should set employerId. */
-    @Size(max = 100)
-    private String departmentName;
-
     @NotBlank
     @Size(max = 4000)
     private String description;
 
     @Size(max = 2000)
     private String requirements;
-
-    private Boolean preferFinancialAid;
 
     @Min(1)
     private Integer weeklyHours;

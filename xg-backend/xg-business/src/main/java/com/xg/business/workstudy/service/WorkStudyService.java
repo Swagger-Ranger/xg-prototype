@@ -22,6 +22,7 @@ import com.xg.business.workstudy.mapper.WorkStudyApplicationMapper;
 import com.xg.business.workstudy.mapper.WorkStudyPositionMapper;
 import com.xg.business.workstudy.mapper.WorkStudyTimesheetMapper;
 import com.xg.business.workstudy.mapper.WorkStudyYearSettingMapper;
+import com.xg.business.workstudy.model.Employer;
 import com.xg.business.workstudy.model.WorkStudyApplication;
 import com.xg.business.workstudy.model.WorkStudyPosition;
 import com.xg.business.workstudy.model.WorkStudyTimesheet;
@@ -133,10 +134,8 @@ public class WorkStudyService {
         WorkStudyPosition p = new WorkStudyPosition();
         p.setTitle(req.getTitle());
         p.setPositionType(req.getPositionType() == null ? "fixed" : req.getPositionType());
-        p.setDepartmentName(req.getDepartmentName());
         p.setDescription(req.getDescription());
         p.setRequirements(req.getRequirements());
-        p.setPreferFinancialAid(Boolean.TRUE.equals(req.getPreferFinancialAid()));
         p.setWeeklyHours(req.getWeeklyHours() == null ? 10 : req.getWeeklyHours());
         p.setHeadcount(req.getHeadcount() == null ? 1 : req.getHeadcount());
         p.setHiredCount(0);
@@ -473,8 +472,40 @@ public class WorkStudyService {
     }
 
     public PageResult<WorkStudyApplication> listApplications(ApplicationQueryRequest query) {
+        return listApplicationsInternal(query, null);
+    }
+
+    /**
+     * employer 角色专用:把申请结果硬性限定在调用者所属单位的岗位范围内。
+     * 防止 employer 通过 AI 工具或直接传任意 positionId 越权拿到其他单位的学生 PII
+     * (controller listApplications 中只把 student 限到自己,employer 之前依赖 FE
+     * 传 employer_id 过滤,AI 路径会绕过)。
+     */
+    public PageResult<WorkStudyApplication> listApplicationsScopedToEmployers(
+            ApplicationQueryRequest query, Long employerUserId) {
+        List<Employer> mine = employerService.listMine(employerUserId);
+        if (mine.isEmpty()) return emptyApplicationPage(query);
+
+        List<Long> myEmployerIds = mine.stream().map(Employer::getId).toList();
+        List<Long> allowedPositionIds = positionMapper.selectList(
+                new LambdaQueryWrapper<WorkStudyPosition>()
+                        .in(WorkStudyPosition::getEmployerId, myEmployerIds)
+                        .select(WorkStudyPosition::getId))
+                .stream().map(WorkStudyPosition::getId).toList();
+        if (allowedPositionIds.isEmpty()) return emptyApplicationPage(query);
+
+        // 调用方若指定了 positionId,必须在允许集里;否则视为越权,返回空。
+        if (query.getPositionId() != null && !allowedPositionIds.contains(query.getPositionId())) {
+            return emptyApplicationPage(query);
+        }
+        return listApplicationsInternal(query, allowedPositionIds);
+    }
+
+    private PageResult<WorkStudyApplication> listApplicationsInternal(
+            ApplicationQueryRequest query, List<Long> restrictPositionIds) {
         Page<WorkStudyApplication> page = query.toPage();
         LambdaQueryWrapper<WorkStudyApplication> wrapper = new LambdaQueryWrapper<WorkStudyApplication>()
+                .in(restrictPositionIds != null, WorkStudyApplication::getPositionId, restrictPositionIds)
                 .eq(query.getPositionId() != null, WorkStudyApplication::getPositionId, query.getPositionId())
                 .eq(query.getStudentId() != null, WorkStudyApplication::getStudentId, query.getStudentId())
                 .eq(query.getStatus() != null, WorkStudyApplication::getStatus, query.getStatus())
@@ -486,6 +517,15 @@ public class WorkStudyService {
             attachPositionSummaries(pageResult.getRecords());
         }
         return PageResult.of(pageResult);
+    }
+
+    private PageResult<WorkStudyApplication> emptyApplicationPage(ApplicationQueryRequest query) {
+        PageResult<WorkStudyApplication> r = new PageResult<>();
+        r.setData(List.of());
+        r.setTotal(0L);
+        r.setPage(query.getPage());
+        r.setSize(query.getSize());
+        return r;
     }
 
     /** Batch-fetch positions for the records' unique position_ids and attach a summary to each. */

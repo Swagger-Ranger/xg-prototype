@@ -73,10 +73,8 @@ export interface PositionQueryParams {
 export interface CreatePositionData {
   title: string;
   position_type?: string;
-  department_name?: string;
   description: string;
   requirements?: string;
-  prefer_financial_aid?: boolean;
   weekly_hours?: number;
   headcount?: number;
   start_date?: string;
@@ -605,6 +603,17 @@ export function listEmployers(params: EmployerQuery): Promise<PageResult<Employe
 
 export function getEmployer(id: string): Promise<Employer> {
   return api.get(`/work-study/employers/${id}`).then((res) => res.data);
+}
+
+export interface EmployerStaffItem {
+  user_id: string;
+  name: string;
+  role: 'leader' | 'operator';
+}
+
+/** 列出某单位「可被指定为岗位负责人」的成员（leader + operators）。发布岗位表单下拉用。 */
+export function listEmployerStaff(employerId: string): Promise<EmployerStaffItem[]> {
+  return api.get(`/work-study/employers/${employerId}/staff`).then((res) => res.data);
 }
 
 export function createEmployer(data: EmployerUpsert): Promise<Employer> {

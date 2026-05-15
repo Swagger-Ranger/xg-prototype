@@ -8,18 +8,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.business.workstudy.dto.EmployerCreateRequest;
 import com.xg.business.workstudy.dto.EmployerQueryRequest;
 import com.xg.business.workstudy.dto.EmployerSelfUpdateRequest;
+import com.xg.business.workstudy.dto.EmployerStaffItem;
 import com.xg.business.workstudy.dto.EmployerUpdateRequest;
 import com.xg.business.workstudy.mapper.EmployerMapper;
 import com.xg.business.workstudy.model.Employer;
 import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
+import com.xg.platform.system.mapper.SysUserMapper;
+import com.xg.platform.system.model.SysUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -29,6 +36,7 @@ public class EmployerService {
 
     private final EmployerMapper employerMapper;
     private final ObjectMapper objectMapper;
+    private final SysUserMapper sysUserMapper;
 
     @Transactional
     public Employer create(EmployerCreateRequest req) {
@@ -41,6 +49,7 @@ public class EmployerService {
         e.setEmail(req.getEmail());
         e.setStatus("active");
         e.setAllowSelfArrange(Boolean.TRUE.equals(req.getAllowSelfArrange()));
+        e.setMonthlySalaryCap(req.getMonthlySalaryCap());
         e.setRemark(req.getRemark());
         employerMapper.insert(e);
         return e;
@@ -56,6 +65,7 @@ public class EmployerService {
         if (req.getContactPhone() != null) e.setContactPhone(req.getContactPhone());
         if (req.getEmail() != null) e.setEmail(req.getEmail());
         if (req.getAllowSelfArrange() != null) e.setAllowSelfArrange(req.getAllowSelfArrange());
+        if (req.getMonthlySalaryCap() != null) e.setMonthlySalaryCap(req.getMonthlySalaryCap());
         if (req.getRemark() != null) e.setRemark(req.getRemark());
         employerMapper.updateById(e);
         return e;
@@ -144,11 +154,44 @@ public class EmployerService {
         return parseOperatorIds(e.getOperatorUserIds()).contains(userId);
     }
 
+    /**
+     * 列出该用人单位「可被指定为岗位负责人」的人：leader + 全部 operators。
+     * 用于发布岗位时的「岗位负责人」下拉，避免用户手填 user_id。
+     * 顺序：leader 在前，operators 按 operator_user_ids 配置时的数组顺序。已被禁用 / 已删除的 sys_user 自动过滤。
+     */
+    public List<EmployerStaffItem> listStaff(Long employerId) {
+        Employer e = detail(employerId);
+        LinkedHashSet<Long> orderedIds = new LinkedHashSet<>();
+        if (e.getLeaderUserId() != null) orderedIds.add(e.getLeaderUserId());
+        orderedIds.addAll(parseOperatorIds(e.getOperatorUserIds()));
+        if (orderedIds.isEmpty()) return List.of();
+
+        List<SysUser> users = sysUserMapper.selectBatchIds(orderedIds);
+        Map<Long, SysUser> byId = users.stream().collect(Collectors.toMap(SysUser::getId, Function.identity()));
+
+        List<EmployerStaffItem> out = new ArrayList<>(orderedIds.size());
+        for (Long uid : orderedIds) {
+            SysUser u = byId.get(uid);
+            if (u == null || !"active".equals(u.getStatus())) continue;
+            String name = (u.getRealName() != null && !u.getRealName().isBlank()) ? u.getRealName() : u.getUsername();
+            String role = uid.equals(e.getLeaderUserId()) ? "leader" : "operator";
+            out.add(new EmployerStaffItem(uid, name, role));
+        }
+        return out;
+    }
+
+    /**
+     * 解析 operator_user_ids JSONB 列（支持 number 数组 / string 数组，前端历史两种都有）。
+     * <p><b>顺序契约：必须返回保序集合（LinkedHashSet），{@link #listStaff} 的下拉渲染
+     * 依赖原始 JSON 数组顺序。</b>如果改回 HashSet，EmployerServiceTest 在小 Long ID 下
+     * 可能因桶顺序刚好正确而 silent pass，但生产环境的 operator 顺序会乱。改前先看测试。
+     */
     private Set<Long> parseOperatorIds(String json) {
         if (json == null || json.isBlank()) return Set.of();
         try {
             List<Object> raw = objectMapper.readValue(json, new TypeReference<List<Object>>() {});
-            return raw.stream().map(EmployerService::toLong).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
+            return raw.stream().map(EmployerService::toLong).filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
         } catch (Exception ex) {
             log.warn("Failed to parse employer.operator_user_ids: {}", ex.getMessage());
             return Set.of();
