@@ -112,6 +112,40 @@ public class NotificationOrchestrator {
         return firstId;
     }
 
+    /**
+     * Ad-hoc 广播专用入口 — 业务侧 UI 现拟标题 / 正文 / 收件人 / 渠道,
+     * 不走 template 也不参与 (source_type, source_id, template_code) 双轨去重。
+     *
+     * <p>为什么不复用 {@link #send}:
+     * <ul>
+     *   <li>template-driven 收件人解析:广播场景由 controller 已经做了权限收口</li>
+     *   <li>双轨去重:同一申请短时间内多条 ad-hoc 通知是合法语义,不该被静默吞掉</li>
+     * </ul>
+     * 为什么还要走 Orchestrator:统一收口"通知由谁发"的入口,
+     * 业务侧不允许直接调 {@link NotificationService#send} 是为了防止
+     * 偏好 / 模板 / 审计被绕过;ad-hoc 也属于"由 Orchestrator 决定怎么落"。
+     *
+     * @return notification.id;recipients 空 / channels 空时返回 null,不报错
+     */
+    public Long sendAdhoc(String sourceType, Long sourceId,
+                          List<Long> recipientUserIds, List<String> channels,
+                          String title, String body, String level, Long senderId) {
+        if (recipientUserIds == null || recipientUserIds.isEmpty()) return null;
+        if (channels == null || channels.isEmpty()) channels = List.of("in_app");
+        SendNotificationRequest req = new SendNotificationRequest();
+        req.setSourceType(sourceType);
+        req.setSourceId(sourceId);
+        req.setRecipientUserIds(recipientUserIds);
+        req.setChannels(channels);
+        req.setTitle(title);
+        req.setContent(body);
+        req.setLevel(level != null && !level.isBlank() ? level : "normal");
+        req.setSenderId(senderId);
+        // 显式不设 templateCode:让 uq_notification_source_template 部分唯一索引
+        // (WHERE template_code IS NOT NULL) 不参与,允许同一 source 多次 ad-hoc 广播。
+        return notificationService.send(req);
+    }
+
     private NotificationTemplate findTemplate(String code) {
         return templateMapper.selectOne(
                 new LambdaQueryWrapper<NotificationTemplate>()

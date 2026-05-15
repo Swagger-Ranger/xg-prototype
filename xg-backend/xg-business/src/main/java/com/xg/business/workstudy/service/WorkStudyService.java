@@ -33,8 +33,6 @@ import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
 import com.xg.platform.notification.recipient.RecipientContext;
 import com.xg.platform.notification.service.NotificationOrchestrator;
-import com.xg.platform.notification.service.NotificationService;
-import com.xg.platform.notification.service.SendNotificationRequest;
 import com.xg.platform.system.mapper.SysUserMapper;
 import com.xg.platform.system.model.SysUser;
 import com.xg.platform.workflow.engine.WorkflowEngine;
@@ -70,7 +68,6 @@ public class WorkStudyService {
     private final StudentProfileMapper studentProfileMapper;
     private final FormDataValidator formDataValidator;
     private final ObjectMapper objectMapper;
-    private final NotificationService notificationService;
     private final NotificationOrchestrator notificationOrchestrator;
     private final EmployerService employerService;
 
@@ -483,22 +480,32 @@ public class WorkStudyService {
      */
     public PageResult<WorkStudyApplication> listApplicationsScopedToEmployers(
             ApplicationQueryRequest query, Long employerUserId) {
-        List<Employer> mine = employerService.listMine(employerUserId);
-        if (mine.isEmpty()) return emptyApplicationPage(query);
-
-        List<Long> myEmployerIds = mine.stream().map(Employer::getId).toList();
-        List<Long> allowedPositionIds = positionMapper.selectList(
-                new LambdaQueryWrapper<WorkStudyPosition>()
-                        .in(WorkStudyPosition::getEmployerId, myEmployerIds)
-                        .select(WorkStudyPosition::getId))
-                .stream().map(WorkStudyPosition::getId).toList();
-        if (allowedPositionIds.isEmpty()) return emptyApplicationPage(query);
-
+        List<Long> allowedPositionIds = resolveEmployerPositionScope(employerUserId);
+        if (allowedPositionIds == null || allowedPositionIds.isEmpty()) {
+            return emptyApplicationPage(query);
+        }
         // 调用方若指定了 positionId,必须在允许集里;否则视为越权,返回空。
         if (query.getPositionId() != null && !allowedPositionIds.contains(query.getPositionId())) {
             return emptyApplicationPage(query);
         }
         return listApplicationsInternal(query, allowedPositionIds);
+    }
+
+    /**
+     * 解析当前 employer 用户能看到的岗位 id 集合。导出 / 列表共用,确保 PII 不跨单位泄漏。
+     *
+     * <p>返回 null = 该用户没有任何 employer 归属(应由 controller 决定是否当 forbidden 处理);
+     * 返回 emptyList = 有 employer 归属但旗下还没岗位,导出 / 列表都应得到空集。
+     */
+    public List<Long> resolveEmployerPositionScope(Long employerUserId) {
+        List<Employer> mine = employerService.listMine(employerUserId);
+        if (mine == null || mine.isEmpty()) return null;
+        List<Long> myEmployerIds = mine.stream().map(Employer::getId).toList();
+        return positionMapper.selectList(
+                        new LambdaQueryWrapper<WorkStudyPosition>()
+                                .in(WorkStudyPosition::getEmployerId, myEmployerIds)
+                                .select(WorkStudyPosition::getId))
+                .stream().map(WorkStudyPosition::getId).toList();
     }
 
     private PageResult<WorkStudyApplication> listApplicationsInternal(
@@ -602,7 +609,9 @@ public class WorkStudyService {
                     result.addFailure(applicationId, "POSITION_NOT_FOUND", "岗位不存在");
                     continue;
                 }
-                if (!isAdmin && !operatorId.equals(pos.getOwnerUserId())) {
+                // 改用 isUserOperatorOrLeader 替代 ownerUserId 单点:跟单条 assertCanOperatePosition 一致,
+                // 同 employer 下任一 operator / leader 都能批量代办,不再因 ownerUserId 单点失败。
+                if (!isAdmin && !isEmployerInsider(pos, operatorId)) {
                     result.setSkipped(result.getSkipped() + 1);
                     continue;
                 }
@@ -622,9 +631,24 @@ public class WorkStudyService {
     }
 
     /**
-     * 批量给选中申请的学生发 ad-hoc 站内信。直接走 NotificationService（不走 Orchestrator）：
-     * Orchestrator 的 (source_type, source_id, template_code) 去重设计与"同一对象多次广播"
-     * 语义冲突，绕开后避免假性 dedup。
+     * 判断 operator 是否本岗位所属 employer 的内部人(leader 或 operator)。
+     * 批量动作的细粒度授权统一收口在这里,跟 {@code assertCanOperatePosition} 的判定保持一致,
+     * 避免"单条能办但批量办不了"的诡异现象。
+     */
+    private boolean isEmployerInsider(WorkStudyPosition pos, Long operatorId) {
+        if (pos == null || operatorId == null) return false;
+        if (operatorId.equals(pos.getOwnerUserId())) return true;
+        Long employerId = pos.getEmployerId();
+        if (employerId == null) return false;
+        return employerService.isUserOperatorOrLeader(employerId, operatorId);
+    }
+
+    /**
+     * 批量给选中申请的学生发 ad-hoc 站内信。
+     *
+     * <p>走 {@link NotificationOrchestrator#sendAdhoc} —— 跟通知铁律保持一致:
+     * 所有业务通知必须经 Orchestrator 出口。Ad-hoc 广播跳过 template / 双轨去重,
+     * 但仍由 Orchestrator 统一记账,业务侧不直接调 NotificationService。
      */
     public BatchActionResult batchNotify(BatchNotifyRequest req, Long operatorId, List<String> operatorRoles) {
         BatchActionResult result = new BatchActionResult();
@@ -643,19 +667,19 @@ public class WorkStudyService {
                     continue;
                 }
                 WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
-                if (!isAdmin && (pos == null || !operatorId.equals(pos.getOwnerUserId()))) {
+                if (!isAdmin && !isEmployerInsider(pos, operatorId)) {
                     result.setSkipped(result.getSkipped() + 1);
                     continue;
                 }
-                SendNotificationRequest sendReq = new SendNotificationRequest();
-                sendReq.setSourceType("workstudy_application");
-                sendReq.setSourceId(app.getId());
-                sendReq.setRecipientUserIds(List.of(app.getStudentId()));
-                sendReq.setChannels(List.of("in_app"));
-                sendReq.setTitle(req.getTitle());
-                sendReq.setContent(req.getBody());
-                sendReq.setLevel("normal");
-                notificationService.send(sendReq);
+                notificationOrchestrator.sendAdhoc(
+                        "workstudy_application",
+                        app.getId(),
+                        List.of(app.getStudentId()),
+                        List.of("in_app"),
+                        req.getTitle(),
+                        req.getBody(),
+                        "normal",
+                        operatorId);
                 result.setSucceeded(result.getSucceeded() + 1);
             } catch (Exception e) {
                 log.warn("batchNotify failed application_id={}: {}", applicationId, e.getMessage());

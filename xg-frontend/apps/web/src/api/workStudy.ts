@@ -1,5 +1,29 @@
 import type { PageResult } from '@xg1/shared';
-import api from './index';
+import { useAuthStore } from '../stores/auth.store';
+import api, { handleUnauthorized } from './index';
+
+/**
+ * 直连 sidecar 的 fetch 走 /ai/ 反代,axios 拦截器不生效,
+ * 需要自己拼 Authorization + X-User-* header,跟 rolePermission.ts 的 proposeRoleConfig 一致。
+ * sidecar 端 deps.require_logged_in 会反向调 Java /auth/me/perms 验 token。
+ */
+function aiSidecarHeaders(): Record<string, string> {
+  const { token, user } = useAuthStore.getState();
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) h.Authorization = `Bearer ${token}`;
+  if (user?.id) h['X-User-Id'] = String(user.id);
+  h['X-Tenant-Id'] = user?.tenant_id || 'default';
+  h['X-User-Role'] = user?.role_codes?.[0] || '';
+  return h;
+}
+
+/** 跟 rolePermission.ts 共享:sidecar 401 → 清 token 跳登录,避免会话过期被困住 */
+function throwIfUnauthorized(res: Response) {
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error('登录已失效,请重新登录');
+  }
+}
 
 // =====================================================================
 // Position
@@ -419,9 +443,10 @@ export async function draftInterviewNotice(
 ): Promise<DraftInterviewNoticeResp> {
   const res = await fetch('/ai/api/v1/workstudy/draft-interview-notice', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: aiSidecarHeaders(),
     body: JSON.stringify(payload),
   });
+  throwIfUnauthorized(res);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -450,9 +475,10 @@ export interface DraftApplyIntroResp {
 export async function draftApplyIntro(payload: DraftApplyIntroReq): Promise<DraftApplyIntroResp> {
   const res = await fetch('/ai/api/v1/workstudy/draft-apply-intro', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: aiSidecarHeaders(),
     body: JSON.stringify(payload),
   });
+  throwIfUnauthorized(res);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -556,9 +582,10 @@ export async function nlToWorkstudyReport(payload: {
 }): Promise<NlToReportResp> {
   const res = await fetch('/ai/api/v1/workstudy/nl-to-report', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: aiSidecarHeaders(),
     body: JSON.stringify(payload),
   });
+  throwIfUnauthorized(res);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

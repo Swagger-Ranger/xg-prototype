@@ -7,6 +7,7 @@ import com.xg.business.org.dto.AssignableUser;
 import com.xg.business.org.dto.BatchLeaderApplyRequest;
 import com.xg.business.org.dto.CounselorMappingRequest;
 import com.xg.business.org.dto.CounselorMappingView;
+import com.xg.business.org.dto.CreateOrgRequest;
 import com.xg.business.org.dto.OrgTreeNode;
 import com.xg.business.org.mapper.OrgAssignmentMapper;
 import com.xg.common.exception.BizException;
@@ -90,6 +91,59 @@ public class OrgAssignmentService {
             out.add(u);
         }
         return out;
+    }
+
+    /**
+     * 新建组织节点(P0 UI 只用 college 顶层;支持 class / admin_dept 是给后续扩展留口子)。
+     *
+     * <p>校验:
+     * <ul>
+     *   <li>name 不能跟同 parent 下现有节点重名</li>
+     *   <li>parentId 非空时必须存在</li>
+     *   <li>class 必须有 parentId 且 parent 必须是 college</li>
+     *   <li>college / admin_dept 通常顶层(parentId=null),但允许嵌套</li>
+     * </ul>
+     */
+    @Transactional
+    public Long createOrg(CreateOrgRequest req) {
+        String name = req.getName().trim();
+        String type = req.getType();
+        Long parentId = req.getParentId();
+        String tenantId = TenantContext.getRequiredTenantId();
+
+        // parent 校验
+        if (parentId != null) {
+            String parentType = mapper.findOrgType(parentId, tenantId);
+            if (parentType == null) {
+                throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(),
+                        "上级节点不存在:" + parentId);
+            }
+            if ("class".equals(type) && !"college".equals(parentType)) {
+                throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(),
+                        "class 节点的上级必须是 college");
+            }
+        } else if ("class".equals(type)) {
+            throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(),
+                    "class 节点必须挂在某个 college 下");
+        }
+
+        // 同 parent 下重名拒绝
+        if (mapper.countByNameAndParent(name, parentId, tenantId) > 0) {
+            throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(),
+                    "同级下已存在名为「" + name + "」的节点");
+        }
+
+        long id = IdWorker.getId();
+        String code = (req.getCode() == null || req.getCode().isBlank()) ? null : req.getCode().trim();
+
+        mapper.insertOrgUnit(id, tenantId, parentId, name, code, type, 0);
+        if (parentId != null) {
+            mapper.insertOrgClosure(id, parentId);
+        } else {
+            mapper.insertOrgClosureSelf(id);
+        }
+        log.info("Created org_unit id={} type={} parent={} name={}", id, type, parentId, name);
+        return id;
     }
 
     /** 设/清班主任。leaderId=null 即清空。 */

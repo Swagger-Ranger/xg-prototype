@@ -248,7 +248,8 @@ public class WorkStudyController {
         if (roles.stream().noneMatch(BATCH_OPS_ROLES::contains)) {
             throw new BizException("FORBIDDEN", "无权导出");
         }
-        byte[] xlsx = exportService.exportApplicationsCurrentView(query);
+        List<Long> scope = resolveEmployerScopeIfNeeded(roles, userId);
+        byte[] xlsx = exportService.exportApplicationsCurrentView(query, scope);
         return xlsxResponse("workstudy_applications", xlsx);
     }
 
@@ -261,10 +262,26 @@ public class WorkStudyController {
         if (roles.stream().noneMatch(BATCH_OPS_ROLES::contains)) {
             throw new BizException("FORBIDDEN", "无权导出");
         }
-        byte[] xlsx = exportService.exportByDsl(dsl);
+        List<Long> scope = resolveEmployerScopeIfNeeded(roles, userId);
+        byte[] xlsx = exportService.exportByDsl(dsl, scope);
         String filenameBase = dsl.getTitle() == null || dsl.getTitle().isBlank()
                 ? "workstudy_report" : dsl.getTitle();
         return xlsxResponse(filenameBase, xlsx);
+    }
+
+    /**
+     * employer 角色(无 admin / officer 加成)调用时返回其单位下岗位 id 白名单,
+     * 防止跨单位 PII 越权导出;否则返回 null 走原"跨单位汇总"逻辑。
+     * 跟 listApplications 的 isEmployerOnly 判定保持一致。
+     */
+    private List<Long> resolveEmployerScopeIfNeeded(List<String> roles, Long userId) {
+        boolean isEmployerOnly = roles.contains("employer")
+                && !roles.contains("school_admin")
+                && !roles.contains("student_affairs_officer");
+        if (!isEmployerOnly) return null;
+        List<Long> scope = workStudyService.resolveEmployerPositionScope(userId);
+        // null = 该用户无 employer 归属;空集 = 有归属但无岗位。两种都按"空导出"处理。
+        return scope == null ? List.of() : scope;
     }
 
     private static org.springframework.http.ResponseEntity<byte[]> xlsxResponse(String filenameBase, byte[] data) {

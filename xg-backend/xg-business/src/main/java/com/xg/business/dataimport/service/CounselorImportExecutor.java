@@ -6,7 +6,10 @@ import com.xg.common.exception.BizException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,8 +33,13 @@ import java.util.Map;
 public class CounselorImportExecutor {
 
     private final DataImportWriteMapper writeMapper;
+    private final PlatformTransactionManager txManager;
 
-    @Transactional
+    /**
+     * 同 {@link TeacherImportExecutor}:本方法不再 @Transactional 包整批,
+     * 每行起 PROPAGATION_NESTED savepoint,行失败仅回滚本行,
+     * 避免 PG 整事务被标记 aborted 导致后续行 + session 状态写不进去。
+     */
     public Map<String, Object> execute(String tenantId,
                                         Long operatorId,
                                         Map<String, Object> columnMapping,
@@ -56,20 +64,26 @@ public class CounselorImportExecutor {
         List<String> createdOrgNames = new ArrayList<>();
         List<Map<String, Object>> failures = new ArrayList<>();
 
+        DefaultTransactionDefinition nested = new DefaultTransactionDefinition();
+        nested.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
+
         for (int r = 0; r < rows.size(); r++) {
             List<String> row = rows.get(r);
             int rowNum = r + 1;
+            TransactionStatus sp = txManager.getTransaction(nested);
             try {
                 String username = cell(row, ti.get("username"));
                 String orgName = cell(row, ti.get("org_name"));
                 String roleKey = cell(row, ti.get("role_code"));
 
                 if (username.isEmpty()) {
+                    txManager.rollback(sp);
                     failed++;
                     failures.add(failure(rowNum, "工号为空"));
                     continue;
                 }
                 if (orgName.isEmpty()) {
+                    txManager.rollback(sp);
                     failed++;
                     failures.add(failure(rowNum, "从属单位为空"));
                     continue;
@@ -78,6 +92,7 @@ public class CounselorImportExecutor {
                 // 1) 找 user
                 Long userId = writeMapper.findUserIdByUsername(username);
                 if (userId == null) {
+                    txManager.rollback(sp);
                     failed++;
                     failures.add(failure(rowNum,
                             "工号「" + username + "」在系统里不存在，请先用「教师基础信息」场景把人导进来"));
@@ -93,6 +108,7 @@ public class CounselorImportExecutor {
                     if (roleId == null) {
                         roleId = writeMapper.findRoleIdByCodeOrName(roleKey);
                         if (roleId == null) {
+                            txManager.rollback(sp);
                             failed++;
                             failures.add(failure(rowNum,
                                     "角色「" + roleKey + "」未识别（既不是 sys_role.code 也不是 name）"));
@@ -140,9 +156,11 @@ public class CounselorImportExecutor {
                         updated++;
                     }
                 }
+                txManager.commit(sp);
                 // 改进 created/updated 区分需要 BEFORE 查 ON CONFLICT DO NOTHING + 二查 — 先不做。
             } catch (Exception e) {
                 log.warn("counselor import row {} failed", rowNum, e);
+                try { txManager.rollback(sp); } catch (Exception ignore) { /* 释放 savepoint */ }
                 failed++;
                 failures.add(failure(rowNum, e.getMessage() == null ? "未知错误" : e.getMessage()));
             }

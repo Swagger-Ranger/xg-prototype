@@ -4,6 +4,9 @@ import {
   Button,
   Card,
   Empty,
+  Form,
+  Input,
+  Modal,
   Popconfirm,
   Select,
   Space,
@@ -15,6 +18,7 @@ import {
   StarFilled,
   StarOutlined,
   DeleteOutlined,
+  PlusOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +27,7 @@ import {
   type CounselorMapping,
   type OrgTreeNode,
   createCounselorMapping,
+  createOrgUnit,
   deleteCounselorMapping,
   fetchOrgTree,
   listClassMasters,
@@ -30,6 +35,7 @@ import {
   updateLeader,
   updateMappingPrimary,
 } from '@/api/orgAssignment';
+import { describeApiError } from '@/utils/api-error';
 import OrgAiAssignModal from './OrgAiAssignModal';
 
 /**
@@ -45,6 +51,8 @@ export default function OrgAssignmentPanel() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm] = Form.useForm<{ name: string; code?: string }>();
 
   const { data: tree = [], isFetching: treeLoading } = useQuery({
     queryKey: ['org.tree'],
@@ -73,6 +81,24 @@ export default function OrgAssignmentPanel() {
     // 派班结果可能消除"审批链卡死"健康警告
     queryClient.invalidateQueries({ queryKey: ['leaveConfig.health'] });
   }
+
+  // 新增院系 — UI 上不暴露 "新增班级",班级走数据导入避免误操作堆出脏数据。
+  const createOrgMut = useMutation({
+    mutationFn: (vals: { name: string; code?: string }) =>
+      createOrgUnit({
+        name: vals.name.trim(),
+        type: 'college',
+        parent_id: null,
+        code: vals.code?.trim() || undefined,
+      }),
+    onSuccess: () => {
+      message.success('院系已创建');
+      setCreateOpen(false);
+      createForm.resetFields();
+      invalidate();
+    },
+    onError: (e) => message.error(describeApiError(e, '创建失败')),
+  });
 
   // 缺班主任的班数 —— 给 AI 入口按钮加个角标，让"该派班了"这件事有信号。
   const missingLeaderCount = useMemo(
@@ -103,32 +129,37 @@ export default function OrgAssignmentPanel() {
             <span>所有班级均已配齐班主任 🎉</span>
           )}
         </div>
-        <Button
-          type="primary"
-          icon={<ThunderboltOutlined />}
-          onClick={() => setAiOpen(true)}
-          disabled={treeLoading || tree.length === 0}
-          style={{
-            background: 'linear-gradient(90deg, #faad14 0%, #fa8c16 100%)',
-            borderColor: 'transparent',
-            boxShadow: '0 2px 6px rgba(250, 173, 20, 0.35)',
-          }}
-        >
-          AI 派班建议
-          {missingLeaderCount > 0 && (
-            <span
-              style={{
-                marginLeft: 6,
-                padding: '0 6px',
-                background: 'rgba(255,255,255,0.25)',
-                borderRadius: 10,
-                fontSize: 12,
-              }}
-            >
-              {missingLeaderCount}
-            </span>
-          )}
-        </Button>
+        <Space>
+          <Button icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+            新增院系
+          </Button>
+          <Button
+            type="primary"
+            icon={<ThunderboltOutlined />}
+            onClick={() => setAiOpen(true)}
+            disabled={treeLoading || tree.length === 0}
+            style={{
+              background: 'linear-gradient(90deg, #faad14 0%, #fa8c16 100%)',
+              borderColor: 'transparent',
+              boxShadow: '0 2px 6px rgba(250, 173, 20, 0.35)',
+            }}
+          >
+            AI 派班建议
+            {missingLeaderCount > 0 && (
+              <span
+                style={{
+                  marginLeft: 6,
+                  padding: '0 6px',
+                  background: 'rgba(255,255,255,0.25)',
+                  borderRadius: 10,
+                  fontSize: 12,
+                }}
+              >
+                {missingLeaderCount}
+              </span>
+            )}
+          </Button>
+        </Space>
       </div>
       <OrgAiAssignModal
         open={aiOpen}
@@ -136,6 +167,47 @@ export default function OrgAssignmentPanel() {
         tree={tree}
         classMasters={classMasters}
       />
+
+      <Modal
+        title="新增院系"
+        open={createOpen}
+        onCancel={() => {
+          setCreateOpen(false);
+          createForm.resetFields();
+        }}
+        onOk={() => {
+          createForm.validateFields().then((v) => createOrgMut.mutate(v));
+        }}
+        confirmLoading={createOrgMut.isPending}
+        okText="创建"
+        width={460}
+        destroyOnClose
+      >
+        <div
+          style={{ marginBottom: 12, color: 'var(--fg-3)', fontSize: 13, lineHeight: 1.6 }}
+        >
+          创建一个新学院 / 系。班级请通过「数据导入」批量创建,避免手工堆数据。
+        </div>
+        <Form form={createForm} layout="vertical">
+          <Form.Item
+            label="名称"
+            name="name"
+            rules={[
+              { required: true, message: '请输入名称' },
+              { max: 100, message: '名称不超过 100 字' },
+            ]}
+          >
+            <Input placeholder="如:计算机学院" autoFocus />
+          </Form.Item>
+          <Form.Item
+            label="编码 (选填)"
+            name="code"
+            help="给学校对外报表 / 教务对接用,无对接需求可留空。"
+          >
+            <Input placeholder="如:CS / 100" maxLength={64} />
+          </Form.Item>
+        </Form>
+      </Modal>
     <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
       <Card
         size="small"
@@ -257,8 +329,7 @@ function LeaderSection({
       message.success(leaderId == null ? '已清空班主任' : '已指派班主任');
       onChange();
     },
-    onError: (e: unknown) =>
-      message.error(`操作失败：${e instanceof Error ? e.message : String(e)}`),
+    onError: (e: unknown) => message.error(describeApiError(e, '操作失败')),
   });
 
   return (
@@ -320,8 +391,7 @@ function CounselorListCard({
       setPrimary(false);
       onChange();
     },
-    onError: (e: unknown) =>
-      message.error(`添加失败：${e instanceof Error ? e.message : String(e)}`),
+    onError: (e: unknown) => message.error(describeApiError(e, '添加失败')),
   });
 
   return (
@@ -396,8 +466,7 @@ function CounselorRow({
       message.success(mapping.is_primary ? '已改为副辅导员' : '已改为主辅导员');
       onChange();
     },
-    onError: (e: unknown) =>
-      message.error(`修改失败：${e instanceof Error ? e.message : String(e)}`),
+    onError: (e: unknown) => message.error(describeApiError(e, '修改失败')),
   });
 
   const deleteMut = useMutation({
@@ -406,8 +475,7 @@ function CounselorRow({
       message.success('已移除');
       onChange();
     },
-    onError: (e: unknown) =>
-      message.error(`移除失败：${e instanceof Error ? e.message : String(e)}`),
+    onError: (e: unknown) => message.error(describeApiError(e, '移除失败')),
   });
 
   return (

@@ -11,7 +11,7 @@ export interface OrgTreeNode {
   id: string;
   parent_id: string | null;
   name: string;
-  type: 'college' | 'class';
+  type: 'college' | 'class' | 'admin_dept';
   sort_order: number | null;
   leader_id: string | null;
   leader_name: string | null;
@@ -24,7 +24,7 @@ export interface CounselorMapping {
   counselor_name: string;
   org_id: string;
   org_name: string;
-  org_type: 'college' | 'class';
+  org_type: 'college' | 'class' | 'admin_dept';
   is_primary: boolean;
 }
 
@@ -36,6 +36,19 @@ export interface AssignableUser {
 
 export function fetchOrgTree(): Promise<OrgTreeNode[]> {
   return api.get('/org/tree').then((res) => res.data);
+}
+
+export interface CreateOrgRequest {
+  name: string;
+  /** P0 前端只传 'college'。'class' 走数据导入,不在 UI 上暴露。 */
+  type: 'college' | 'class' | 'admin_dept';
+  /** 顶层 college 为 null;class 时必填 college id。 */
+  parent_id?: string | null;
+  code?: string;
+}
+
+export function createOrgUnit(req: CreateOrgRequest): Promise<{ id: string }> {
+  return api.post('/org', req).then((res) => res.data);
 }
 
 export function listClassMasters(): Promise<AssignableUser[]> {
