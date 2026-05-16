@@ -114,7 +114,10 @@ async def _generate_node(state: BriefState) -> BriefState:
 
     brief = _extract_json(result.content)
     attempts = attempts + [{"brief": brief, "raw": result.content, "errors": []}]
-    return {"brief": brief, "attempts": attempts, "llm_model": result.model}
+    # 清掉上一轮 validate 的 schema 错误：这是新一次生成，旧错误已不适用
+    # （否则 _validate_node 的 error_message 短路会跳过对新结果的校验）
+    return {"brief": brief, "attempts": attempts, "llm_model": result.model,
+            "error_message": None}
 
 
 def _validate_node(state: BriefState) -> BriefState:
