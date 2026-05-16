@@ -3,11 +3,11 @@ package com.xg.platform.care.controller;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
 import com.xg.platform.care.dto.CareTaskQueryRequest;
+import com.xg.platform.care.dto.CareTaskView;
 import com.xg.platform.care.dto.RejectCareTaskRequest;
 import com.xg.platform.care.dto.RescheduleCareTaskRequest;
 import com.xg.platform.care.dto.ResolveCareTaskRequest;
 import com.xg.platform.care.dto.TransferCareTaskRequest;
-import com.xg.platform.care.model.CareTask;
 import com.xg.platform.care.service.CareScanService;
 import com.xg.platform.care.service.CareTaskService;
 import jakarta.validation.Valid;
@@ -37,12 +37,12 @@ public class CareTaskController {
     // ─────────────────── 查询 ───────────────────
 
     @GetMapping("/api/v1/care/tasks")
-    public R<PageResult<CareTask>> list(@ModelAttribute CareTaskQueryRequest query) {
+    public R<PageResult<CareTaskView>> list(@ModelAttribute CareTaskQueryRequest query) {
         return R.ok(careTaskService.list(query));
     }
 
     @GetMapping("/api/v1/care/tasks/{id}")
-    public R<CareTask> detail(@PathVariable Long id) {
+    public R<CareTaskView> detail(@PathVariable Long id) {
         return R.ok(careTaskService.detail(id));
     }
 

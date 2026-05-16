@@ -10,6 +10,7 @@ import com.xg.platform.care.domain.CareTaskEvent;
 import com.xg.platform.care.domain.CareTaskStatus;
 import com.xg.platform.care.domain.CareTaskTransitions;
 import com.xg.platform.care.dto.CareTaskQueryRequest;
+import com.xg.platform.care.dto.CareTaskView;
 import com.xg.platform.care.dto.RejectCareTaskRequest;
 import com.xg.platform.care.dto.RescheduleCareTaskRequest;
 import com.xg.platform.care.dto.ResolveCareTaskRequest;
@@ -18,6 +19,7 @@ import com.xg.platform.care.error.CareTaskErrorCode;
 import com.xg.platform.care.mapper.CareTaskAuditMapper;
 import com.xg.platform.care.mapper.CareTaskFeedbackMapper;
 import com.xg.platform.care.mapper.CareTaskMapper;
+import com.xg.platform.care.mapper.CareTaskQueryMapper;
 import com.xg.platform.care.mapper.TaskAiBriefHistoryMapper;
 import com.xg.platform.care.model.CareTask;
 import com.xg.platform.care.model.CareTaskAudit;
@@ -31,9 +33,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 关怀任务业务层：状态机由 {@link CareTaskTransitions} 静态常量表守门，
@@ -50,15 +55,19 @@ public class CareTaskService {
     /** 改期次数上限（W1 §10 "建议值 5"，产品最终拍） */
     private static final int RESCHEDULE_LIMIT = 5;
 
+    /** brief 摘要 / 触发摘要在卡片上的截断长度（W1 §2.3 "current_brief.why 截 60 字"） */
+    private static final int BRIEF_SUMMARY_MAX = 60;
+
     private final CareTaskMapper careTaskMapper;
     private final CareTaskAuditMapper careTaskAuditMapper;
     private final CareTaskFeedbackMapper careTaskFeedbackMapper;
     private final TaskAiBriefHistoryMapper briefHistoryMapper;
+    private final CareTaskQueryMapper careTaskQueryMapper;
     private final CareBriefService careBriefService;
 
     // ─────────────────────────── 查询 ───────────────────────────
 
-    public PageResult<CareTask> list(CareTaskQueryRequest req) {
+    public PageResult<CareTaskView> list(CareTaskQueryRequest req) {
         LambdaQueryWrapper<CareTask> q = new LambdaQueryWrapper<>();
 
         // W2.2 安全收口：强制只看自己的任务，不认 assigneeScope=all。
@@ -84,11 +93,45 @@ public class CareTaskService {
         applySort(q, req.getSort());
 
         Page<CareTask> page = careTaskMapper.selectPage(req.toPage(), q);
-        return PageResult.of(page);
+
+        List<CareTask> rows = page.getRecords();
+        Map<Long, String[]> students = resolveStudents(rows);
+        Map<Long, String> briefWhy = resolveBriefWhy(rows);
+        List<CareTaskView> views = new ArrayList<>(rows.size());
+        for (CareTask t : rows) {
+            views.add(toView(t, students, briefWhy));
+        }
+
+        PageResult<CareTaskView> result = new PageResult<>();
+        result.setData(views);
+        result.setTotal(page.getTotal());
+        result.setPage((int) page.getCurrent());
+        result.setSize((int) page.getSize());
+        return result;
     }
 
-    public CareTask detail(Long taskId) {
-        return requireTask(taskId);
+    public CareTaskView detail(Long taskId) {
+        CareTask task = requireTask(taskId);
+        List<CareTask> one = List.of(task);
+        CareTaskView v = toView(task, resolveStudents(one), resolveBriefWhy(one));
+
+        // detail 专属：历史关怀次数（该生终态任务，排除当前）+ 去代号的证据快照
+        Long count = careTaskMapper.selectCount(new LambdaQueryWrapper<CareTask>()
+                .eq(CareTask::getStudentId, task.getStudentId())
+                .ne(CareTask::getId, task.getId())
+                .in(CareTask::getStatus,
+                        CareTaskStatus.RESOLVED.getCode(),
+                        CareTaskStatus.REJECTED.getCode(),
+                        CareTaskStatus.TRANSFERRED.getCode()));
+        v.setHistoryCount(count == null ? 0 : count.intValue());
+
+        if (task.getTriggerData() != null) {
+            Map<String, Object> evidence = new HashMap<>(task.getTriggerData());
+            evidence.remove("rule_id");      // W1 §4.5：证据区也不外露规则代号
+            evidence.remove("rule_version");
+            v.setTriggerEvidence(evidence);
+        }
+        return v;
     }
 
     public Map<String, Object> getCurrentBrief(Long taskId) {
@@ -262,6 +305,84 @@ public class CareTaskService {
             throw new BizException(CareTaskErrorCode.CARE_TASK_NOT_ASSIGNED_TO_YOU);
         }
         return task;
+    }
+
+    // ─────────────────────── View 组装 ───────────────────────
+
+    /** 批量解析 studentId → [name, className]。空集合不查库。 */
+    private Map<Long, String[]> resolveStudents(List<CareTask> tasks) {
+        Set<Long> ids = new LinkedHashSet<>();
+        for (CareTask t : tasks) {
+            if (t.getStudentId() != null) ids.add(t.getStudentId());
+        }
+        if (ids.isEmpty()) return Map.of();
+        Map<Long, String[]> out = new HashMap<>();
+        for (Map<String, Object> r : careTaskQueryMapper.resolveStudents(
+                TenantContext.getTenantId(), new ArrayList<>(ids))) {
+            Long sid = asLong(r.get("studentId"));
+            if (sid == null) continue;
+            Object name = r.get("studentName");
+            Object cls = r.get("className");
+            out.put(sid, new String[]{
+                    name == null ? null : name.toString(),
+                    cls == null ? null : cls.toString()});
+        }
+        return out;
+    }
+
+    /** 批量解析 currentBriefId → why（已截断）。空集合不查库。 */
+    private Map<Long, String> resolveBriefWhy(List<CareTask> tasks) {
+        Set<Long> briefIds = new LinkedHashSet<>();
+        for (CareTask t : tasks) {
+            if (t.getCurrentBriefId() != null) briefIds.add(t.getCurrentBriefId());
+        }
+        if (briefIds.isEmpty()) return Map.of();
+        Map<Long, String> out = new HashMap<>();
+        for (TaskAiBriefHistory h : briefHistoryMapper.selectBatchIds(briefIds)) {
+            Object why = h.getBrief() == null ? null : h.getBrief().get("why");
+            if (why != null) out.put(h.getId(), trunc(why.toString(), BRIEF_SUMMARY_MAX));
+        }
+        return out;
+    }
+
+    private CareTaskView toView(CareTask t, Map<Long, String[]> students,
+                                Map<Long, String> briefWhy) {
+        CareTaskView v = new CareTaskView();
+        v.setTaskId(t.getId());
+        v.setStudentId(t.getStudentId());
+        String[] sc = students.get(t.getStudentId());
+        v.setStudentName(sc == null ? null : sc[0]);
+        v.setClassName(sc == null ? null : sc[1]);
+        v.setSeverity(t.getSeverity());
+        v.setStatus(t.getStatus());
+        v.setTriggerSummary(CareTriggerSummary.render(t.getTriggerData()));
+        v.setDueAt(t.getDueAt());
+        String why = t.getCurrentBriefId() == null ? null : briefWhy.get(t.getCurrentBriefId());
+        v.setBriefSummary(why);
+        v.setBriefStatus(why != null ? "ready" : "pending");
+        v.setRescheduleCount(t.getRescheduleCount());
+        v.setAcceptedAt(t.getAcceptedAt());
+        v.setClosedAt(t.getClosedAt());
+        v.setClosedReason(t.getClosedReason());
+        v.setTransferredTo(t.getTransferredTo());
+        v.setCreatedAt(t.getCreatedAt());
+        v.setUpdatedAt(t.getUpdatedAt());
+        return v;
+    }
+
+    private static String trunc(String s, int max) {
+        if (s == null) return null;
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    private static Long asLong(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number n) return n.longValue();
+        try {
+            return Long.parseLong(o.toString().trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**
