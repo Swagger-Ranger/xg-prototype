@@ -58,7 +58,7 @@ export default function CareWorkbenchPage() {
   const invalidateAll = () => qc.invalidateQueries({ queryKey: ['care.tasks'] });
 
   const acceptM = useMutation({
-    mutationFn: (t: CareTaskView) => acceptCareTask(t.taskId),
+    mutationFn: (t: CareTaskView) => acceptCareTask(t.task_id),
     onSuccess: () => {
       message.success('已接单');
       invalidateAll();
@@ -67,7 +67,7 @@ export default function CareWorkbenchPage() {
   });
 
   const resolveM = useMutation({
-    mutationFn: (t: CareTaskView) => resolveCareTask(t.taskId),
+    mutationFn: (t: CareTaskView) => resolveCareTask(t.task_id),
     onSuccess: () => {
       message.success('已完成');
       invalidateAll();
@@ -87,7 +87,7 @@ export default function CareWorkbenchPage() {
 
   const cardHandlers = (t: CareTaskView) => ({
     task: t,
-    onDetail: (x: CareTaskView) => navigate(`/care/task/${x.taskId}`),
+    onDetail: (x: CareTaskView) => navigate(`/care/task/${x.task_id}`),
     onAccept: (x: CareTaskView) => acceptM.mutate(x),
     onResolve: confirmResolve,
     onReschedule: setRescheduleTask,
@@ -115,7 +115,7 @@ export default function CareWorkbenchPage() {
       ) : (
         <div className={styles.cardList}>
           {rows.map((t) => (
-            <CareTaskCard key={t.taskId} variant={s.variant} {...cardHandlers(t)} />
+            <CareTaskCard key={t.task_id} variant={s.variant} {...cardHandlers(t)} />
           ))}
         </div>
       ),

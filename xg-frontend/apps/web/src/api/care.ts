@@ -12,28 +12,31 @@ export type CareStatus =
   | 'overdue';
 export type CareBriefStatus = 'ready' | 'pending';
 
-/** 对齐后端 CareTaskView（W1 §4.5：无 rule_id / assigned_to / 原始 trigger_data） */
+/**
+ * 对齐后端 CareTaskView（W1 §4.5：无 rule_id / assigned_to / 原始 trigger_data）。
+ * 后端全局 jackson SNAKE_CASE，字段名用下划线，与 alert.ts / shared 一致。
+ */
 export interface CareTaskView {
-  taskId: number;
-  studentId: number;
-  studentName: string | null;
-  className: string | null;
+  task_id: number;
+  student_id: number;
+  student_name: string | null;
+  class_name: string | null;
   severity: CareSeverity;
   status: CareStatus;
-  triggerSummary: string;
-  dueAt: string;
-  briefSummary: string | null;
-  briefStatus: CareBriefStatus;
-  rescheduleCount: number | null;
-  acceptedAt: string | null;
-  closedAt: string | null;
-  closedReason: string | null;
-  transferredTo: string | null;
-  createdAt: string;
-  updatedAt: string;
+  trigger_summary: string;
+  due_at: string;
+  brief_summary: string | null;
+  brief_status: CareBriefStatus;
+  reschedule_count: number | null;
+  accepted_at: string | null;
+  closed_at: string | null;
+  closed_reason: string | null;
+  transferred_to: string | null;
+  created_at: string;
+  updated_at: string;
   /** detail 专属，列表为 null */
-  historyCount: number | null;
-  triggerEvidence: Record<string, unknown> | null;
+  history_count: number | null;
+  trigger_evidence: Record<string, unknown> | null;
 }
 
 /** AI brief 输出（PRD §11.3）；缺失时后端返回 null（触发懒加载） */
@@ -107,8 +110,9 @@ export function rejectCareTask(
   reasonCode: RejectReasonCode,
   reasonDetail?: string,
 ): Promise<void> {
+  // 后端 SNAKE_CASE 反序列化：body 字段须下划线
   return api
-    .post(`/care/tasks/${id}/reject`, { reasonCode, reasonDetail })
+    .post(`/care/tasks/${id}/reject`, { reason_code: reasonCode, reason_detail: reasonDetail })
     .then((res) => res.data);
 }
 
@@ -122,7 +126,7 @@ export function transferCareTask(
   reasonDetail: string,
 ): Promise<void> {
   return api
-    .post(`/care/tasks/${id}/transfer`, { targetDept, reasonDetail })
+    .post(`/care/tasks/${id}/transfer`, { target_dept: targetDept, reason_detail: reasonDetail })
     .then((res) => res.data);
 }
 

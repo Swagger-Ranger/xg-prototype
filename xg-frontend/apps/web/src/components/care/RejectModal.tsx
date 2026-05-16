@@ -33,7 +33,7 @@ export function RejectModal({
   }, [task]);
 
   const m = useMutation({
-    mutationFn: () => rejectCareTask(task!.taskId, reasonCode!, reasonDetail || undefined),
+    mutationFn: () => rejectCareTask(task!.task_id, reasonCode!, reasonDetail || undefined),
     onSuccess: () => {
       message.success('已拒绝');
       onSuccess();

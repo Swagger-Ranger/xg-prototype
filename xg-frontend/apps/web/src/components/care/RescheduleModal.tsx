@@ -21,7 +21,7 @@ export function RescheduleModal({
   }, [task]);
 
   const m = useMutation({
-    mutationFn: () => rescheduleCareTask(task!.taskId, days),
+    mutationFn: () => rescheduleCareTask(task!.task_id, days),
     onSuccess: () => {
       message.success('已改期');
       onSuccess();

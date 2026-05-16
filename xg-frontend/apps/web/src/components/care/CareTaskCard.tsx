@@ -28,7 +28,7 @@ const TERMINAL = new Set(['resolved', 'rejected', 'transferred']);
 export function CareTaskCard(props: CareTaskCardProps) {
   const { task, variant, onDetail, onAccept, onResolve, onReschedule, onReject, onTransfer } = props;
   const accepted = task.status === 'accepted' || task.status === 'in_progress'
-    || (task.status === 'overdue' && !!task.acceptedAt);
+    || (task.status === 'overdue' && !!task.accepted_at);
   const readOnly = TERMINAL.has(task.status);
 
   // W1 §4.4 主/次操作按状态切换
@@ -67,12 +67,12 @@ export function CareTaskCard(props: CareTaskCardProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <SeverityBadge severity={task.severity} />
         {variant === 'normal' && <StatusBadge status={task.status} />}
-        <span style={{ fontWeight: 600 }}>{task.studentName ?? '未知学生'}</span>
-        {task.className && <span style={{ color: '#6b7280' }}>· {task.className}</span>}
-        <span style={{ color: '#6b7280' }}>· {task.triggerSummary}</span>
+        <span style={{ fontWeight: 600 }}>{task.student_name ?? '未知学生'}</span>
+        {task.class_name && <span style={{ color: '#6b7280' }}>· {task.class_name}</span>}
+        <span style={{ color: '#6b7280' }}>· {task.trigger_summary}</span>
       </div>
 
-      {variant === 'compact' && task.briefSummary && (
+      {variant === 'compact' && task.brief_summary && (
         <div
           style={{
             color: '#475569',
@@ -82,10 +82,10 @@ export function CareTaskCard(props: CareTaskCardProps) {
             whiteSpace: 'nowrap',
           }}
         >
-          小夕：{task.briefSummary}
+          小夕：{task.brief_summary}
         </div>
       )}
-      {variant === 'compact' && !task.briefSummary && (
+      {variant === 'compact' && !task.brief_summary && (
         <div style={{ color: '#94a3b8', margin: '8px 0' }}>小夕正在准备…</div>
       )}
 
@@ -97,7 +97,7 @@ export function CareTaskCard(props: CareTaskCardProps) {
           marginTop: 8,
         }}
       >
-        <SlaCountdown dueAt={task.dueAt} />
+        <SlaCountdown dueAt={task.due_at} />
         <Space>
           {primary && (
             <Button type="primary" size="small" onClick={primary.onClick}>

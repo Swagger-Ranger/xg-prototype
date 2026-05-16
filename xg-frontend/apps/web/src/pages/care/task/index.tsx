@@ -107,7 +107,7 @@ export default function CareTaskDetailPage() {
 
   const t: CareTaskView = taskQ.data;
   const accepted =
-    t.status === 'accepted' || t.status === 'in_progress' || (t.status === 'overdue' && !!t.acceptedAt);
+    t.status === 'accepted' || t.status === 'in_progress' || (t.status === 'overdue' && !!t.accepted_at);
   const readOnly = TERMINAL.has(t.status);
 
   const briefState: 'ready' | 'pending' | 'failed' = briefQ.data?.why
@@ -118,7 +118,7 @@ export default function CareTaskDetailPage() {
         ? 'failed'
         : 'pending';
 
-  const evidence = t.triggerEvidence ?? {};
+  const evidence = t.trigger_evidence ?? {};
 
   return (
     <div style={{ padding: 24, maxWidth: 860, margin: '0 auto', paddingBottom: 88 }}>
@@ -126,18 +126,18 @@ export default function CareTaskDetailPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Space>
           <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/care')} />
-          <span style={{ fontWeight: 600, fontSize: 16 }}>{t.studentName ?? '未知学生'}</span>
-          {t.className && <span style={{ color: '#6b7280' }}>· {t.className}</span>}
+          <span style={{ fontWeight: 600, fontSize: 16 }}>{t.student_name ?? '未知学生'}</span>
+          {t.class_name && <span style={{ color: '#6b7280' }}>· {t.class_name}</span>}
         </Space>
         <Space>
           <SeverityBadge severity={t.severity} />
           <StatusBadge status={t.status} />
-          <SlaCountdown dueAt={t.dueAt} />
+          <SlaCountdown dueAt={t.due_at} />
         </Space>
       </div>
 
       {/* 2. 一句话触发摘要 */}
-      <div style={{ margin: '20px 0', fontSize: 15 }}>{t.triggerSummary}</div>
+      <div style={{ margin: '20px 0', fontSize: 15 }}>{t.trigger_summary}</div>
 
       {/* 3. 小夕 AI 助手区（默认展开） */}
       <XiaoxiBrief
@@ -168,11 +168,11 @@ export default function CareTaskDetailPage() {
           },
           {
             key: 'history',
-            label: `历史关怀（共 ${t.historyCount ?? 0} 次）`,
+            label: `历史关怀（共 ${t.history_count ?? 0} 次）`,
             children:
-              (t.historyCount ?? 0) > 0 ? (
+              (t.history_count ?? 0) > 0 ? (
                 <span style={{ color: '#475569' }}>
-                  该同学此前有 {t.historyCount} 次已结束的关怀记录。
+                  该同学此前有 {t.history_count} 次已结束的关怀记录。
                 </span>
               ) : (
                 <span style={{ color: '#94a3b8' }}>暂无历史关怀记录</span>

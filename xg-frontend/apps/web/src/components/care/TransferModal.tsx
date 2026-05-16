@@ -32,7 +32,7 @@ export function TransferModal({
   }, [task]);
 
   const m = useMutation({
-    mutationFn: () => transferCareTask(task!.taskId, targetDept!, reasonDetail.trim()),
+    mutationFn: () => transferCareTask(task!.task_id, targetDept!, reasonDetail.trim()),
     onSuccess: () => {
       message.success('已转介');
       onSuccess();
