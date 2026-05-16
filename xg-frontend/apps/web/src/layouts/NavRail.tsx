@@ -14,6 +14,7 @@ import {
   DeploymentUnitOutlined,
   FormOutlined,
   MessageOutlined,
+  SlidersOutlined,
 } from '@ant-design/icons';
 import { Tooltip } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -29,6 +30,7 @@ const navItems = [
   { key: '/notification', icon: <BellOutlined />, label: '我的通知', permission: null },
   { key: '/student', icon: <TeamOutlined />, label: '学生信息库', permission: 'student:view' },
   { key: '/care', icon: <HeartOutlined />, label: '关怀工作台', permission: null },
+  { key: '/care/rules', icon: <SlidersOutlined />, label: '关怀规则运维', permission: 'alert:rule:manage' },
   { key: '/work-log', icon: <EditOutlined />, label: '工作日志', permission: 'worklog:manage' },
   { key: '/violation', icon: <ExclamationCircleOutlined />, label: '违纪处分', permission: 'discipline:manage' },
   { key: '/alerts', icon: <AlertOutlined />, label: '异常预警', permission: 'student:view' },

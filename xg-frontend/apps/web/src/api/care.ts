@@ -139,3 +139,70 @@ export function getCareBrief(id: number | string): Promise<CareBrief | null> {
 export function refreshCareBrief(id: number | string): Promise<void> {
   return api.post(`/care/tasks/${id}/brief/refresh`).then((res) => res.data);
 }
+
+// ─────────────────── 规则运维（PRD §6.3/§14.1）需 alert:rule:manage ───────────────────
+
+/** 内置规则一行（rule_id 在运维侧需展示，与 W1 §4.5 工作台侧约束无关）。 */
+export interface CareRuleItem {
+  rule_id: string;
+  name: string;
+  category: string;
+  severity: CareSeverity;
+  enabled: boolean;
+}
+
+export interface CareRuleListResponse {
+  rules: CareRuleItem[];
+  /** 全局严重度偏移 -1 / 0 / 1 */
+  severity_offset: number;
+  rule_version: string;
+  /** 下次预计规则集更新日期 yyyy-MM-dd */
+  next_update: string;
+}
+
+export interface CareRejectReasonStat {
+  code: string;
+  label: string;
+  count: number;
+}
+
+export interface CareEffectReportRule {
+  rule_id: string;
+  name: string;
+  category: string;
+  triggered: number;
+  /** 0~1 比率，前端格式化为百分比 */
+  accept_rate: number;
+  resolve_rate: number;
+  avg_close_hours: number;
+  false_positive_rate: number;
+  reject_reasons: CareRejectReasonStat[];
+  hints: string[];
+}
+
+export interface CareEffectReport {
+  window_days: number;
+  rule_version: string;
+  rules: CareEffectReportRule[];
+}
+
+export function listCareRules(): Promise<CareRuleListResponse> {
+  return api.get('/care/rules').then((res) => res.data);
+}
+
+export function toggleCareRule(ruleId: string, enabled: boolean): Promise<void> {
+  // 后端 SNAKE_CASE 反序列化；单字段 enabled 无大小写差异，保持显式
+  return api
+    .post(`/care/rules/${ruleId}/toggle`, { enabled })
+    .then((res) => res.data);
+}
+
+export function setCareSeverityOffset(offset: number): Promise<void> {
+  return api
+    .post('/care/rules/severity-offset', { offset })
+    .then((res) => res.data);
+}
+
+export function getCareEffectReport(): Promise<CareEffectReport> {
+  return api.get('/care/rules/effect-report').then((res) => res.data);
+}

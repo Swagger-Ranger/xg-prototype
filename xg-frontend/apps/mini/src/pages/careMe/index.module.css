@@ -1,0 +1,84 @@
+/* 我的关怀记录 — 温和、低调，不制造焦虑。 */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 120rpx;
+}
+
+.hero {
+  padding: 56rpx 32rpx 24rpx;
+}
+
+.heroTitle {
+  display: block;
+  font-size: 64rpx;
+  color: var(--fg);
+}
+
+.heroSubtitle {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: var(--fg-3);
+}
+
+.state {
+  padding: 64rpx 32rpx;
+  text-align: center;
+  font-size: 28rpx;
+  color: var(--fg-4);
+}
+
+.emptyCard {
+  margin: 8rpx 24rpx;
+  padding: 56rpx 32rpx;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r-lg);
+  text-align: center;
+}
+
+.emptyText {
+  font-size: 30rpx;
+  color: var(--fg-3);
+}
+
+.list {
+  padding: 8rpx 24rpx;
+}
+
+.card {
+  margin-bottom: 20rpx;
+  padding: 32rpx 28rpx;
+  background: #ffffff;
+  border: 1rpx solid var(--bd);
+  border-radius: var(--r-lg);
+  box-shadow: 0 8rpx 24rpx rgba(15, 20, 33, 0.06);
+}
+
+/* 中性灰 chip——本页无 CTA，刻意零 accent，避免任何"被标记"的紧张感 */
+.cardCategory {
+  display: inline-block;
+  margin-bottom: 12rpx;
+  padding: 4rpx 16rpx;
+  font-size: 24rpx;
+  color: var(--fg-3);
+  border: 1rpx solid var(--bd);
+  border-radius: 999rpx;
+}
+
+.cardMessage {
+  display: block;
+  font-size: 30rpx;
+  line-height: 1.6;
+  color: var(--fg);
+}
+
+.footnote {
+  display: block;
+  padding: 16rpx 8rpx 0;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: var(--fg-4);
+}
