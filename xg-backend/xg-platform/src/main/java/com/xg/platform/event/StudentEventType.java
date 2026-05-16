@@ -4,6 +4,8 @@ public enum StudentEventType {
     LEAVE_SUBMIT("leave_submit", 2),
     LEAVE_REJECTED("leave_rejected", 4),
     LEAVE_CANCELLED("leave_cancelled", 2),
+    // 请假到期 48h 未销假；由 LeaveOverdueScheduler 扫描产生，喂主动关怀 R007
+    LEAVE_OVERDUE("leave_overdue", 6),
     CHECKIN_SUCCESS("checkin_success", 0),
     CHECKIN_ABSENT("checkin_absent", 6),
     CHECKIN_LATE("checkin_late", 4),
@@ -26,7 +28,14 @@ public enum StudentEventType {
     ABSENCE_RECORDED("absence_recorded", 6),
     EXAM_FAILED("exam_failed", 5),
     CONSUMPTION_RECORDED("consumption_recorded", 0),
-    CONSUMPTION_ANOMALY("consumption_anomaly", 4);
+    CONSUMPTION_ANOMALY("consumption_anomaly", 4),
+
+    // ── 勤工助学（主动关怀 R011 / R012）──
+    // severity 是默认值；事件入流时 publish() 调用方可按子分类覆盖。
+    WORKSTUDY_OFFBOARDED("workstudy_offboarded", 5),
+    WORKSTUDY_NO_SHOW("workstudy_no_show", 6),
+    WORKSTUDY_APPLY_REJECTED("workstudy_apply_rejected", 3),
+    WORKSTUDY_TIMESHEET_DISPUTED("workstudy_timesheet_disputed", 4);
 
     private final String code;
     private final int defaultSeverity;

@@ -61,6 +61,18 @@ public class CareTask {
     @TableField("reschedule_count")
     private Integer rescheduleCount;
 
+    /** 最近一次规则再次命中时间；merge 时刷新 */
+    @TableField("last_triggered_at")
+    private OffsetDateTime lastTriggeredAt;
+
+    /** 同一规则累计命中次数；merge 累加，新建为 1 */
+    @TableField("trigger_count")
+    private Integer triggerCount;
+
+    /** 关闭时物化 = closed_at + rule.cooldown_days；此前再命中被抑制 */
+    @TableField("cooldown_until")
+    private OffsetDateTime cooldownUntil;
+
     @TableField("closed_at")
     private OffsetDateTime closedAt;
 
