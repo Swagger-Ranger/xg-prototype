@@ -2,6 +2,7 @@ package com.xg.platform.care.controller;
 
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
+import com.xg.platform.care.dto.CareFeedbackRequest;
 import com.xg.platform.care.dto.CareTaskQueryRequest;
 import com.xg.platform.care.dto.CareTaskView;
 import com.xg.platform.care.dto.RejectCareTaskRequest;
@@ -79,6 +80,13 @@ public class CareTaskController {
     public R<Void> transfer(@PathVariable Long id,
                             @Valid @RequestBody TransferCareTaskRequest req) {
         careTaskService.transfer(id, req);
+        return R.ok();
+    }
+
+    @PostMapping("/api/v1/care/tasks/{id}/feedback")
+    public R<Void> feedback(@PathVariable Long id,
+                            @Valid @RequestBody CareFeedbackRequest req) {
+        careTaskService.submitFeedback(id, req);
         return R.ok();
     }
 

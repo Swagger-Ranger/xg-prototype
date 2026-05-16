@@ -2,6 +2,7 @@ package com.xg.platform.care.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xg.common.tenant.TenantContext;
+import com.xg.platform.care.mapper.CareBriefQueryMapper;
 import com.xg.platform.care.mapper.CareTaskAuditMapper;
 import com.xg.platform.care.mapper.CareTaskMapper;
 import com.xg.platform.care.model.CareTask;
@@ -9,6 +10,8 @@ import com.xg.platform.care.model.CareTaskAudit;
 import com.xg.platform.care.rule.CareRuleCatalog;
 import com.xg.platform.care.rule.RuleHit;
 import com.xg.platform.care.rule.RuleSpec;
+import com.xg.platform.notification.recipient.RecipientContext;
+import com.xg.platform.notification.service.NotificationOrchestrator;
 import com.xg.platform.workflow.mapper.AssigneeLookupMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +46,8 @@ public class CareTaskRuleMatchService {
     private final CareTaskMapper careTaskMapper;
     private final CareTaskAuditMapper careTaskAuditMapper;
     private final AssigneeLookupMapper assigneeLookupMapper;
+    private final NotificationOrchestrator notificationOrchestrator;
+    private final CareBriefQueryMapper careBriefQueryMapper;
 
     @Transactional
     public CareTaskUpsertResult upsert(RuleSpec spec, RuleHit hit) {
@@ -140,7 +145,42 @@ public class CareTaskRuleMatchService {
 
         writeAudit(task.getId(), "created", "none", "pending",
                 Map.of("rule_id", spec.ruleId(), "severity", spec.severity()));
+        notifyOnCreate(task);
         return CareTaskUpsertResult.CREATED;
+    }
+
+    /**
+     * 任务创建即时通知（PRD §12）。high / critical 走 Orchestrator（铁律：
+     * 不绕开、不拼文案）；medium 走每日聚合、low 站内待办即任务本身，不在此发。
+     * 通知失败不得影响任务创建 —— best-effort，吞异常。
+     */
+    private void notifyOnCreate(CareTask task) {
+        try {
+            CareNotifyPolicy.codeForCreate(task.getSeverity()).ifPresent(code -> {
+                Map<String, Object> vars = new HashMap<>();
+                if (CareNotifyPolicy.CRITICAL_DASHBOARD.equals(code)) {
+                    // §12.2 critical_dashboard 文案含 {{college_name}} {{n}}
+                    vars.put("n", "1");
+                    vars.put("college_name", resolveCollege(task.getStudentId()));
+                }
+                notificationOrchestrator.send(code, "care_task", task.getId(),
+                        RecipientContext.applicant(task.getAssignedTo()), vars);
+            });
+        } catch (Exception e) {
+            log.warn("care notifyOnCreate failed taskId={} severity={}: {}",
+                    task.getId(), task.getSeverity(), e.getMessage());
+        }
+    }
+
+    private String resolveCollege(Long studentId) {
+        try {
+            Map<String, Object> info =
+                    careBriefQueryMapper.studentBasicInfo(TenantContext.getTenantId(), studentId);
+            Object c = info == null ? null : info.get("college");
+            return c == null ? "" : c.toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     // ─────────────────────── helpers ───────────────────────

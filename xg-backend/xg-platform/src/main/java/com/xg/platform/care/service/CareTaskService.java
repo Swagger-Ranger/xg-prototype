@@ -9,6 +9,7 @@ import com.xg.platform.auth.CurrentUser;
 import com.xg.platform.care.domain.CareTaskEvent;
 import com.xg.platform.care.domain.CareTaskStatus;
 import com.xg.platform.care.domain.CareTaskTransitions;
+import com.xg.platform.care.dto.CareFeedbackRequest;
 import com.xg.platform.care.dto.CareTaskQueryRequest;
 import com.xg.platform.care.dto.CareTaskView;
 import com.xg.platform.care.dto.RejectCareTaskRequest;
@@ -154,6 +155,24 @@ public class CareTaskService {
             throw new BizException(CareTaskErrorCode.CARE_BRIEF_REFRESH_TOO_FREQUENT);
         }
         careBriefService.generate(task, trigger);
+    }
+
+    /**
+     * 反馈入口（PRD §10.3 / §14.1）：辅导员标记误报 / 提改进建议，喂回规则效果报表。
+     * 与状态机正交，不改 status、不写 audit（reject 的 rejected_reason 走 reject 流程）。
+     */
+    @Transactional
+    public void submitFeedback(Long taskId, CareFeedbackRequest req) {
+        requireTask(taskId);
+        CareTaskFeedback fb = new CareTaskFeedback();
+        fb.setTenantId(TenantContext.getTenantId());
+        fb.setTaskId(taskId);
+        fb.setFeedbackType(req.getFeedbackType());
+        fb.setReasonCode(req.getReasonCode());
+        fb.setReasonDetail(req.getReasonDetail());
+        fb.setSubmittedBy(CurrentUser.idOrNull());
+        fb.setSubmittedAt(OffsetDateTime.now());
+        careTaskFeedbackMapper.insert(fb);
     }
 
     // ─────────────────────────── 动作 ───────────────────────────
