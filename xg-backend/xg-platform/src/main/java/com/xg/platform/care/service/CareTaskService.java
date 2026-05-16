@@ -54,6 +54,7 @@ public class CareTaskService {
     private final CareTaskAuditMapper careTaskAuditMapper;
     private final CareTaskFeedbackMapper careTaskFeedbackMapper;
     private final TaskAiBriefHistoryMapper briefHistoryMapper;
+    private final CareBriefService careBriefService;
 
     // ─────────────────────────── 查询 ───────────────────────────
 
@@ -101,13 +102,15 @@ public class CareTaskService {
     }
 
     /**
-     * W2.2 占位：只写一条 lazy/manual_refresh 请求标记，实际 brief 生成 W2.3 接 AI sidecar。
-     * 当前直接抛 not-implemented 还是返回 accepted？选 accepted —— 前端可早连接，W2.3 接通后无感切换。
+     * 触发 AI brief 生成。manual_refresh 走 5 分钟限流（PRD §11.1）；
+     * lazy（前端详情发现 brief 缺失时调）不限流。生成失败按 §11.5 静默降级，不抛。
      */
     public void requestBriefRefresh(Long taskId, String trigger) {
-        requireTask(taskId);
-        log.info("brief refresh requested taskId={} trigger={} user={} — W2.3 will route to AI sidecar",
-                taskId, trigger, CurrentUser.idOrNull());
+        CareTask task = requireTask(taskId);
+        if ("manual_refresh".equals(trigger) && careBriefService.generatedWithinMinutes(taskId, 5)) {
+            throw new BizException(CareTaskErrorCode.CARE_BRIEF_REFRESH_TOO_FREQUENT);
+        }
+        careBriefService.generate(task, trigger);
     }
 
     // ─────────────────────────── 动作 ───────────────────────────
