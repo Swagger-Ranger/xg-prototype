@@ -25,6 +25,9 @@ public final class CareRuleCatalog {
     /** 规则集版本：升级规则逻辑 / 阈值时 +1，写进 care_task.rule_version 供老任务追溯。 */
     public static final String RULE_VERSION = "p1-2026.05";
 
+    /** 下次预计规则集更新日期（PRD §6.3，规则运维视图展示）。产品方排期占位，随版本同步更新。 */
+    public static final String NEXT_UPDATE = "2026-08-01";
+
     private CareRuleCatalog() {}
 
     public static final List<RuleSpec> RULES = List.of(

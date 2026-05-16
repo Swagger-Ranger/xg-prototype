@@ -39,12 +39,17 @@ class CareTaskRuleMatchServiceTest {
     @Mock CareTaskMapper careTaskMapper;
     @Mock CareTaskAuditMapper careTaskAuditMapper;
     @Mock AssigneeLookupMapper assigneeLookupMapper;
+    @Mock CareRuleConfigService ruleConfigService;
 
     @InjectMocks CareTaskRuleMatchService service;
 
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId("t1");
+        // 这些用例验证去重/冷却/升级，与全局严重度偏移无关 → 偏移 0（恒等），
+        // 保持基础 severity 不变，沿用本测试集原有语义。
+        when(ruleConfigService.effectiveSeverity(any()))
+                .thenAnswer(inv -> inv.getArgument(0));
     }
 
     @AfterEach

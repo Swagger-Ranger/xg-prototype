@@ -18,7 +18,8 @@ public enum CareTaskErrorCode implements ErrorCode {
     CARE_TASK_RESCHEDULE_LIMIT_EXCEEDED("CARE_TASK_RESCHEDULE_LIMIT_EXCEEDED", "改期次数已达上限"),
     CARE_TASK_REJECT_REASON_REQUIRED("CARE_TASK_REJECT_REASON_REQUIRED", "请选择拒绝原因"),
     CARE_TASK_TRANSFER_TARGET_REQUIRED("CARE_TASK_TRANSFER_TARGET_REQUIRED", "请选择转介目标部门并填写说明"),
-    CARE_BRIEF_REFRESH_TOO_FREQUENT("CARE_BRIEF_REFRESH_TOO_FREQUENT", "分析过于频繁，请 5 分钟后再试");
+    CARE_BRIEF_REFRESH_TOO_FREQUENT("CARE_BRIEF_REFRESH_TOO_FREQUENT", "分析过于频繁，请 5 分钟后再试"),
+    CARE_RULE_NOT_FOUND("CARE_RULE_NOT_FOUND", "规则不存在或非当前规则集内置规则");
 
     private final String code;
     private final String message;

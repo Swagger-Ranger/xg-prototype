@@ -48,6 +48,7 @@ public class CareTaskRuleMatchService {
     private final AssigneeLookupMapper assigneeLookupMapper;
     private final NotificationOrchestrator notificationOrchestrator;
     private final CareBriefQueryMapper careBriefQueryMapper;
+    private final CareRuleConfigService ruleConfigService;
 
     @Transactional
     public CareTaskUpsertResult upsert(RuleSpec spec, RuleHit hit) {
@@ -55,10 +56,13 @@ public class CareTaskRuleMatchService {
             return CareTaskUpsertResult.SKIPPED_NO_ASSIGNEE;
         }
         OffsetDateTime now = OffsetDateTime.now();
+        // 全局严重度偏移在此一次性钳位；之后 create/merge/SLA 全用 effSeverity，
+        // 不再读 spec.severity()（PRD §6.3 偏移对所有规则生效）。
+        String effSeverity = ruleConfigService.effectiveSeverity(spec.severity());
 
         CareTask open = findOpenTask(hit.studentId(), spec.ruleId());
         if (open != null) {
-            return merge(open, spec, hit, now);
+            return merge(open, spec, hit, now, effSeverity);
         }
 
         CareTask closed = findLatestClosedTask(hit.studentId(), spec.ruleId());
@@ -71,22 +75,23 @@ public class CareTaskRuleMatchService {
             return CareTaskUpsertResult.SUPPRESSED;
         }
 
-        return create(spec, hit, now);
+        return create(spec, hit, now, effSeverity);
     }
 
     // ─────────────────────── merge ───────────────────────
 
-    private CareTaskUpsertResult merge(CareTask open, RuleSpec spec, RuleHit hit, OffsetDateTime now) {
+    private CareTaskUpsertResult merge(CareTask open, RuleSpec spec, RuleHit hit,
+                                       OffsetDateTime now, String effSeverity) {
         // 最新快照覆盖（不维护样本数组）；全量明细以 student_event_log 为准
         open.setTriggerData(hit.triggerData());
         open.setLastTriggeredAt(now);
         open.setTriggerCount((open.getTriggerCount() == null ? 1 : open.getTriggerCount()) + 1);
         open.setUpdatedAt(now);
 
-        boolean upgraded = rank(spec.severity()) > rank(open.getSeverity());
+        boolean upgraded = rank(effSeverity) > rank(open.getSeverity());
         if (upgraded) {
-            open.setSeverity(spec.severity());
-            OffsetDateTime newDue = now.plusHours(slaHours(spec.severity()));
+            open.setSeverity(effSeverity);
+            OffsetDateTime newDue = now.plusHours(slaHours(effSeverity));
             if (open.getDueAt() == null || newDue.isBefore(open.getDueAt())) {
                 open.setDueAt(newDue);
             }
@@ -97,7 +102,7 @@ public class CareTaskRuleMatchService {
         payload.put("rule_id", spec.ruleId());
         payload.put("trigger_count", open.getTriggerCount());
         if (upgraded) {
-            payload.put("new_severity", spec.severity());
+            payload.put("new_severity", effSeverity);
             writeAudit(open.getId(), "severity_upgraded",
                     open.getStatus(), open.getStatus(), payload);
         } else {
@@ -109,7 +114,8 @@ public class CareTaskRuleMatchService {
 
     // ─────────────────────── create ───────────────────────
 
-    private CareTaskUpsertResult create(RuleSpec spec, RuleHit hit, OffsetDateTime now) {
+    private CareTaskUpsertResult create(RuleSpec spec, RuleHit hit,
+                                        OffsetDateTime now, String effSeverity) {
         Long assignee = resolveAssignee(hit.studentId());
         if (assignee == null) {
             log.warn("care task skipped: no counselor for student={} rule={}",
@@ -122,11 +128,11 @@ public class CareTaskRuleMatchService {
         task.setStudentId(hit.studentId());
         task.setRuleId(spec.ruleId());
         task.setRuleVersion(CareRuleCatalog.RULE_VERSION);
-        task.setSeverity(spec.severity());
+        task.setSeverity(effSeverity);
         task.setTriggerData(hit.triggerData());
         task.setStatus("pending");
         task.setAssignedTo(assignee);
-        task.setDueAt(now.plusHours(slaHours(spec.severity())));
+        task.setDueAt(now.plusHours(slaHours(effSeverity)));
         task.setRescheduleCount(0);
         task.setTriggerCount(1);
         task.setLastTriggeredAt(now);
@@ -144,7 +150,7 @@ public class CareTaskRuleMatchService {
         }
 
         writeAudit(task.getId(), "created", "none", "pending",
-                Map.of("rule_id", spec.ruleId(), "severity", spec.severity()));
+                Map.of("rule_id", spec.ruleId(), "severity", effSeverity));
         notifyOnCreate(task);
         return CareTaskUpsertResult.CREATED;
     }

@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 扫当前租户全部内置规则，把命中交给 {@link CareTaskRuleMatchService} 决定 create/merge/suppress。
@@ -23,6 +24,7 @@ public class CareScanService {
 
     private final CareRuleEngine ruleEngine;
     private final CareTaskRuleMatchService ruleMatchService;
+    private final CareRuleConfigService ruleConfigService;
 
     /**
      * 扫当前租户全部规则，返回新建任务数（仅计 CREATED；merge/suppress 不计）。
@@ -31,7 +33,12 @@ public class CareScanService {
      */
     public int scanCurrentTenant() {
         int created = 0;
+        // 租户停用的规则整条跳过（PRD §6.3）。一次性取停用集，避免逐规则查库。
+        Set<String> disabled = ruleConfigService.disabledRuleIds();
         for (RuleSpec spec : CareRuleCatalog.RULES) {
+            if (disabled.contains(spec.ruleId())) {
+                continue;
+            }
             try {
                 List<RuleHit> hits = ruleEngine.evaluate(spec);
                 for (RuleHit hit : hits) {
