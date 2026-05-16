@@ -18,6 +18,8 @@ const WorkLogManagement = lazy(() => import('./pages/workLog'));
 const ViolationManagement = lazy(() => import('./pages/violation'));
 const WorkStudyManagement = lazy(() => import('./pages/workStudy'));
 const AlertManagement = lazy(() => import('./pages/alert'));
+const CareWorkbench = lazy(() => import('./pages/care'));
+const CareTaskDetail = lazy(() => import('./pages/care/task'));
 const CounselorTalkManagement = lazy(() => import('./pages/counselorTalk'));
 const WorkflowManagement = lazy(() => import('./pages/workflow'));
 const FormManagement = lazy(() => import('./pages/forms'));
@@ -89,6 +91,8 @@ export default function App() {
           <Route path="violation" element={<ViolationManagement />} />
           <Route path="work-study" element={<WorkStudyManagement />} />
           <Route path="alerts" element={<AlertManagement />} />
+          <Route path="care" element={<CareWorkbench />} />
+          <Route path="care/task/:taskId" element={<CareTaskDetail />} />
           <Route path="counselor-talks" element={<CounselorTalkManagement />} />
           <Route path="workflows" element={<WorkflowManagement />} />
           <Route path="forms" element={<FormManagement />} />

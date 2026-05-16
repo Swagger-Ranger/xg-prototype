@@ -1,4 +1,5 @@
 import {
+  HeartOutlined,
   HomeOutlined,
   CalendarOutlined,
   SnippetsOutlined,
@@ -27,6 +28,7 @@ const navItems = [
   { key: '/checkin', icon: <EnvironmentOutlined />, label: '签到', permission: 'checkin:manage' },
   { key: '/notification', icon: <BellOutlined />, label: '我的通知', permission: null },
   { key: '/student', icon: <TeamOutlined />, label: '学生信息库', permission: 'student:view' },
+  { key: '/care', icon: <HeartOutlined />, label: '关怀工作台', permission: null },
   { key: '/work-log', icon: <EditOutlined />, label: '工作日志', permission: 'worklog:manage' },
   { key: '/violation', icon: <ExclamationCircleOutlined />, label: '违纪处分', permission: 'discipline:manage' },
   { key: '/alerts', icon: <AlertOutlined />, label: '异常预警', permission: 'student:view' },
@@ -48,7 +50,7 @@ const EMPLOYER_ALLOWED_KEYS = new Set(['/work-study']);
 // 不用动 sys_role_permission（学生还需要 student:view 看自己档案，把权限
 // 删了反而会破坏其它页面）。
 const HIDDEN_KEYS_BY_ROLE: Record<string, ReadonlySet<string>> = {
-  student: new Set(['/notification', '/student', '/alerts']),
+  student: new Set(['/notification', '/student', '/alerts', '/care']),
   counselor: new Set([
     '/collection',
     '/checkin',
@@ -57,12 +59,14 @@ const HIDDEN_KEYS_BY_ROLE: Record<string, ReadonlySet<string>> = {
     '/alerts',
     '/counselor-talks',
   ]),
+  // dean 走 W5 的 /care/dashboard 概览，不进辅导员工作台（W1 §1.3）
   dean: new Set([
     '/collection',
     '/checkin',
     '/notification',
     '/violation',
     '/alerts',
+    '/care',
   ]),
 };
 

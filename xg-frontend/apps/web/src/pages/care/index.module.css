@@ -1,0 +1,33 @@
+.page {
+  padding: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.greeting {
+  color: #475569;
+  margin-bottom: 20px;
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer {
+  margin-top: 28px;
+  text-align: center;
+}
+
+.overdueDot {
+  color: var(--ant-color-error, #dc2626);
+  font-weight: 600;
+}
