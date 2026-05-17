@@ -5,14 +5,20 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xg.business.workstudy.dto.SalaryDecisionRequest;
 import com.xg.business.workstudy.dto.SalaryQueryRequest;
 import com.xg.business.workstudy.dto.SalarySubmitRequest;
+import com.xg.business.workstudy.mapper.EmployerMapper;
 import com.xg.business.workstudy.mapper.WorkStudyApplicationMapper;
 import com.xg.business.workstudy.mapper.WorkStudyPositionMapper;
 import com.xg.business.workstudy.mapper.WorkStudySalaryMapper;
+import com.xg.business.workstudy.mapper.WorkStudyYearSettingMapper;
+import com.xg.business.workstudy.model.Employer;
 import com.xg.business.workstudy.model.WorkStudyApplication;
 import com.xg.business.workstudy.model.WorkStudyPosition;
 import com.xg.business.workstudy.model.WorkStudySalary;
+import com.xg.business.workstudy.model.WorkStudyYearSetting;
 import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
+import com.xg.platform.notification.recipient.RecipientContext;
+import com.xg.platform.notification.service.NotificationOrchestrator;
 import com.xg.platform.workflow.engine.WorkflowEngine;
 import com.xg.platform.workflow.mapper.TaskInstanceMapper;
 import com.xg.platform.workflow.model.TaskInstance;
@@ -40,11 +46,20 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class WorkStudySalaryService {
 
+    /** 视为"全局视野"的管理员角色集（school_admin + aliases）。employer 角色仅看本单位。 */
+    private static final java.util.Set<String> ADMIN_LIKE_ROLES = java.util.Set.of(
+            "school_admin", "student_affairs_officer", "student_affairs_director",
+            "aid_center_officer", "super_admin");
+
     private final WorkStudySalaryMapper salaryMapper;
     private final WorkStudyApplicationMapper applicationMapper;
     private final WorkStudyPositionMapper positionMapper;
+    private final EmployerMapper employerMapper;
+    private final WorkStudyYearSettingMapper yearSettingMapper;
     private final WorkflowEngine workflowEngine;
     private final TaskInstanceMapper taskInstanceMapper;
+    private final NotificationOrchestrator notificationOrchestrator;
+    private final EmployerService employerService;
 
     /**
      * 用工单位申报某学生在某月的薪资。月内可多次申报（不同 month 多条；同月再次申报视作新行）。
@@ -59,13 +74,34 @@ public class WorkStudySalaryService {
         WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
         if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
 
-        // Resolve unit + rate. Prefer V051 fields; fall back to legacy hourly_rate.
         String unitType = pos.getSalaryUnit() != null ? pos.getSalaryUnit() : "hour";
-        BigDecimal unitRate = pos.getSalaryAmount() != null ? pos.getSalaryAmount() : pos.getHourlyRate();
+        BigDecimal unitRate = pos.getSalaryAmount();
         if (unitRate == null) {
             throw WorkStudyErrorCode.SALARY_INVALID_POSITION_RATE.exception();
         }
         BigDecimal amount = unitRate.multiply(req.getUnits()).setScale(2, RoundingMode.HALF_UP);
+
+        // 业务时间三阶段窗口(V114):薪酬申报窗。无配置则放行。
+        if (pos.getAcademicYear() != null) {
+            WorkStudyYearSetting setting = yearSettingMapper.selectOne(new LambdaQueryWrapper<WorkStudyYearSetting>()
+                    .eq(WorkStudyYearSetting::getAcademicYear, pos.getAcademicYear()));
+            if (setting != null && !YearSettingService.inWindow(setting.getSalaryWindowStart(), setting.getSalaryWindowEnd())) {
+                throw WorkStudyErrorCode.OUT_OF_SALARY_WINDOW.exception();
+            }
+        }
+
+        // 用单月度薪酬上限(V113):本月该单位所有非 rejected 薪资 + 当前申报 不能超过 cap。
+        // 同月多次申报视作累计;同月也可能有多个岗位 → 按 employer_id 维度聚合,而非 position_id。
+        if (pos.getEmployerId() != null) {
+            Employer emp = employerMapper.selectById(pos.getEmployerId());
+            if (emp != null && emp.getMonthlySalaryCap() != null) {
+                BigDecimal soFar = sumEmployerMonthSalary(pos.getEmployerId(), req.getMonth());
+                BigDecimal projected = soFar.add(amount);
+                if (projected.compareTo(emp.getMonthlySalaryCap()) > 0) {
+                    throw WorkStudyErrorCode.SALARY_CAP_EXCEEDED.exception();
+                }
+            }
+        }
 
         WorkStudySalary s = new WorkStudySalary();
         s.setStudentId(app.getStudentId());
@@ -105,7 +141,41 @@ public class WorkStudySalaryService {
         } catch (Exception e) {
             log.warn("Failed to start salary workflow for salary {}: {}", s.getId(), e.getMessage());
         }
+
+        // 申报通知 — 让学生知道用人单位已提交他这个月的薪资，正在等资助中心审。
+        // 走 Orchestrator + WORKSTUDY_SALARY_SUBMITTED 模板,管理员可改文案 / 渠道 / 静默。
+        if (app.getStudentId() != null) {
+            try {
+                Map<String, Object> vars = new HashMap<>();
+                vars.put("month", req.getMonth());
+                vars.put("position_title", pos.getTitle() != null ? pos.getTitle() : "勤工岗位");
+                vars.put("amount", amount.toPlainString());
+                notificationOrchestrator.send(
+                        "WORKSTUDY_SALARY_SUBMITTED", "workstudy_salary", s.getId(),
+                        RecipientContext.applicant(app.getStudentId()), vars);
+            } catch (Exception e) {
+                log.warn("Failed to notify student of salary submission for salary {}: {}", s.getId(), e.getMessage());
+            }
+        }
         return s;
+    }
+
+    /** 累计本月该用人单位所有非 rejected 状态的已申报金额(不含当前正在创建的)。 */
+    private BigDecimal sumEmployerMonthSalary(Long employerId, String month) {
+        // 先取该 employer 的全部 position id,然后用 IN 过滤 salary。岗位数通常 < 50 不构成性能问题。
+        List<Long> posIds = positionMapper.selectList(new LambdaQueryWrapper<WorkStudyPosition>()
+                .eq(WorkStudyPosition::getEmployerId, employerId)
+                .select(WorkStudyPosition::getId))
+                .stream().map(WorkStudyPosition::getId).toList();
+        if (posIds.isEmpty()) return BigDecimal.ZERO;
+        List<WorkStudySalary> existing = salaryMapper.selectList(new LambdaQueryWrapper<WorkStudySalary>()
+                .in(WorkStudySalary::getPositionId, posIds)
+                .eq(WorkStudySalary::getMonth, month)
+                .ne(WorkStudySalary::getStatus, "rejected"));
+        return existing.stream()
+                .map(WorkStudySalary::getAmount)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     /**
@@ -149,15 +219,41 @@ public class WorkStudySalaryService {
         return s;
     }
 
-    public PageResult<WorkStudySalary> list(SalaryQueryRequest q) {
+    /**
+     * P2-8：employer 角色（非 admin）只能看本单位岗位下的薪资。
+     * student 在 controller 已被强制 studentId，不在此处再判。
+     */
+    public PageResult<WorkStudySalary> list(SalaryQueryRequest q, Long currentUserId, java.util.List<String> currentUserRoles) {
         Page<WorkStudySalary> page = q.toPage();
         LambdaQueryWrapper<WorkStudySalary> wrapper = new LambdaQueryWrapper<WorkStudySalary>()
                 .eq(q.getStudentId() != null, WorkStudySalary::getStudentId, q.getStudentId())
                 .eq(q.getPositionId() != null, WorkStudySalary::getPositionId, q.getPositionId())
                 .eq(q.getMonth() != null, WorkStudySalary::getMonth, q.getMonth())
                 .eq(q.getStatus() != null, WorkStudySalary::getStatus, q.getStatus())
-                .eq(q.getPositionType() != null, WorkStudySalary::getPositionType, q.getPositionType())
-                .orderByDesc(WorkStudySalary::getCreatedAt);
+                .eq(q.getPositionType() != null, WorkStudySalary::getPositionType, q.getPositionType());
+
+        boolean isAdmin = currentUserRoles != null
+                && currentUserRoles.stream().anyMatch(ADMIN_LIKE_ROLES::contains);
+        boolean isEmployerOnly = !isAdmin && currentUserRoles != null && currentUserRoles.contains("employer");
+        if (isEmployerOnly) {
+            java.util.Set<Long> myEmployerIds = employerService.listMine(currentUserId).stream()
+                    .map(com.xg.business.workstudy.model.Employer::getId)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (myEmployerIds.isEmpty()) {
+                return PageResult.of(page);
+            }
+            java.util.List<WorkStudyPosition> myPositions = positionMapper.selectList(
+                    new LambdaQueryWrapper<WorkStudyPosition>()
+                            .in(WorkStudyPosition::getEmployerId, myEmployerIds)
+                            .select(WorkStudyPosition::getId));
+            if (myPositions.isEmpty()) {
+                return PageResult.of(page);
+            }
+            wrapper.in(WorkStudySalary::getPositionId,
+                    myPositions.stream().map(WorkStudyPosition::getId).toList());
+        }
+
+        wrapper.orderByDesc(WorkStudySalary::getCreatedAt);
         Page<WorkStudySalary> pageResult = salaryMapper.selectPage(page, wrapper);
 
         if (q.getInclude() != null && q.getInclude().contains("position")) {
@@ -174,14 +270,7 @@ public class WorkStudySalaryService {
         List<WorkStudyPosition> positions = positionMapper.selectBatchIds(ids);
         java.util.Map<Long, com.xg.business.workstudy.model.WorkStudyApplication.PositionSummary> byId = new java.util.HashMap<>();
         for (WorkStudyPosition p : positions) {
-            byId.put(p.getId(), new com.xg.business.workstudy.model.WorkStudyApplication.PositionSummary(
-                    p.getId(),
-                    p.getTitle(),
-                    p.getPositionType(),
-                    p.getDepartmentName(),
-                    p.getSalaryUnit(),
-                    p.getSalaryAmount()
-            ));
+            byId.put(p.getId(), com.xg.business.workstudy.model.WorkStudyApplication.PositionSummary.fromPosition(p));
         }
         for (WorkStudySalary s : rows) {
             s.setPositionSummary(byId.get(s.getPositionId()));

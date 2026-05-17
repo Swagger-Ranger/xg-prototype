@@ -1,0 +1,21 @@
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.symbol {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', 'Times New Roman', serif;
+  font-weight: 300;
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.35);
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layer { display: none; }
+}

@@ -25,22 +25,12 @@ public class PositionCreateRequest {
     @Size(max = 16)
     private String positionType;
 
-    /** Legacy free-text department; kept for backward compat. New code should set employerId. */
-    @Size(max = 100)
-    private String departmentName;
-
     @NotBlank
     @Size(max = 4000)
     private String description;
 
     @Size(max = 2000)
     private String requirements;
-
-    private Boolean preferFinancialAid;
-
-    /** Legacy field (元/小时). New code should use salaryUnit + salaryAmount. */
-    @DecimalMin("0.00")
-    private BigDecimal hourlyRate;
 
     @Min(1)
     private Integer weeklyHours;
@@ -96,4 +86,11 @@ public class PositionCreateRequest {
     private List<Long> collegeLimits;
 
     private Boolean selfArranged;
+
+    /** B3 困难生策略：none / bonus / reserved / only。null 视为 none。 */
+    @Size(max = 16)
+    private String financialAidPolicy;
+
+    @Min(0)
+    private Integer reservedCount;
 }

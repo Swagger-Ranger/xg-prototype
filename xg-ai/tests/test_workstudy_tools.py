@@ -46,6 +46,13 @@ def test_counselor_sees_summarize_but_not_student_tools() -> None:
     assert "match_workstudy_positions_to_schedule" not in visible
 
 
+def test_employer_sees_summarize_workstudy_applicants() -> None:
+    # 用工单位是该工具的目标受众（岗位负责人审申请时用）；缺它会导致 AI 助手对 employer
+    # 说"我无法生成对比卡片"。
+    visible = {t["name"] for t in qt.tools_for_role("employer")}
+    assert "summarize_workstudy_applicants" in visible
+
+
 # ----- slot overlap helper -----
 
 

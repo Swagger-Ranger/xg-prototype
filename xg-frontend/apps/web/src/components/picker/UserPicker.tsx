@@ -12,7 +12,7 @@ const ROLE_LABEL: Record<string, string> = {
   school_admin: '校级管理员',
   super_admin: '超级管理员',
   employer: '用工单位',
-  aid_center_officer: '资助中心',
+  aid_center_officer: '资助中心人员',
 };
 
 export type PickedUser = Pick<SystemUser, 'id' | 'username' | 'real_name' | 'phone' | 'email' | 'role_codes'>;
@@ -51,8 +51,12 @@ export interface UserPickerProps {
 function userLabel(u: Pick<SystemUser, 'username' | 'real_name' | 'role_codes'>): string {
   const role = u.role_codes?.[0];
   const roleZh = role ? ROLE_LABEL[role] ?? role : '';
-  const head = u.real_name ? `${u.real_name}（${u.username}）` : u.username;
-  return roleZh ? `${head} · ${roleZh}` : head;
+  // seedUsers 来源（如 EmployersTab 用 employer.contact_* 构造的 fallback 记录）可能
+  // 没有 username,跳过 (工号) 段避免出现「张三（）」这种空括号。
+  const head = u.real_name
+    ? (u.username ? `${u.real_name}（${u.username}）` : u.real_name)
+    : (u.username || '');
+  return roleZh && head ? `${head} · ${roleZh}` : head;
 }
 
 export default function UserPicker({

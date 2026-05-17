@@ -44,6 +44,38 @@ public class WorkStudyApplication extends BaseEntity {
     @TableField("decided_at")
     private OffsetDateTime decidedAt;
 
+    /** Post-hire lifecycle: null (未录用) / on_duty / offboarded. Decoupled from {@link #status}. */
+    @TableField("engagement_status")
+    private String engagementStatus;
+
+    @TableField("engaged_at")
+    private OffsetDateTime engagedAt;
+
+    @TableField("offboarded_at")
+    private OffsetDateTime offboardedAt;
+
+    /** completed / terminated_by_employer / resigned_by_student */
+    @TableField("offboard_reason")
+    private String offboardReason;
+
+    @TableField("offboard_note")
+    private String offboardNote;
+
+    @TableField("offboard_operator_id")
+    private Long offboardOperatorId;
+
+    @TableField("interview_at")
+    private OffsetDateTime interviewAt;
+
+    @TableField("interview_location")
+    private String interviewLocation;
+
+    @TableField("interview_notes")
+    private String interviewNotes;
+
+    @TableField("interview_notified_at")
+    private OffsetDateTime interviewNotifiedAt;
+
     @TableField(value = "form_data", typeHandler = JsonbTypeHandler.class)
     private String formData;
 
@@ -62,5 +94,10 @@ public class WorkStudyApplication extends BaseEntity {
         private String departmentName;
         private String salaryUnit;
         private java.math.BigDecimal salaryAmount;
+
+        public static PositionSummary fromPosition(WorkStudyPosition p) {
+            return new PositionSummary(p.getId(), p.getTitle(), p.getPositionType(),
+                    p.getDepartmentName(), p.getSalaryUnit(), p.getSalaryAmount());
+        }
     }
 }

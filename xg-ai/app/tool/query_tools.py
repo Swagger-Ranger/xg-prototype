@@ -44,12 +44,18 @@ def _client() -> httpx.AsyncClient:
     return httpx.AsyncClient(base_url=settings.java_base_url, timeout=8.0, trust_env=False)
 
 
-def _headers(user_id: str, tenant_id: str, role: str) -> dict[str, str]:
-    return {
+def _headers(user_id: str, tenant_id: str, role: str, authorization: str = "") -> dict[str, str]:
+    # P2.3 起 Java 端 CurrentUser.id() 只信 Sa-Token，不再 X-User-Id 兜底。
+    # AI 工具走前端 chat 链路时必须把 Bearer token 透传过去，否则一调 listApplications/listSalaries 类
+    # 接口（带 autoscope 或 SaCheckPermission）就 401。
+    h = {
         "X-User-Id": user_id or "0",
         "X-Tenant-Id": tenant_id or "default",
         "X-User-Role": role or "student",
     }
+    if authorization:
+        h["Authorization"] = authorization
+    return h
 
 
 def _label(status: str | None) -> str:
@@ -63,7 +69,10 @@ async def _get_json(path: str, params: dict, ctx: dict) -> dict:
         resp = await c.get(
             path,
             params={k: v for k, v in params.items() if v is not None},
-            headers=_headers(ctx["user_id"], ctx["tenant_id"], ctx["user_role"]),
+            headers=_headers(
+                ctx["user_id"], ctx["tenant_id"], ctx["user_role"],
+                ctx.get("authorization") or "",
+            ),
         )
         resp.raise_for_status()
         return resp.json()
@@ -1546,7 +1555,8 @@ TOOLS: list[dict[str, Any]] = [
             },
             "required": ["position_id"],
         },
-        "allowed_roles": {None: {"counselor", "dean", "school_admin", "student_affairs_officer"}},
+        # 用工单位（employer）也是该工具的目标用户群——岗位负责人需要它看候选对比
+        "allowed_roles": {None: {"counselor", "dean", "school_admin", "student_affairs_officer", "employer"}},
     },
     {
         "name": "query_student_events",
@@ -1663,11 +1673,12 @@ async def _read_workflow_config_summary(args: dict[str, Any], ctx: dict) -> str:
     params: dict[str, str] = {"biz_type": biz_type}
     if college_id is not None:
         params["college_id"] = str(college_id)
-    headers = {
-        "X-User-Id": ctx.get("user_id") or "0",
-        "X-Tenant-Id": ctx.get("tenant_id") or "default",
-        "X-User-Role": ctx.get("user_role") or "student",
-    }
+    headers = _headers(
+        ctx.get("user_id") or "0",
+        ctx.get("tenant_id") or "default",
+        ctx.get("user_role") or "student",
+        ctx.get("authorization") or "",
+    )
     try:
         async with _client() as c:
             r = await c.get("/api/v1/workflow-config/summary", headers=headers, params=params)
@@ -1760,6 +1771,7 @@ async def execute(
     tenant_id: str,
     user_role: str,
     user_lang: str = "zh",
+    authorization: str = "",
 ) -> str:
     handler = HANDLERS.get(tool_name)
     if handler is None:
@@ -1772,6 +1784,7 @@ async def execute(
     ctx = {
         "user_id": user_id, "tenant_id": tenant_id,
         "user_role": user_role, "user_lang": user_lang,
+        "authorization": authorization,
     }
     try:
         return await handler(args or {}, ctx)

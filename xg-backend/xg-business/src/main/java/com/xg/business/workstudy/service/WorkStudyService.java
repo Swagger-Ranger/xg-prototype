@@ -7,8 +7,14 @@ import com.xg.business.student.model.StudentProfile;
 import com.xg.business.workstudy.dto.ApplicationCreateRequest;
 import com.xg.business.workstudy.dto.ApplicationDecisionRequest;
 import com.xg.business.workstudy.dto.ApplicationQueryRequest;
+import com.xg.business.workstudy.dto.BatchActionResult;
+import com.xg.business.workstudy.dto.BatchNotifyRequest;
+import com.xg.business.workstudy.dto.BatchOffboardRequest;
+import com.xg.business.workstudy.dto.OffboardByEmployerRequest;
+import com.xg.business.workstudy.dto.OffboardByStudentRequest;
 import com.xg.business.workstudy.dto.PositionCreateRequest;
 import com.xg.business.workstudy.dto.PositionQueryRequest;
+import com.xg.business.workstudy.dto.ScheduleInterviewRequest;
 import com.xg.business.workstudy.dto.TimesheetDisputeRequest;
 import com.xg.business.workstudy.dto.TimesheetFinalizeRequest;
 import com.xg.business.workstudy.dto.TimesheetReportRequest;
@@ -16,6 +22,7 @@ import com.xg.business.workstudy.mapper.WorkStudyApplicationMapper;
 import com.xg.business.workstudy.mapper.WorkStudyPositionMapper;
 import com.xg.business.workstudy.mapper.WorkStudyTimesheetMapper;
 import com.xg.business.workstudy.mapper.WorkStudyYearSettingMapper;
+import com.xg.business.workstudy.model.Employer;
 import com.xg.business.workstudy.model.WorkStudyApplication;
 import com.xg.business.workstudy.model.WorkStudyPosition;
 import com.xg.business.workstudy.model.WorkStudyTimesheet;
@@ -24,6 +31,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
+import com.xg.platform.notification.recipient.RecipientContext;
+import com.xg.platform.notification.service.NotificationOrchestrator;
+import com.xg.platform.notification.service.NotificationService;
+import com.xg.platform.notification.service.SendNotificationRequest;
 import com.xg.platform.system.mapper.SysUserMapper;
 import com.xg.platform.system.model.SysUser;
 import com.xg.platform.workflow.engine.WorkflowEngine;
@@ -59,6 +70,9 @@ public class WorkStudyService {
     private final StudentProfileMapper studentProfileMapper;
     private final FormDataValidator formDataValidator;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
+    private final NotificationOrchestrator notificationOrchestrator;
+    private final EmployerService employerService;
 
     /** Defaults when a year_setting row is missing for the position's academic_year. */
     private static final int DEFAULT_MAX_FIXED = 1;
@@ -86,16 +100,42 @@ public class WorkStudyService {
     // Positions
     // ==========================================================================
 
+    /**
+     * 岗位创建归属校验。{@code bypassOwnership=true}（学工处 / 校管理员）跳过 creator
+     * 与 employer 的归属判断，但 ownerUserId 若指定仍必须属于该 employer。
+     */
+    private void assertCanCreateForEmployer(Long employerId, Long ownerUserId, Long creatorId, boolean bypassOwnership) {
+        if (!bypassOwnership) {
+            if (employerId == null) {
+                throw new BizException("EMPLOYER_REQUIRED", "请选择所属用人单位");
+            }
+            if (!employerService.isUserOperatorOrLeader(employerId, creatorId)) {
+                throw new BizException("FORBIDDEN", "你不是该用人单位的负责人或操作员，无权发起岗位");
+            }
+        }
+        if (employerId != null && ownerUserId != null
+                && !employerService.isUserOperatorOrLeader(employerId, ownerUserId)) {
+            throw new BizException("OWNER_NOT_IN_EMPLOYER", "岗位负责人不属于所选用人单位");
+        }
+    }
+
     @Transactional
-    public WorkStudyPosition createPosition(PositionCreateRequest req, Long creatorId) {
+    public WorkStudyPosition createPosition(PositionCreateRequest req, Long creatorId, boolean bypassOwnership) {
+        assertCanCreateForEmployer(req.getEmployerId(), req.getOwnerUserId(), creatorId, bypassOwnership);
+        // 业务时间三阶段窗口(V114):岗位设定窗。bypassOwnership=true 的校管理员可绕过窗口限制
+        // (校方临时插岗位的场景),普通用单只能在窗口内创建。
+        if (!bypassOwnership && req.getAcademicYear() != null) {
+            WorkStudyYearSetting setting = yearSettingMapper.selectOne(new LambdaQueryWrapper<WorkStudyYearSetting>()
+                    .eq(WorkStudyYearSetting::getAcademicYear, req.getAcademicYear()));
+            if (setting != null && !YearSettingService.inWindow(setting.getPositionWindowStart(), setting.getPositionWindowEnd())) {
+                throw WorkStudyErrorCode.OUT_OF_POSITION_WINDOW.exception();
+            }
+        }
         WorkStudyPosition p = new WorkStudyPosition();
         p.setTitle(req.getTitle());
         p.setPositionType(req.getPositionType() == null ? "fixed" : req.getPositionType());
-        p.setDepartmentName(req.getDepartmentName());
         p.setDescription(req.getDescription());
         p.setRequirements(req.getRequirements());
-        p.setPreferFinancialAid(Boolean.TRUE.equals(req.getPreferFinancialAid()));
-        p.setHourlyRate(req.getHourlyRate());
         p.setWeeklyHours(req.getWeeklyHours() == null ? 10 : req.getWeeklyHours());
         p.setHeadcount(req.getHeadcount() == null ? 1 : req.getHeadcount());
         p.setHiredCount(0);
@@ -122,12 +162,16 @@ public class WorkStudyService {
         p.setGradeLimits(toJson(req.getGradeLimits()));
         p.setCollegeLimits(toJson(req.getCollegeLimits()));
         p.setSelfArranged(Boolean.TRUE.equals(req.getSelfArranged()));
+        // B3 困难生策略；null → 'none'
+        p.setFinancialAidPolicy(req.getFinancialAidPolicy() != null ? req.getFinancialAidPolicy() : "none");
+        p.setReservedCount(req.getReservedCount());
 
         positionMapper.insert(p);
 
         Map<String, Object> formData = new HashMap<>();
         formData.put("title", p.getTitle());
-        formData.put("hourly_rate", p.getHourlyRate());
+        formData.put("salary_unit", p.getSalaryUnit());
+        formData.put("salary_amount", p.getSalaryAmount());
         formData.put("position_id", p.getId());
         formData.put("creator_id", creatorId);
 
@@ -147,11 +191,25 @@ public class WorkStudyService {
         return listPositions(query, null);
     }
 
+    /** 学生场景下追加到 SQL 的资格过滤片段。下推后分页 total = 真实可见数。 */
+    private static final String SQL_HEADCOUNT_AVAILABLE =
+            "(headcount IS NULL OR hired_count IS NULL OR hired_count < headcount)";
+    private static final String SQL_ACCEPTING =
+            "(accepting_applications IS NULL OR accepting_applications = TRUE)";
+    private static final String SQL_EMPLOYER_NOT_DISABLED =
+            "(employer_id IS NULL OR employer_id NOT IN (SELECT id FROM employer WHERE status = 'disabled'))";
+    private static final String SQL_GENDER_OK =
+            "(gender_limit IS NULL OR gender_limit = '' OR LOWER(gender_limit) = LOWER({0}))";
+
+    /** JSONB array 包含 string 值；NULL / 空数组视为"不限制"。{0} 必须是 String 参数。 */
+    private static String sqlJsonbContainsOrEmpty(String column) {
+        return "(" + column + " IS NULL OR jsonb_array_length(" + column + ") = 0"
+                + " OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(" + column + ") elem WHERE elem = {0}))";
+    }
+
     /**
-     * Student-scoped list when {@code query.studentScope=true} and {@code currentStudentId != null}:
-     * after the SQL page, drop positions whose gender/grade/college/headcount restrictions
-     * the student does not satisfy. aid_level filter is intentionally skipped — student profile
-     * does not yet store financial aid level (TODO once that field lands).
+     * P1-5：学生场景下，资格过滤全部下推 PG（jsonb_exists / jsonb_array_length / 子查询排除 disabled employer）；
+     * 分页 total = 学生真实可见岗位数。非学生场景保持原 wrapper，admin / employer 后台仍能看到 disabled 单位下的岗位。
      */
     public PageResult<WorkStudyPosition> listPositions(PositionQueryRequest query, Long currentStudentId) {
         Page<WorkStudyPosition> page = query.toPage();
@@ -160,20 +218,22 @@ public class WorkStudyService {
                 .eq(query.getPositionType() != null, WorkStudyPosition::getPositionType, query.getPositionType())
                 .eq(query.getPreferFinancialAid() != null, WorkStudyPosition::getPreferFinancialAid, query.getPreferFinancialAid())
                 .eq(query.getAcademicYear() != null, WorkStudyPosition::getAcademicYear, query.getAcademicYear())
-                .eq(query.getEmployerId() != null, WorkStudyPosition::getEmployerId, query.getEmployerId())
-                .orderByDesc(WorkStudyPosition::getCreatedAt);
-        Page<WorkStudyPosition> pageResult = positionMapper.selectPage(page, wrapper);
+                .eq(query.getEmployerId() != null, WorkStudyPosition::getEmployerId, query.getEmployerId());
 
         if (Boolean.TRUE.equals(query.getStudentScope()) && currentStudentId != null) {
             StudentEligibility ctx = loadStudentEligibility(currentStudentId);
-            List<WorkStudyPosition> filtered = pageResult.getRecords().stream()
-                    .filter(p -> isEligible(p, ctx))
-                    .toList();
-            pageResult.setRecords(filtered);
-            // Note: page total is the unfiltered count from SQL — accurate "eligible total"
-            // would require a second query; acceptable for student browse UX.
+            String aidLevel = ctx.aidLevel() == null || ctx.aidLevel().isBlank() ? "none" : ctx.aidLevel();
+            wrapper.apply(SQL_HEADCOUNT_AVAILABLE)
+                    .apply(SQL_ACCEPTING)
+                    .apply(SQL_EMPLOYER_NOT_DISABLED)
+                    .apply(ctx.gender() != null, SQL_GENDER_OK, ctx.gender())
+                    .apply(ctx.grade() != null, sqlJsonbContainsOrEmpty("grade_limits"), ctx.grade())
+                    .apply(ctx.college() != null, sqlJsonbContainsOrEmpty("college_limits"), ctx.college())
+                    .apply(sqlJsonbContainsOrEmpty("aid_levels"), aidLevel);
         }
-        return PageResult.of(pageResult);
+
+        wrapper.orderByDesc(WorkStudyPosition::getCreatedAt);
+        return PageResult.of(positionMapper.selectPage(page, wrapper));
     }
 
     // ==========================================================================
@@ -197,6 +257,10 @@ public class WorkStudyService {
         // Headcount full → hide
         if (p.getHeadcount() != null && p.getHiredCount() != null
                 && p.getHiredCount() >= p.getHeadcount()) {
+            return false;
+        }
+        // A1 暂停招新 → 学生侧隐藏（admin/employer 视角仍可见）
+        if (Boolean.FALSE.equals(p.getAcceptingApplications())) {
             return false;
         }
         // Gender restriction
@@ -286,10 +350,36 @@ public class WorkStudyService {
         return p;
     }
 
+    /**
+     * 岗位级操作归属校验（close / toggleAccepting 等"动该岗位"的端点共用）。
+     * bypassOwnership=true（学工处 / 校管理员）直接通过；否则要求 userId ∈ 该岗位 employer 的 leader/operator。
+     * legacy 岗位 employer_id 为空时，非 admin 一律拒绝（无法判定归属，从严）。
+     */
+    private void assertCanOperatePosition(WorkStudyPosition p, Long userId, boolean bypassOwnership) {
+        if (bypassOwnership) return;
+        if (p.getEmployerId() == null) {
+            throw new BizException("FORBIDDEN", "该岗位无所属单位，仅学工处 / 校管理员可操作");
+        }
+        if (!employerService.isUserOperatorOrLeader(p.getEmployerId(), userId)) {
+            throw new BizException("FORBIDDEN", "你不是该岗位所属单位的负责人或操作员");
+        }
+    }
+
     @Transactional
-    public void closePosition(Long id) {
+    public void closePosition(Long id, Long userId, boolean bypassOwnership) {
         WorkStudyPosition p = positionDetail(id);
+        assertCanOperatePosition(p, userId, bypassOwnership);
         p.setStatus("closed");
+        positionMapper.updateById(p);
+    }
+
+    /** A1 — toggle 暂停 / 恢复招新。仅在 status='open' 时有意义，但本方法不做 status 校验。 */
+    @Transactional
+    public void togglePositionAccepting(Long positionId, boolean accepting, String reason, Long userId, boolean bypassOwnership) {
+        WorkStudyPosition p = positionDetail(positionId);
+        assertCanOperatePosition(p, userId, bypassOwnership);
+        p.setAcceptingApplications(accepting);
+        p.setPausedReason(accepting ? null : reason);
         positionMapper.updateById(p);
     }
 
@@ -318,6 +408,17 @@ public class WorkStudyService {
         if (!"open".equals(pos.getStatus())) {
             throw WorkStudyErrorCode.POSITION_CLOSED.exception();
         }
+        if (Boolean.FALSE.equals(pos.getAcceptingApplications())) {
+            throw WorkStudyErrorCode.POSITION_NOT_ACCEPTING.exception();
+        }
+        // 业务时间三阶段窗口(V114):学生上岗(申请)窗。无对应学年配置时不限制(legacy 岗位兼容)。
+        if (pos.getAcademicYear() != null) {
+            WorkStudyYearSetting setting = yearSettingMapper.selectOne(new LambdaQueryWrapper<WorkStudyYearSetting>()
+                    .eq(WorkStudyYearSetting::getAcademicYear, pos.getAcademicYear()));
+            if (setting != null && !YearSettingService.inWindow(setting.getApplicationWindowStart(), setting.getApplicationWindowEnd())) {
+                throw WorkStudyErrorCode.OUT_OF_APPLICATION_WINDOW.exception();
+            }
+        }
         if (pos.getHiredCount() != null && pos.getHeadcount() != null
                 && pos.getHiredCount() >= pos.getHeadcount()) {
             throw WorkStudyErrorCode.POSITION_FULL.exception();
@@ -330,6 +431,14 @@ public class WorkStudyService {
         }
         // V051+V053 — gender/grade/college/aid_level + per-year in-job limit
         enforceApplyEligibility(pos, studentId);
+        // B3 — 'only' 策略强校验：非困难生不能申请
+        if ("only".equals(pos.getFinancialAidPolicy())) {
+            StudentEligibility ctx = loadStudentEligibility(studentId);
+            String aid = ctx.aidLevel();
+            if (aid == null || aid.isBlank() || "none".equalsIgnoreCase(aid)) {
+                throw WorkStudyErrorCode.POSITION_AID_ONLY.exception();
+            }
+        }
 
         FormSchema schema = workflowEngine.loadFormSchemaByBizType("workstudy_application");
         formDataValidator.validate(schema, req.getExtraData());
@@ -363,11 +472,44 @@ public class WorkStudyService {
     }
 
     public PageResult<WorkStudyApplication> listApplications(ApplicationQueryRequest query) {
+        return listApplicationsInternal(query, null);
+    }
+
+    /**
+     * employer 角色专用:把申请结果硬性限定在调用者所属单位的岗位范围内。
+     * 防止 employer 通过 AI 工具或直接传任意 positionId 越权拿到其他单位的学生 PII
+     * (controller listApplications 中只把 student 限到自己,employer 之前依赖 FE
+     * 传 employer_id 过滤,AI 路径会绕过)。
+     */
+    public PageResult<WorkStudyApplication> listApplicationsScopedToEmployers(
+            ApplicationQueryRequest query, Long employerUserId) {
+        List<Employer> mine = employerService.listMine(employerUserId);
+        if (mine.isEmpty()) return emptyApplicationPage(query);
+
+        List<Long> myEmployerIds = mine.stream().map(Employer::getId).toList();
+        List<Long> allowedPositionIds = positionMapper.selectList(
+                new LambdaQueryWrapper<WorkStudyPosition>()
+                        .in(WorkStudyPosition::getEmployerId, myEmployerIds)
+                        .select(WorkStudyPosition::getId))
+                .stream().map(WorkStudyPosition::getId).toList();
+        if (allowedPositionIds.isEmpty()) return emptyApplicationPage(query);
+
+        // 调用方若指定了 positionId,必须在允许集里;否则视为越权,返回空。
+        if (query.getPositionId() != null && !allowedPositionIds.contains(query.getPositionId())) {
+            return emptyApplicationPage(query);
+        }
+        return listApplicationsInternal(query, allowedPositionIds);
+    }
+
+    private PageResult<WorkStudyApplication> listApplicationsInternal(
+            ApplicationQueryRequest query, List<Long> restrictPositionIds) {
         Page<WorkStudyApplication> page = query.toPage();
         LambdaQueryWrapper<WorkStudyApplication> wrapper = new LambdaQueryWrapper<WorkStudyApplication>()
+                .in(restrictPositionIds != null, WorkStudyApplication::getPositionId, restrictPositionIds)
                 .eq(query.getPositionId() != null, WorkStudyApplication::getPositionId, query.getPositionId())
                 .eq(query.getStudentId() != null, WorkStudyApplication::getStudentId, query.getStudentId())
                 .eq(query.getStatus() != null, WorkStudyApplication::getStatus, query.getStatus())
+                .eq(query.getEngagementStatus() != null, WorkStudyApplication::getEngagementStatus, query.getEngagementStatus())
                 .orderByDesc(WorkStudyApplication::getCreatedAt);
         Page<WorkStudyApplication> pageResult = applicationMapper.selectPage(page, wrapper);
 
@@ -375,6 +517,15 @@ public class WorkStudyService {
             attachPositionSummaries(pageResult.getRecords());
         }
         return PageResult.of(pageResult);
+    }
+
+    private PageResult<WorkStudyApplication> emptyApplicationPage(ApplicationQueryRequest query) {
+        PageResult<WorkStudyApplication> r = new PageResult<>();
+        r.setData(List.of());
+        r.setTotal(0L);
+        r.setPage(query.getPage());
+        r.setSize(query.getSize());
+        return r;
     }
 
     /** Batch-fetch positions for the records' unique position_ids and attach a summary to each. */
@@ -386,14 +537,7 @@ public class WorkStudyService {
         List<WorkStudyPosition> positions = positionMapper.selectBatchIds(ids);
         java.util.Map<Long, WorkStudyApplication.PositionSummary> byId = new java.util.HashMap<>();
         for (WorkStudyPosition p : positions) {
-            byId.put(p.getId(), new WorkStudyApplication.PositionSummary(
-                    p.getId(),
-                    p.getTitle(),
-                    p.getPositionType(),
-                    p.getDepartmentName(),
-                    p.getSalaryUnit(),
-                    p.getSalaryAmount()
-            ));
+            byId.put(p.getId(), WorkStudyApplication.PositionSummary.fromPosition(p));
         }
         for (WorkStudyApplication a : apps) {
             a.setPositionSummary(byId.get(a.getPositionId()));
@@ -431,6 +575,231 @@ public class WorkStudyService {
         app.setDecidedBy(deciderId);
         app.setDecidedAt(OffsetDateTime.now());
         applicationMapper.updateById(app);
+    }
+
+    // ==========================================================================
+    // Batch actions (A3) — 批量终止 + 批量发通知。续签不在 P0 范围（数据模型缺
+    // engagement_end_date，无法语义化）。每个 application 独立尝试，授权失败 /
+    // 状态不合法的跳过，返回汇总。
+    // ==========================================================================
+
+    @Transactional
+    public BatchActionResult batchOffboard(BatchOffboardRequest req, Long operatorId, List<String> operatorRoles) {
+        BatchActionResult result = new BatchActionResult();
+        boolean isAdmin = operatorRoles != null && operatorRoles.stream()
+                .anyMatch(r -> "school_admin".equals(r) || "student_affairs_officer".equals(r));
+        String resolvedReason = "completed".equals(req.getReason()) ? "completed" : "terminated_by_employer";
+
+        for (Long applicationId : req.getApplicationIds()) {
+            try {
+                WorkStudyApplication app = applicationMapper.selectById(applicationId);
+                if (app == null) {
+                    result.addFailure(applicationId, "NOT_FOUND", "申请不存在");
+                    continue;
+                }
+                WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
+                if (pos == null) {
+                    result.addFailure(applicationId, "POSITION_NOT_FOUND", "岗位不存在");
+                    continue;
+                }
+                if (!isAdmin && !operatorId.equals(pos.getOwnerUserId())) {
+                    result.setSkipped(result.getSkipped() + 1);
+                    continue;
+                }
+                if (!"on_duty".equals(app.getEngagementStatus())) {
+                    result.setSkipped(result.getSkipped() + 1);
+                    continue;
+                }
+                doOffboard(app, pos, resolvedReason, req.getNote(), operatorId);
+                notifyOffboardToStudent(app, pos, resolvedReason);
+                result.setSucceeded(result.getSucceeded() + 1);
+            } catch (Exception e) {
+                log.warn("batchOffboard failed application_id={}: {}", applicationId, e.getMessage());
+                result.addFailure(applicationId, "ERROR", e.getMessage());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 批量给选中申请的学生发 ad-hoc 站内信。直接走 NotificationService（不走 Orchestrator）：
+     * Orchestrator 的 (source_type, source_id, template_code) 去重设计与"同一对象多次广播"
+     * 语义冲突，绕开后避免假性 dedup。
+     */
+    public BatchActionResult batchNotify(BatchNotifyRequest req, Long operatorId, List<String> operatorRoles) {
+        BatchActionResult result = new BatchActionResult();
+        boolean isAdmin = operatorRoles != null && operatorRoles.stream()
+                .anyMatch(r -> "school_admin".equals(r) || "student_affairs_officer".equals(r));
+
+        for (Long applicationId : req.getApplicationIds()) {
+            try {
+                WorkStudyApplication app = applicationMapper.selectById(applicationId);
+                if (app == null) {
+                    result.addFailure(applicationId, "NOT_FOUND", "申请不存在");
+                    continue;
+                }
+                if (app.getStudentId() == null) {
+                    result.addFailure(applicationId, "NO_STUDENT", "申请无学生 ID");
+                    continue;
+                }
+                WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
+                if (!isAdmin && (pos == null || !operatorId.equals(pos.getOwnerUserId()))) {
+                    result.setSkipped(result.getSkipped() + 1);
+                    continue;
+                }
+                SendNotificationRequest sendReq = new SendNotificationRequest();
+                sendReq.setSourceType("workstudy_application");
+                sendReq.setSourceId(app.getId());
+                sendReq.setRecipientUserIds(List.of(app.getStudentId()));
+                sendReq.setChannels(List.of("in_app"));
+                sendReq.setTitle(req.getTitle());
+                sendReq.setContent(req.getBody());
+                sendReq.setLevel("normal");
+                notificationService.send(sendReq);
+                result.setSucceeded(result.getSucceeded() + 1);
+            } catch (Exception e) {
+                log.warn("batchNotify failed application_id={}: {}", applicationId, e.getMessage());
+                result.addFailure(applicationId, "ERROR", e.getMessage());
+            }
+        }
+        return result;
+    }
+
+    // ==========================================================================
+    // Interview notice (B2) — employer fills time/location, AI/employer drafts
+    // body, Orchestrator dispatches via 3-channel default. Authority is enforced
+    // by the controller (same authority surface as employer-side offboarding).
+    // ==========================================================================
+
+    @Transactional
+    public void scheduleInterview(Long applicationId, ScheduleInterviewRequest req, Long operatorId) {
+        WorkStudyApplication app = applicationDetail(applicationId);
+        if (!"pending".equals(app.getStatus()) && !"recommended".equals(app.getStatus())) {
+            throw WorkStudyErrorCode.INTERVIEW_INVALID_STATE.exception();
+        }
+        if (req.getBody() == null || req.getBody().isBlank()) {
+            throw WorkStudyErrorCode.INTERVIEW_BODY_REQUIRED.exception();
+        }
+        WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
+        if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
+
+        OffsetDateTime now = OffsetDateTime.now();
+        app.setInterviewAt(req.getInterviewAt());
+        app.setInterviewLocation(req.getInterviewLocation());
+        app.setInterviewNotes(req.getInterviewNotes());
+        app.setInterviewNotifiedAt(now);
+        applicationMapper.updateById(app);
+
+        // Orchestrator path: template = INTERVIEW_INVITE, body透传 via {{body}} var.
+        // Recipient (applicant=student) is decided by template's recipients JSONB.
+        if (app.getStudentId() != null) {
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("position_title", pos.getTitle() != null ? pos.getTitle() : "勤工岗位");
+            vars.put("body", req.getBody());
+            try {
+                notificationOrchestrator.send(
+                        "INTERVIEW_INVITE", "workstudy_application", app.getId(),
+                        RecipientContext.applicant(app.getStudentId()), vars);
+            } catch (Exception e) {
+                log.warn("send INTERVIEW_INVITE failed application_id={}: {}", app.getId(), e.getMessage());
+            }
+        }
+    }
+
+    // ==========================================================================
+    // Offboarding (A2) — direct action, no workflow. Authority is enforced by the
+    // controller (role / ownership check). doOffboard() trusts the caller.
+    // ==========================================================================
+
+    /** Employer terminates or marks a student's engagement as completed. */
+    @Transactional
+    public void offboardByEmployer(Long applicationId, OffboardByEmployerRequest req, Long operatorId) {
+        WorkStudyApplication app = applicationDetail(applicationId);
+        WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
+        if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
+        String resolved = "completed".equals(req.getReason()) ? "completed" : "terminated_by_employer";
+        doOffboard(app, pos, resolved, req.getNote(), operatorId);
+        notifyOffboardToStudent(app, pos, resolved);
+    }
+
+    /** Student resigns from their current engagement. */
+    @Transactional
+    public void offboardByStudent(Long applicationId, OffboardByStudentRequest req, Long studentId) {
+        WorkStudyApplication app = applicationDetail(applicationId);
+        if (!studentId.equals(app.getStudentId())) {
+            throw WorkStudyErrorCode.OFFBOARD_FORBIDDEN.exception();
+        }
+        WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
+        if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
+        doOffboard(app, pos, "resigned_by_student", req.getNote(), studentId);
+        notifyOffboardToEmployer(app, pos);
+    }
+
+    private void doOffboard(WorkStudyApplication app, WorkStudyPosition pos,
+                            String reason, String note, Long operatorId) {
+        if (!"on_duty".equals(app.getEngagementStatus())) {
+            throw WorkStudyErrorCode.APPLICATION_NOT_ON_DUTY.exception();
+        }
+        app.setEngagementStatus("offboarded");
+        app.setOffboardedAt(OffsetDateTime.now());
+        app.setOffboardReason(reason);
+        app.setOffboardNote(note);
+        app.setOffboardOperatorId(operatorId);
+        applicationMapper.updateById(app);
+
+        // hired_count -= 1; intentionally do NOT toggle position.status — cannot
+        // reliably distinguish "manually closed" from "auto-closed when full",
+        // so leave any reopen decision to the employer.
+        if (pos.getHiredCount() != null && pos.getHiredCount() > 0) {
+            pos.setHiredCount(pos.getHiredCount() - 1);
+            positionMapper.updateById(pos);
+        }
+    }
+
+    /** Authority check used by the controller for employer-side offboard. */
+    public void assertEmployerOffboardAuthority(Long applicationId, Long operatorId, List<String> operatorRoles) {
+        WorkStudyApplication app = applicationDetail(applicationId);
+        WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
+        if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
+        if (operatorId.equals(pos.getOwnerUserId())) return;
+        if (operatorRoles != null && operatorRoles.stream()
+                .anyMatch(r -> "school_admin".equals(r) || "student_affairs_officer".equals(r))) {
+            return;
+        }
+        throw WorkStudyErrorCode.OFFBOARD_FORBIDDEN.exception();
+    }
+
+    private void notifyOffboardToStudent(WorkStudyApplication app, WorkStudyPosition pos, String reason) {
+        if (app.getStudentId() == null) return;
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("position_title", pos.getTitle() != null ? pos.getTitle() : "勤工岗位");
+        vars.put("reason_label", "completed".equals(reason) ? "任期已满" : "用人单位终止上岗");
+        vars.put("note_clause", app.getOffboardNote() != null && !app.getOffboardNote().isBlank()
+                ? "说明：" + app.getOffboardNote() : "");
+        try {
+            notificationOrchestrator.send(
+                    "WORKSTUDY_OFFBOARD_TO_STUDENT", "workstudy_application", app.getId(),
+                    RecipientContext.applicant(app.getStudentId()), vars);
+        } catch (Exception e) {
+            log.warn("send WORKSTUDY_OFFBOARD_TO_STUDENT failed application_id={}: {}", app.getId(), e.getMessage());
+        }
+    }
+
+    private void notifyOffboardToEmployer(WorkStudyApplication app, WorkStudyPosition pos) {
+        if (pos.getOwnerUserId() == null) return;
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("position_title", pos.getTitle() != null ? pos.getTitle() : "勤工岗位");
+        vars.put("student_name", app.getStudentName() != null ? app.getStudentName() : "学生");
+        vars.put("note_clause", app.getOffboardNote() != null && !app.getOffboardNote().isBlank()
+                ? "说明：" + app.getOffboardNote() : "");
+        try {
+            // applicant slot 复用 — 实际收件人是岗位负责人(owner_user_id),模板 recipients=[applicant]
+            notificationOrchestrator.send(
+                    "WORKSTUDY_OFFBOARD_TO_EMPLOYER", "workstudy_application", app.getId(),
+                    RecipientContext.applicant(pos.getOwnerUserId()), vars);
+        } catch (Exception e) {
+            log.warn("send WORKSTUDY_OFFBOARD_TO_EMPLOYER failed application_id={}: {}", app.getId(), e.getMessage());
+        }
     }
 
     // ==========================================================================

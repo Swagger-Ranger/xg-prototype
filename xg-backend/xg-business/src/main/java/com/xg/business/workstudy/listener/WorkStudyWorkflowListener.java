@@ -98,6 +98,8 @@ public class WorkStudyWorkflowListener {
         boolean rejected = "rejected".equals(wf);
         if (approved) {
             app.setStatus("hired");
+            app.setEngagementStatus("on_duty");
+            app.setEngagedAt(OffsetDateTime.now());
             stampDecidedFromLastTask(app, event.getInstanceId());
             applicationMapper.updateById(app);
             bumpPositionHiredCount(app.getPositionId());
@@ -224,7 +226,11 @@ public class WorkStudyWorkflowListener {
             if (salary.getStudentId() == null) return;
             req.setRecipientUserIds(List.of(salary.getStudentId()));
             req.setTitle("勤工薪资已确认");
-            req.setContent(String.format("您 %s 的勤工薪资 ¥%s 已审核通过。", month, amount));
+            // 朝夕方案 B：不引入 paid 状态，但文案明确"确认 ≠ 已到账"，给学生一个时间预期。
+            // 真正到账日期由学校线下财务决定，系统不追踪；学生看到这条通知后可以耐心等。
+            req.setContent(String.format(
+                    "您 %s 的勤工薪资 ¥%s 已审核通过，通常 1-2 周内到账校园卡。若超期未到请咨询资助中心。",
+                    month, amount));
             req.setLevel("normal");
         } else {
             // Rejection is actionable for the submitter (employer), not the student.
