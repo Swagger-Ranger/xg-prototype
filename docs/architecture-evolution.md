@@ -300,8 +300,8 @@ M4: SaaS 门户 + 反向隧道（P1，先不做，预留接入点）
 | `xg-ai/app/agent/alert_rule_author/` | — | **保留**（独立用途：DSL 自动生成 author agent） | 不清账 |
 | `xg-ai/app/agent/workflow_author/` | — | **保留**（同上） | 不清账 |
 | `xg-ai/app/tool/*.py`（query_tools / leave_config_tools / workstudy_prompts / base） | `xg-ai/app/tools/`（MCP client / registry） | **共存**：`tool/` 是"业务工具实现"，`tools/` 是"工具基础设施"，正交 | M3 末评估是否合并为单一 `tools/` |
-| `xg-ai/app/llm/qwen.py` | `xg-ai/app/llm/openai_client.py` | M2 后改为薄壳转发 + `DEPRECATED` | M3 末删除 |
-| `xg-ai/app/llm/deepseek.py` | `xg-ai/app/llm/openai_client.py` | M2 后改为薄壳转发 + `DEPRECATED` | M3 末删除 |
+| `xg-ai/app/llm/qwen.py` | `xg-ai/app/llm/openai_client.py` | ✅ M2 已改为薄壳转发 + `DEPRECATED-by` 头注释；签名保留；接 fallback | M3 末删除 |
+| `xg-ai/app/llm/deepseek.py` | `xg-ai/app/llm/openai_client.py` | ✅ M2 已改为薄壳转发 + `DEPRECATED-by` 头注释；`DeepSeekProvider / ToolCall / DeepSeekTurn / chat_native` 签名一字未改；接 fallback | M3 末删除 |
 | `xg-ai/app/llm/provider.py`（抽象基类） | 直接用 `AsyncOpenAI` + 轻量 dataclass | 评估是否保留 | M3 末决定 |
 | `xg-ai/app/rag/embedder.py` | `xg-ai/app/llm/openai_client.embed()`（经 One-API） | M2 后改为转发 | M3.2 末评估 |
 | `xg-ai/app/rag/store.py / retriever.py / ingest.py / knowledge.py` | `xg-ai/app/rag/kb/*`（更精细的版本） | **需要审**：当前是否仍被 `chat.py / api/kb.py` 直接 import？若是则保留，若否则标 DEPRECATED | M1 末扫描，M3.2 末决定 |
@@ -432,6 +432,84 @@ cd ../xg-backend && ./gradlew :xg-app:build --no-daemon
 - M2 详细任务清单 → 见 `xg-ai/task_plan.md` 的"M2"小节（M2 启动时新增）
 - M3 详细任务清单 → 同上
 - M4（SaaS 门户）路线 → 单开 `docs/saas-portal-plan.md`（P1 启动时）
+
+
+
+## 7. 里程碑进度日志（progress log）
+
+> 每完成一个里程碑就在这里追加一节；记录"做了什么 / 验收结论 / 已知小尾巴 / 给下一步的入口"，
+> 让后续接手的人不用回看 git log 就能继续工作。
+
+### 7.1 M1 — 基础设施 + 目录骨架（✅ 已完成）
+
+- Python `xg-ai/app/` 已建 7 个新骨架目录：`agents/ graph/ tools/ memory/ observability/ security/ core/`，每个都有 `__init__.py` + 占位文件 + `STATUS: skeleton-only, target: M-x` 头注释。
+- `xg-ai/app/llm/` 已加 3 个 M2 占位：`openai_client.py / routing.py / fallback.py`。
+- `xg-ai/app/rag/` 已加 3 个 M3.2 占位：`query_transform.py / filters.py / cache.py`。
+- Java `xg-backend/xg-mcp-server/` 子模块骨架已建，**未** include 进 `settings.gradle`（主 jar 字节级不受影响）。
+- `deploy/docker-compose.yml` 新增 `one-api` / `langfuse` 两个 service，`profiles: ["full"]`，`lite` 启动列表不变。
+- `deploy/one-api/README.md` / `deploy/langfuse/README.md` 占位说明完整。
+
+### 7.2 M2 — One-API + Langfuse 接入（✅ 已完成，2026-05-17）
+
+#### 改动明细
+
+| 文件 | 类型 | 作用 |
+|---|---|---|
+| `xg-ai/app/config.py` | 扩字段 | 新增 `openai_api_base_url` / `openai_api_key` / `model_router_default` / `model_chat_default` / `model_analysis_default` / `model_embedding_default` / `langfuse_host` / `langfuse_public_key` / `langfuse_secret_key`，全部默认空串，未配置时行为 = M1。 |
+| `xg-ai/app/llm/openai_client.py` | 实现 | `AsyncOpenAI` 单例工厂（`lru_cache` 按 `(base_url, api_key)` 缓存）；`get_client()` 优先返回 One-API 客户端，否则返回 `None`；公开 `chat / chat_native / embed` 三个底层函数；Langfuse env 完整时自动用 `langfuse.openai.AsyncOpenAI`（channel-1 自动 trace）。`LLMTurn` 与老 `DeepSeekTurn` 同构以便 re-export。 |
+| `xg-ai/app/llm/routing.py` | 实现 | `pick_model("router"/"chat"/"analysis"/"embedding")` 配置驱动，所有缺省回落到 `settings.deepseek_model` / `settings.embedding_model`。 |
+| `xg-ai/app/llm/fallback.py` | 实现 | `try_primary_then(primary, secondary, op=)`：primary 抛异常 → 落 WARNING → 执行 secondary。刻意不引 tenacity（M2 不需要）。 |
+| `xg-ai/app/llm/deepseek.py` | 改薄壳 | 头部加 `DEPRECATED-by: app/llm/openai_client.py, planned removal: M3 末`。`DeepSeekProvider / ToolCall / DeepSeekTurn / chat / chat_native / embed` 签名 **100% 保留**（`DeepSeekTurn = LLMTurn` re-export）。内部分两条路径：One-API（如果 env 配齐）→ fallback → 直连 DeepSeek/ZenMux。 |
+| `xg-ai/app/llm/qwen.py` | 改薄壳 | 同上，`QwenProvider` 签名不变；`embed()` 同样接 fallback。 |
+| `xg-ai/app/observability/langfuse.py` | 实现 | `get_callbacks(user_id=, session_id=, **metadata)`：三个 env 任一缺失返回 `[]`；齐全时返回 `[langfuse.callback.CallbackHandler(...)]`（channel-2，LangGraph 用）。 |
+| `xg-ai/app/agent/workflow_author/graph.py` | 注入 callbacks | `run(...)` 新增 `*, trace_id=None`；`_GRAPH.ainvoke(state, config={"callbacks": get_callbacks(session_id=trace_id, agent=...)})`。 |
+| `xg-ai/app/agent/alert_rule_author/graph.py` | 同上 | 同模式接入。 |
+| `xg-ai/app/api/agent.py` | 透传 | `req.trace_id` 串到 author agent 的 `trace_id=` kwarg。 |
+| `xg-ai/.env.example` | 加注释 | 新增 `OPENAI_API_BASE_URL` / `OPENAI_API_KEY` / `MODEL_*_DEFAULT` / `LANGFUSE_*` 三段占位（默认全部注释掉）。 |
+| `xg-ai/pyproject.toml` | 加依赖 + 修预存配置错 | 加 `langfuse>=2.0,<3.0`；补 `[tool.setuptools] packages = ["app"]` 修 setuptools 多顶层包（`app/` 与 `eval/`）自动发现失败。 |
+
+#### 验收结论（按 §M2 acceptance）
+
+- ✅ **未配** `OPENAI_API_BASE_URL` → 行为等同 M1（直连 ZenMux / dashscope）；9 个业务 caller `from app.llm.deepseek import DeepSeekProvider` 等 import 路径一字未改。
+- ✅ **配上** `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` → 所有 chat/embed 走 One-API；One-API 不可达时 `try_primary_then` 自动回落直连（已用 mock 验证 wiring 正确）。
+- ✅ **配上** `LANGFUSE_HOST / PUBLIC_KEY / SECRET_KEY` → `langfuse.openai.AsyncOpenAI` 接管 SDK，所有 chat/embed 自动落 trace（channel-1）；env 缺失则 `get_callbacks()` 返回 `[]`，业务零副作用。
+- ✅ `uv run python -c "from app.main import app; print(app.title)"` 通过；`DeepSeekProvider().__init__()` 不再因缺密钥抛错（与 M1 行为一致）。
+- ✅ `xg-tool-registry`、`xg-mcp-server` 主 jar 状态未动；`docker compose --profile lite` 启动列表与 M1 前一致。
+
+#### 已知小尾巴（不影响 M2 验收，留给 M3）
+
+- 当前装的是 `langchain 1.3.1` + `langfuse 2.60.10`。`langfuse.callback.CallbackHandler` 探测不到新版 langchain 模块，所以 **LangGraph 节点级 trace（channel-2）拿不到**——author agent 在 Langfuse UI 上不会显示图节点结构；但**内部每次 LLM 调用**仍由 channel-1（`langfuse.openai` 自动 instrument）正常 trace。修法是 M3 升级到 `langfuse>=3`（同时升 ClickHouse 或保留 v2 后端）或固定 langchain 至 0.2.x。M2 范围内不动。
+- `xg-ai/app/llm/provider.py`（`LLMProvider` 抽象基类）暂未被薄壳真正利用——`DeepSeekProvider / QwenProvider` 仍继承它只是为了 `__init__.py` 不破坏旧的 isinstance 检查。M3 末按 §4 清账清单决定是否保留。
+- `xg-ai/app/rag/embedder.py` 仍是本地 `sentence_transformers`，**未**经 One-API。M3.2 末再评估是否切到 `qwen-text-embedding-v3 经 One-API`。
+
+#### Docker 自测建议步骤
+
+```bash
+# 1) 不配 One-API / Langfuse → 期望行为 = M1
+cp xg-ai/.env.example xg-ai/.env
+# 填上 DEEPSEEK_API_KEY；不要解开 OPENAI_API_* 与 LANGFUSE_* 的注释
+docker compose -f deploy/docker-compose.yml --profile lite up -d
+# 跑 /chat /insight /polish /agent/invoke 等接口，对比 M1 行为
+
+# 2) 起 One-API → 期望行为不变，但 One-API 控制台可见流水
+docker compose -f deploy/docker-compose.yml --profile full up -d
+# 浏览器开 http://localhost:3300 → 改密 → 渠道 → 令牌
+# 把令牌写进 .env: OPENAI_API_KEY=sk-xxx, OPENAI_API_BASE_URL=http://one-api:3000/v1
+docker compose restart xg-python  # 或对应 sidecar 服务名
+# 再跑同样接口，期望响应不变，One-API → 日志能看到调用
+
+# 3) 起 Langfuse → 期望可见 trace 树
+# http://localhost:3001 注册 → 建 project → 拿 PUBLIC_KEY/SECRET_KEY
+# 写进 .env: LANGFUSE_HOST=http://langfuse:3000, LANGFUSE_PUBLIC_KEY=..., LANGFUSE_SECRET_KEY=...
+docker compose restart xg-python
+# 跑接口 → Langfuse → Traces 应能看到 chat / agent 调用树
+```
+
+#### 给 M3 的入口
+
+- M3.1 第一件事：升 `langfuse` 或固定 `langchain`，让 `get_callbacks()` 真正返回 handler（LangGraph 节点级 trace 通）。
+- M3.1 第二件事：在 `app/memory/checkpoint.py` 实现 PostgresSaver；DB 迁移建 `langgraph` schema（见目标架构图）。
+- M3.2 起，`app/rag/embedder.py` 可改为转发 `oc.embed(...)`（One-API 路径），按 §4 清账清单时间点决定。
 
 
 

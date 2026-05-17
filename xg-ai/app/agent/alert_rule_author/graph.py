@@ -133,11 +133,13 @@ def _build_graph():
 _GRAPH = _build_graph()
 
 
-async def run(nl: str) -> dict[str, Any]:
+async def run(nl: str, *, trace_id: str | None = None) -> dict[str, Any]:
     """Returns {dsl, attempts, error_message}. dsl is valid iff error_message is None."""
     if not nl or not nl.strip():
         return {"dsl": None, "attempts": [], "error_message": "empty nl"}
-    final: AuthorState = await _GRAPH.ainvoke({"nl": nl.strip(), "attempts": []})
+    from app.observability.langfuse import get_callbacks
+    config = {"callbacks": get_callbacks(session_id=trace_id, agent="alert_rule_author")}
+    final: AuthorState = await _GRAPH.ainvoke({"nl": nl.strip(), "attempts": []}, config=config)
     return {
         "dsl": final.get("dsl") if not final.get("error_message") else None,
         "attempts": [

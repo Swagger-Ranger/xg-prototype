@@ -1,89 +1,75 @@
-import json
+# DEPRECATED-by: app/llm/openai_client.py, planned removal: M3 末
+#
+# 本文件保留是为了让现有 9+ 个调用方零改动地继续 `from app.llm.deepseek import DeepSeekProvider`。
+# 内部逻辑全部转发到 `app.llm.openai_client`：
+#   - 若 `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` 配齐 → 走 One-API（M2 主路径）
+#   - 否则 → 走原 DeepSeek 直连（ZenMux），与 M1 行为完全一致
+#
+# 公开符号（外部依赖）:
+#   - DeepSeekProvider, ToolCall, DeepSeekTurn   # 见下方的 re-export
+"""DeepSeek provider — thin shim forwarding to app.llm.openai_client (M2)."""
+from __future__ import annotations
+
 import logging
-from dataclasses import dataclass
-from openai import AsyncOpenAI
 
 from app.config import settings
-from app.llm.provider import LLMProvider, ChatMessage, ChatResult
+from app.llm import openai_client as oc
+from app.llm.fallback import try_primary_then
+from app.llm.openai_client import ToolCall, LLMTurn as DeepSeekTurn  # re-export
+from app.llm.provider import ChatMessage, ChatResult, LLMProvider
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class ToolCall:
-    """OpenAI-style tool call. `input` is the parsed dict (arguments JSON decoded)."""
-    id: str
-    name: str
-    input: dict
-
-
-@dataclass
-class DeepSeekTurn:
-    """One model turn in OpenAI tool_calls form.
-
-    `assistant_message` is the raw dict ready to be echoed back verbatim
-    as the next turn's assistant message. For each tool_call in it, the
-    caller must append a {"role": "tool", "tool_call_id": ..., "content": ...}
-    message before the next round.
-    """
-    assistant_message: dict
-    text: str
-    tool_calls: list[ToolCall]
-    finish_reason: str | None = None
-    usage: dict | None = None
-
-
-def _to_openai_tool(t: dict) -> dict:
-    """Convert an Anthropic-style {name, description, input_schema} tool
-    definition to an OpenAI tools[] entry."""
-    return {
-        "type": "function",
-        "function": {
-            "name": t["name"],
-            "description": t.get("description", ""),
-            "parameters": t.get("input_schema") or {"type": "object", "properties": {}},
-        },
-    }
+__all__ = ["DeepSeekProvider", "ToolCall", "DeepSeekTurn"]
 
 
 class DeepSeekProvider(LLMProvider):
-    """DeepSeek LLM provider via OpenAI-compatible API."""
+    """DeepSeek-compatible provider.
 
-    def __init__(self):
+    Internally a shim — actual HTTP is done by `app.llm.openai_client`.
+    Public surface (constructor signature, `.chat`, `.chat_native`, `.embed`,
+    raised errors) is preserved.
+    """
+
+    def __init__(self) -> None:
         self.model = settings.deepseek_model
-        key = (settings.deepseek_api_key or "").strip()
-        # AsyncOpenAI 在 api_key 为空时会抛 OpenAIError，导致 FastAPI 模块导入失败、
-        # 容器无限重启。这里改成：缺密钥不创建 client，让 Sidecar 能正常起来；
-        # 真正用到 LLM 的接口在调用时会得到一条明确的运行期错误（业务降级）。
-        if key:
-            self.client = AsyncOpenAI(api_key=key, base_url=settings.deepseek_base_url)
-        else:
-            self.client = None
-            logger.warning(
-                "DEEPSEEK_API_KEY is empty; DeepSeek client disabled. "
-                "Chat/agent endpoints will return an error until the env var is set."
-            )
 
-    def _client(self) -> AsyncOpenAI:
-        if self.client is None:
+    def _one_api_client(self):
+        """Return One-API client if configured, else None."""
+        return oc.get_client()
+
+    def _direct_client(self):
+        """Return direct ZenMux/DeepSeek client; raise if no key."""
+        key = (settings.deepseek_api_key or "").strip()
+        if not key:
             raise RuntimeError(
-                "DeepSeek API key not configured. Set DEEPSEEK_API_KEY in the container env."
+                "DeepSeek API key not configured. Set DEEPSEEK_API_KEY (or OPENAI_API_*) "
+                "in the container env."
             )
-        return self.client
+        return oc.get_client(base_url=settings.deepseek_base_url, api_key=key)
 
     async def chat(self, messages: list[ChatMessage], **kwargs) -> ChatResult:
-        response = await self._client().chat.completions.create(
-            model=kwargs.get("model", self.model),
-            messages=[{"role": m.role, "content": m.content} for m in messages],
-            temperature=kwargs.get("temperature", 0.7),
-            max_tokens=kwargs.get("max_tokens", 2048),
-        )
-        choice = response.choices[0]
-        return ChatResult(
-            content=choice.message.content or "",
-            model=response.model,
-            usage=dict(response.usage) if response.usage else None,
-        )
+        model = kwargs.pop("model", self.model)
+        temperature = kwargs.pop("temperature", 0.7)
+        max_tokens = kwargs.pop("max_tokens", 2048)
+        primary_client = self._one_api_client()
+
+        async def _direct() -> ChatResult:
+            return await oc.chat(
+                self._direct_client(), messages,
+                model=model, temperature=temperature, max_tokens=max_tokens, **kwargs,
+            )
+
+        if primary_client is None:
+            return await _direct()
+
+        async def _via_one_api() -> ChatResult:
+            return await oc.chat(
+                primary_client, messages,
+                model=model, temperature=temperature, max_tokens=max_tokens, **kwargs,
+            )
+
+        return await try_primary_then(_via_one_api, _direct, op="deepseek.chat")
 
     async def chat_native(
         self,
@@ -91,55 +77,29 @@ class DeepSeekProvider(LLMProvider):
         tools: list[dict] | None = None,
         **kwargs,
     ) -> DeepSeekTurn:
-        """Single model turn using OpenAI-native messages (system/user/assistant/tool).
+        model = kwargs.pop("model", self.model)
+        temperature = kwargs.pop("temperature", 0.7)
+        max_tokens = kwargs.pop("max_tokens", 2048)
+        primary_client = self._one_api_client()
 
-        `tools` accepts the Anthropic-style {name, description, input_schema} shape
-        and is converted internally. Caller drives multi-turn by appending
-        `turn.assistant_message`, then one {"role": "tool", ...} per tool call.
-        """
-        params: dict = {
-            "model": kwargs.get("model", self.model),
-            "messages": messages,
-            "temperature": kwargs.get("temperature", 0.7),
-            "max_tokens": kwargs.get("max_tokens", 2048),
-        }
-        if tools:
-            params["tools"] = [_to_openai_tool(t) for t in tools]
-            params["tool_choice"] = "auto"
+        async def _direct() -> DeepSeekTurn:
+            return await oc.chat_native(
+                self._direct_client(), messages,
+                model=model, tools=tools, temperature=temperature, max_tokens=max_tokens, **kwargs,
+            )
 
-        response = await self._client().chat.completions.create(**params)
-        choice = response.choices[0]
-        msg = choice.message
+        if primary_client is None:
+            return await _direct()
 
-        assistant_message: dict = {"role": "assistant", "content": msg.content or ""}
-        tool_calls: list[ToolCall] = []
-        if msg.tool_calls:
-            assistant_message["tool_calls"] = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments or "{}",
-                    },
-                }
-                for tc in msg.tool_calls
-            ]
-            for tc in msg.tool_calls:
-                try:
-                    parsed = json.loads(tc.function.arguments or "{}")
-                except json.JSONDecodeError:
-                    logger.warning("tool_call %s arguments not JSON: %r", tc.function.name, tc.function.arguments)
-                    parsed = {}
-                tool_calls.append(ToolCall(id=tc.id, name=tc.function.name, input=parsed))
+        async def _via_one_api() -> DeepSeekTurn:
+            return await oc.chat_native(
+                primary_client, messages,
+                model=model, tools=tools, temperature=temperature, max_tokens=max_tokens, **kwargs,
+            )
 
-        return DeepSeekTurn(
-            assistant_message=assistant_message,
-            text=msg.content or "",
-            tool_calls=tool_calls,
-            finish_reason=choice.finish_reason,
-            usage=dict(response.usage) if response.usage else None,
-        )
+        return await try_primary_then(_via_one_api, _direct, op="deepseek.chat_native")
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        raise NotImplementedError("DeepSeek does not provide embedding API. Use Qwen for embeddings.")
+        raise NotImplementedError(
+            "DeepSeek does not provide embedding API. Use Qwen for embeddings."
+        )

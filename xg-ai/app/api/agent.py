@@ -34,19 +34,23 @@ class AgentInvokeResponse(BaseModel):
     error_message: str | None = None
 
 
-AgentFn = Callable[[dict[str, Any], dict[str, Any]], Awaitable[dict[str, Any]]]
+AgentFn = Callable[[dict[str, Any], dict[str, Any], str | None], Awaitable[dict[str, Any]]]
 
 
-async def _alert_rule_author(context: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+async def _alert_rule_author(
+    context: dict[str, Any], params: dict[str, Any], trace_id: str | None
+) -> dict[str, Any]:
     nl = context.get("nl") or params.get("nl") or ""
-    return await run_alert_rule_author(nl)
+    return await run_alert_rule_author(nl, trace_id=trace_id)
 
 
-async def _workflow_author(context: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+async def _workflow_author(
+    context: dict[str, Any], params: dict[str, Any], trace_id: str | None
+) -> dict[str, Any]:
     current_dsl = context.get("current_dsl") or params.get("current_dsl") or {}
     instruction = context.get("instruction") or params.get("instruction") or ""
     available_roles = context.get("available_roles") or params.get("available_roles") or []
-    return await run_workflow_author(current_dsl, instruction, available_roles)
+    return await run_workflow_author(current_dsl, instruction, available_roles, trace_id=trace_id)
 
 
 AGENTS: dict[str, AgentFn] = {
@@ -64,7 +68,7 @@ async def invoke(req: AgentInvokeRequest) -> AgentInvokeResponse:
             error_message=f"unknown agent: {req.agent}",
         )
     try:
-        output = await fn(req.context, req.params)
+        output = await fn(req.context, req.params, req.trace_id)
     except Exception as e:
         logger.exception("agent %s failed trace_id=%s", req.agent, req.trace_id)
         return AgentInvokeResponse(agent=req.agent, error_message=f"agent error: {e}")

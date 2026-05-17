@@ -252,6 +252,8 @@ async def run(
     current_dsl: dict[str, Any],
     instruction: str,
     available_roles: list[dict[str, str]] | None = None,
+    *,
+    trace_id: str | None = None,
 ) -> dict[str, Any]:
     """Returns {dsl, summary, attempts, error_message}. dsl is valid iff error_message is None.
 
@@ -263,13 +265,16 @@ async def run(
         return {"dsl": None, "summary": "", "attempts": [], "error_message": "empty instruction"}
     if not isinstance(current_dsl, dict) or not current_dsl.get("nodes"):
         return {"dsl": None, "summary": "", "attempts": [], "error_message": "empty current_dsl"}
+    from app.observability.langfuse import get_callbacks
+    config = {"callbacks": get_callbacks(session_id=trace_id, agent="workflow_author")}
     final: AuthorState = await _GRAPH.ainvoke(
         {
             "current_dsl": current_dsl,
             "instruction": instruction.strip(),
             "available_roles": available_roles or [],
             "attempts": [],
-        }
+        },
+        config=config,
     )
     err = final.get("error_message")
     return {
