@@ -129,6 +129,25 @@ _SYSTEM_PROMPT_ZH = (
     "  - 「公假改成 5 天」→ propose\n"
     "示例(可直接反问):\n"
     "  - 「改请假规则」→ 「想改哪个假别?」\n\n"
+    "### 改勤工助学审批工作流(管理员场景)\n"
+    "**前置权限**:仅 school_admin / super_admin。其他角色直接答「这块由校管理员维护」并停止。\n\n"
+    "**关键认知**:勤工助学有 3 个工作流(岗位申请 / 学生申请 / 薪资申请),改它们的入口在"
+    "「校管理员-勤工助学-业务配置」tab 里。navigate 现在支持**深链接到具体工作流并预填指令**,"
+    "等同于自动帮老师点了「AI 改流程」并打了字 — **禁止说「没有工具」**。\n\n"
+    "**3 个 workflow 的识别**:\n"
+    "  - 关键词「岗位发布 / 岗位审核 / 岗位申请 / 用工单位发布 / 学校审岗位」→ workstudy_position\n"
+    "  - 关键词「学生申请 / 申请录用 / 录用 / 学生应聘 / 学生后面 / 应聘审核」→ workstudy_application\n"
+    "  - 关键词「薪资 / 工资 / 薪酬 / 资助中心 / 月薪」→ workstudy_salary\n\n"
+    "**有权限的管理员场景**:用户说类似下面的话时,**本轮直接 emit navigate**,"
+    "页面跳转 + 自动开 Drawer + 预填指令,等同 leave 的 chat-native 改流程体验。"
+    "**禁止调 propose_workflow_config_change**(那个工具只支持 leave/leave_return)。\n"
+    "示例(navigate 参数):\n"
+    "  - 「改一下薪资工作流加院领导审批」→ navigate(page=work-study, tab=business_config, workflow=workstudy_salary, prompt='加院领导审批')\n"
+    "  - 「岗位申请多加一档院领导」→ navigate(page=work-study, tab=business_config, workflow=workstudy_position, prompt='多加一档院领导')\n"
+    "  - 「学生申请的辅导员节点改成班主任」→ navigate(page=work-study, tab=business_config, workflow=workstudy_application, prompt='辅导员节点改成班主任')\n"
+    "  - 「在学生后面加一个辅导员」→ navigate(page=work-study, tab=business_config, workflow=workstudy_application, prompt='在学生后面加一个辅导员')\n"
+    "  - 「勤工流程加个公示」(没指明哪个)→ 反问「想改哪个工作流?岗位申请 / 学生申请 / 薪资申请」\n"
+    "  - 「改一下勤工的学年规则 / 在岗上限 / 招新时段」→ navigate(page=work-study, tab=business_config)(不填 workflow/prompt,只是跳转)\n\n"
     "### 改通知 / 关怀提醒规则(管理员场景)\n"
     "**前置权限**:同改请假规则 — 仅 school_admin / super_admin / student_affairs_director。\n"
     "其他角色说「改通知」时直接答「这块由校管理员维护」并停止。\n\n"
@@ -139,6 +158,13 @@ _SYSTEM_PROMPT_ZH = (
     "  - 「请假被驳回改成紧急级别」「调 XX 通知的级别」\n"
     "  - 「改 XX 通知的文案」\n"
     "仅当用户**只说「改通知」**(没指定哪条)时才在 chat 直接反问。\n\n"
+    "### 新建自定义角色(管理员场景)\n"
+    "**前置权限**:仅 school_admin / super_admin。其他角色说「新建角色」时,直接答"
+    "「这块由校管理员维护,你的角色没有权限」并停止,**禁止调 open_create_role_modal**。\n\n"
+    "**有权限的管理员场景**:用户说「新建角色 / 加个 XX 助理 / 想要一个只读 XX 的角色」等时,"
+    "**本轮立即调 open_create_role_modal**。如果用户在同一句话里描述了职责(如「副院长助理,只看本院学生」),"
+    "把那段话作为 instruction 透传——前端进入对话框会自动预填,用户一进去就能让 AI 直接推荐权限。\n"
+    "**禁止回答「目前不支持创建新角色」之类的过时说法**——这个功能已经做好了。\n\n"
     "### 学生信息库 过滤（只在 current_page=student 时触发）\n"
     "当用户在 学生信息库 页面说「过滤 / 筛选 / 找 …级 …学院 …专业 …班 / …书院 / …楼栋 / 在读/休学/毕业/退学」"
     "或给出学号/姓名要搜，本轮直接调 filter_students 工具，把识别到的条件作为参数传入。\n"
@@ -242,6 +268,8 @@ UI_TOOLS = [
             "其他业务页同名。"
             "tab/focus 可选:用户说「看 X 假别配置」时填 page=leave + tab=rule + focus={假别 code}, "
             "前端会切到请假规则 tab 并滚动到对应卡片高亮闪烁。"
+            "用户说改勤工工作流(薪资 / 岗位 / 应聘审批)或勤工学年规则 / 时段 时填 "
+            "page=work-study + tab=business_config,前端会落到业务配置 tab,用户在那里点 AI 改流程或编辑学年规则。"
         ),
         "input_schema": {
             "type": "object",
@@ -266,6 +294,28 @@ UI_TOOLS = [
                         "(可选) 假别 code 用于滚动 + 高亮命中卡。仅在 page=leave + tab=rule 时有意义。"
                         "事假=personal,病假=sick,婚假=marriage,公假=official_business,"
                         "因公外出=official,本科生外出实习=internship,晚归申请=late_return"
+                    ),
+                },
+                "workflow": {
+                    "type": "string",
+                    "enum": [
+                        "workstudy_position",
+                        "workstudy_application",
+                        "workstudy_salary",
+                    ],
+                    "description": (
+                        "(可选) 勤工助学场景下指定具体工作流。"
+                        "workstudy_position=岗位申请,workstudy_application=学生申请,"
+                        "workstudy_salary=薪资申请。仅在 page=work-study + tab=business_config 时有意义,"
+                        "前端会自动打开对应工作流的 AI 改流程 Drawer。"
+                    ),
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": (
+                        "(可选) 勤工助学改流程时透传给 AI 的指令原文。配合 workflow 使用,"
+                        "前端打开 Drawer 后会预填这段话并自动提交,等同老师手动输入。"
+                        "把老师原话里跟『改什么』有关的部分透传(如「在学生后面加一个辅导员」)。"
                     ),
                 },
             },
@@ -455,6 +505,31 @@ UI_TOOLS = [
         },
         "allowed_roles": {"school_admin", "super_admin", "student_affairs_director"},
     },
+    {
+        "name": "open_create_role_modal",
+        "description": (
+            "**校管理员新建自定义角色入口**。识别这些表述就调:\n"
+            "- 「新建一个角色」「加个角色」「创建自定义角色」「我想创建一个新角色」\n"
+            "- 「副院长助理 / 院系秘书助理 / XX 岗位 这样的角色怎么建」\n"
+            "- 「我想加一个只能看 X 不能改 X 的角色」\n"
+            "- 「能不能弄个只读权限的助手账号角色」\n"
+            "本工具会自动导航到「系统管理 - 角色权限」并弹出新建对话框。\n"
+            "**如果用户在这一句话里已经描述了角色职责**(例如「副院长助理,只能看学生信息」),"
+            "把原话填到 instruction 参数透传过去——进入对话框后会预填到 AI 推荐输入框,"
+            "用户进去直接点「让小朝/小夕推荐」就能拿到权限组合。\n"
+            "**仅当用户只说「新建角色」没提职责时**才把 instruction 留空,让用户自己描述。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "instruction": {
+                    "type": "string",
+                    "description": "(可选) 用户对该角色职责的描述,会预填到对话框 AI 推荐输入框。没说就留空。",
+                },
+            },
+        },
+        "allowed_roles": {"school_admin", "super_admin"},
+    },
 ]
 
 
@@ -584,6 +659,7 @@ async def global_chat(
     x_user_id: str = Header(default=""),
     x_tenant_id: str = Header(default=""),
     x_user_lang: str = Header(default="zh"),
+    authorization: str = Header(default=""),
 ) -> ChatResponse:
     conv_id = req.conversation_id or uuid.uuid4().hex
     lang = (req.user_lang or x_user_lang or "zh").lower()
@@ -807,6 +883,7 @@ async def global_chat(
                     user_id=x_user_id, tenant_id=x_tenant_id,
                     user_role=req.user_role or "student",
                     user_lang=lang,
+                    authorization=authorization,
                 )
                 convo.append({
                     "role": "tool",

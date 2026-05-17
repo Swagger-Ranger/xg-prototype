@@ -75,6 +75,18 @@ sa-token:
   is-concurrent: true
   token-style: uuid
 
+xg:
+  rbac:
+    # 关闭后退回旧行为：只按 X-Tenant-Id header 决定 schema，不做 session 绑定校验。
+    # 上线观测异常时可临时置 false 兜底（RBAC 落地方案 §11 回滚策略）。
+    tenant-session-guard:
+      enabled: true
+    workflow:
+      # 灰度开关(RBAC 落地方案 §5.9.4 / §11)。create/update 始终 hard fail;
+      # 下面两项确认存量定义/实例干净(跑 assignee-dry-run 无未知组合)后再翻 true。
+      publish-assignee-hard-fail: false
+      empty-assignee-fail-fast: false
+
 management:
   endpoints:
     web:

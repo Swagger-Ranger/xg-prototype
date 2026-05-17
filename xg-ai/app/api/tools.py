@@ -34,6 +34,7 @@ async def execute_tool(
     x_tenant_id: str = Header(default=""),
     x_user_role: str = Header(default="student"),
     x_user_lang: str = Header(default="zh"),
+    authorization: str = Header(default=""),
 ) -> ToolExecResponse:
     if tool_name not in query_tools.HANDLERS:
         raise HTTPException(status_code=404, detail=f"unknown tool: {tool_name}")
@@ -44,5 +45,6 @@ async def execute_tool(
         tenant_id=x_tenant_id,
         user_role=x_user_role,
         user_lang=x_user_lang,
+        authorization=authorization,
     )
     return ToolExecResponse(output=output, tool=tool_name)
