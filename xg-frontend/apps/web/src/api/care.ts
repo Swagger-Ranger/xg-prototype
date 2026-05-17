@@ -55,6 +55,8 @@ export interface CareTaskQuery {
   studentId?: number;
   rescheduleAtLeast?: number;
   includeOverdue?: boolean;
+  /** 'all' 仅管理角色生效（W2.5 服务端角色闸）；默认 self */
+  assigneeScope?: 'self' | 'all';
   sort?: string;
   page?: number;
   size?: number;
@@ -83,6 +85,7 @@ function toParams(q: CareTaskQuery): Record<string, unknown> {
     studentId: q.studentId,
     rescheduleAtLeast: q.rescheduleAtLeast,
     includeOverdue: q.includeOverdue,
+    assigneeScope: q.assigneeScope,
     sort: q.sort,
     page: q.page,
     size: q.size,
@@ -205,4 +208,112 @@ export function setCareSeverityOffset(offset: number): Promise<void> {
 
 export function getCareEffectReport(): Promise<CareEffectReport> {
   return api.get('/care/rules/effect-report').then((res) => res.data);
+}
+
+// ─────────────────── 院系/学校管理视图（PRD §15.2）角色服务端解析 ───────────────────
+
+export interface CareAdminSummary {
+  week_total: number;
+  done: number;
+  in_progress: number;
+  overdue: number;
+  /** 触发最多规则：中文名 + 命中数（后端已脱 rule_id，不点名学生/辅导员）*/
+  top_rules: { rule: string; count: number }[];
+  severity_dist: { severity: CareSeverity; count: number }[];
+}
+
+export interface CareOverdueItem {
+  task_id: number;
+  student_name: string | null;
+  class_name: string | null;
+  /** 任务类型（category），非 rule_id（W1 §4.5）*/
+  category: string | null;
+  severity: CareSeverity;
+  due_at: string;
+}
+
+export interface CareOverdueResp {
+  total: number;
+  items: CareOverdueItem[];
+}
+
+export interface CareTrendPoint {
+  week_start: string;
+  count: number;
+}
+export interface CareTrends {
+  since: string;
+  series: { rule: string; points: CareTrendPoint[] }[];
+}
+
+export interface CareDrillTask {
+  task_id: number;
+  category: string | null;
+  severity: CareSeverity;
+  status: CareStatus;
+  created_at: string;
+  closed_at?: string | null;
+}
+export interface CareDrillAuditEntry {
+  action: string;
+  from_status: string | null;
+  to_status: string | null;
+  actor_role: string | null;
+  created_at: string;
+}
+export interface CareDrillResult {
+  student_id: number;
+  tasks: CareDrillTask[];
+  audit: CareDrillAuditEntry[];
+  quota: { used: number; limit: number | null; near_limit: boolean };
+}
+
+export interface CareDrillLogItem {
+  actor_id: number;
+  actor_role: string | null;
+  actor_name: string | null;
+  student_id: string;
+  reason: string;
+  created_at: string;
+}
+export interface CareDrillLogResp {
+  total: number;
+  items: CareDrillLogItem[];
+}
+
+export function getCareAdminSummary(): Promise<CareAdminSummary> {
+  return api.get('/care/admin/summary').then((res) => res.data);
+}
+
+export function getCareOverdue(page = 1, size = 20): Promise<CareOverdueResp> {
+  return api
+    .get('/care/admin/overdue', { params: { page, size } })
+    .then((res) => res.data);
+}
+
+export function getCareTrends(days?: number): Promise<CareTrends> {
+  return api
+    .get('/care/admin/trends', { params: { days } })
+    .then((res) => res.data);
+}
+
+/** 督办：领导界面只显示"已督办"，后端走 Orchestrator 私下提醒责任辅导员 */
+export function urgeCareTask(taskId: number | string): Promise<void> {
+  return api.post(`/care/admin/tasks/${taskId}/urge`).then((res) => res.data);
+}
+
+/** 下钻：理由 ≥30 字（后端 DTO 强校验）；配额满抛中文 BizException */
+export function drillDownStudent(
+  studentId: number | string,
+  reason: string,
+): Promise<CareDrillResult> {
+  return api
+    .post(`/care/admin/drill-down/${studentId}`, { reason })
+    .then((res) => res.data);
+}
+
+export function getCareDrillLog(page = 1, size = 20): Promise<CareDrillLogResp> {
+  return api
+    .get('/care/admin/drill-down/log', { params: { page, size } })
+    .then((res) => res.data);
 }

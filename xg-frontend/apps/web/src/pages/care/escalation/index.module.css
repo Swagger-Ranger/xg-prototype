@@ -1,0 +1,9 @@
+.page {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.block {
+  margin-bottom: 16px;
+}
