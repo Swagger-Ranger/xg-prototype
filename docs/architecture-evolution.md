@@ -11,7 +11,14 @@
 
 ## 0. 三条铁律（任何 PR 必须遵守）
 
-1. **不破坏现有运行**：`xg-prototype` 当前可以 `docker compose --profile lite up -d` 启动并对外服务，**任何架构性改动不得改变这条路径的字节级行为**。新容器走 `profile=full`，新 gradle 模块不 include 进 `xg-app`，新 Python 模块只增不改。
+1. **保留行为契约，按里程碑分层约束**：架构演进的目标是让代码更简洁、高效、可扩展，**业务行为不变 ≠ 代码不变**。按阶段控制改动半径：
+   - **M1（骨架阶段）**：仅"加文件"，业务路径字节级零影响。新 Gradle 模块**暂不 include 进 `settings.gradle`**（不参与 `xg-app` 构建），新 Python 模块**只增不改**且不被 `main.py` import，新容器走 `profile=full`。验证标准：`docker compose --profile lite up -d` 容器列表完全一致、`./gradlew :xg-app:build` 输出与之前一致。
+   - **M2+（接入与重构阶段）**：**允许且必须**重构代码，但必须满足：
+     - ✅ 接口契约不变（HTTP 路由 / 入参 / 出参 / 错误码不变）
+     - ✅ 现有部署模式可用（`docker compose --profile lite up -d` 仍能启动并提供服务）
+     - ✅ 新能力默认软关（依赖未配置时 no-op，不影响现有用户）
+     - ✅ 可降级（One-API 不可达回落直连，Langfuse 缺失返回空 callbacks）
+     - ✅ 改老代码必须有等价回归（`xg-ai/eval/` 与现有测试不下降）
 2. **改动只在 `xg-prototype` 内部**：不引用外部仓库；如需外部设计内容，**拷贝内联**到 `docs/` 下。
 3. **新老并行有保质期**：所有新建占位文件必须带 `# STATUS: skeleton-only, target: M-x`；老文件被取代时必须带 `# DEPRECATED-by: <new path>, planned removal: M-x`。任何 deprecated 文件每个里程碑结束必须 **清账 / 续期 + 写明原因**，不允许默默延期。
 
@@ -87,8 +94,11 @@ flowchart TB
         minio[("MinIO")]
     end
 
-    clients --> nginx
-    mcpC -.->|"MCP HTTP/SSE"| nginx
+    clients -->|"当前 P0 / DMZ 直连"| nginx
+    clients -.->|"M4 后默认主路径"| portal
+    mcpC -.->|"MCP HTTP/SSE"| portal
+    portal -. M4 .-> tunnel
+    tunnel -. M4 .-> nginx
     nginx --> javaCore
     nginx --> aiSide
     aiSide -.->|"MCP HTTP/SSE (M3+)"| mcp
@@ -104,9 +114,6 @@ flowchart TB
     aiSide --> pg
     javaCore --> prom
 
-    portal -. M4 .-> tunnel
-    tunnel -. M4 .-> nginx
-
     class saas,portal,tunnel cloud
     class oneapi,mcp,mcpCli,memory,obs,sec,agents,router,langfuse new
     class gw,javaCore,aiSide,llmGw,obs2,data,nginx school
@@ -115,6 +122,15 @@ flowchart TB
 **两条主要"新链路"**（虚线，本路线要落地的核心增量）：
 1. **`Python AI → One-API → 大模型`** — 取代当前 Python 直连 `dashscope / zenmux`，统一成 OpenAI 协议出口，便于切换 / 路由 / 成本统计。
 2. **`Python AI → Java MCP Server → 业务`** — 新工具走 MCP；老的 `Python ↔ Java` REST 调用（`AiSidecarClient` 之类）**全部原样保留**，不强迁。
+
+**客户端接入的两种部署形态**（图中实线 vs 虚线）：
+
+| 形态 | 路径 | 状态 | 适用场景 |
+|---|---|---|---|
+| **DMZ 直连**（实线） | `客户端 → 校内 Nginx → 业务` | P0 现状 | 学校已开放 DMZ 区、有公网 IP 或 VPN，先跑起来 |
+| **SaaS 门户**（虚线） | `客户端 → SaaS Portal (公网) → 反向隧道 → 校内 Nginx → 业务` | M4 后默认 | 学校机房零公网暴露；门户统一做租户解析 / SSO / WAF / 限流 |
+
+> **演进逻辑**：P0 先用 DMZ 直连快速跑通；M4 引入门户后，门户承接所有外部流量，校内 Nginx 退化为"内部反代"（仅接收来自隧道的请求）。**两种形态的差异对业务代码零感知**——`TenantFilter` 已支持从 header 解析租户，门户透传即可。
 
 
 
