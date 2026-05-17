@@ -150,6 +150,17 @@ public interface DataImportWriteMapper {
     Long findRoleIdByCodeOrName(@Param("key") String key);
 
     /**
+     * 同租户内所有角色的可识别 key：code 与 name 并集。
+     * Step 4 预检阶段一次性拉到内存做集合包含判断，避免 N 次 SQL。
+     */
+    @Select("""
+            SELECT code FROM sys_role WHERE deleted_at IS NULL
+            UNION ALL
+            SELECT name FROM sys_role WHERE deleted_at IS NULL
+            """)
+    List<String> findAllRoleKeys();
+
+    /**
      * 给 user 绑角色。org_id 可为 null（全局角色，如 student）。
      * sys_user_role PK 是 (user_id, role_id)，再次写入时 **更新 org_id**
      * —— 教师从计算机学院换到数学学院的场景必须这样改才能生效。

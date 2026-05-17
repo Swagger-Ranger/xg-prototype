@@ -7,6 +7,7 @@ import com.xg.business.org.dto.AssignableUser;
 import com.xg.business.org.dto.BatchLeaderApplyRequest;
 import com.xg.business.org.dto.CounselorMappingRequest;
 import com.xg.business.org.dto.CounselorMappingView;
+import com.xg.business.org.dto.CreateOrgRequest;
 import com.xg.business.org.dto.LeaderUpdateRequest;
 import com.xg.business.org.dto.MappingPrimaryUpdateRequest;
 import com.xg.business.org.dto.OrgTreeNode;
@@ -45,6 +46,14 @@ public class OrgAssignmentController {
     @GetMapping("/tree")
     public R<List<OrgTreeNode>> tree() {
         return R.ok(service.getTree());
+    }
+
+    /** 新建组织节点(P0 前端只用于"新增院系")。返回新建的 id。 */
+    @PostMapping
+    @SaCheckPermission("system:org:manage")
+    public R<java.util.Map<String, String>> createOrg(@RequestBody @Valid CreateOrgRequest req) {
+        Long id = service.createOrg(req);
+        return R.ok(java.util.Map.of("id", String.valueOf(id)));
     }
 
     @GetMapping("/class-masters")

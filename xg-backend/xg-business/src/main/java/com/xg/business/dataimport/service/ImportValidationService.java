@@ -58,6 +58,12 @@ public class ImportValidationService {
         String keyLabel = isStudent ? "学号" : "工号";
         Integer keyIdx = targetToSource.get(keyTargetCol);
 
+        // counselor 场景：预拉同租户全部角色 code+name,用于 role_code 列的合法性校验
+        Integer roleKeyIdx = isCounselor ? targetToSource.get("role_code") : null;
+        Set<String> knownRoleKeys = (isCounselor && roleKeyIdx != null)
+                ? new HashSet<>(writeMapper.findAllRoleKeys())
+                : Set.of();
+
         // 收集所有主键值，下面一次性查库
         List<String> keys = new ArrayList<>();
         for (List<String> row : rows) {
@@ -90,7 +96,7 @@ public class ImportValidationService {
 
             if (rowError) continue;
 
-            // 主键重复（文件内）
+            // 主键重复（文件内）+ 与库内
             if (keyIdx != null) {
                 String no = safeCell(row, keyIdx);
                 if (!no.isEmpty()) {
@@ -115,6 +121,17 @@ public class ImportValidationService {
                                     keyLabel + "「" + no + "」系统里已有，将按所选策略处理", "conflict"));
                         }
                     }
+                }
+            }
+
+            // counselor 场景独有：role_code 非空但系统里没这角色 → error。
+            // 空值合法（executor 会用默认 counselor 兜底）。
+            if (isCounselor && roleKeyIdx != null) {
+                String roleKey = safeCell(row, roleKeyIdx);
+                if (!roleKey.isEmpty() && !knownRoleKeys.contains(roleKey)) {
+                    errors.add(rowError(rowNum, "角色",
+                            "角色「" + roleKey + "」在系统里不存在(既不是 sys_role.code 也不是 name)"));
+                    continue;
                 }
             }
 

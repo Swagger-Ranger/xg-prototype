@@ -8,8 +8,9 @@ import type { WorkflowDefinition } from '@xg1/shared';
 const FUNCTION_MODULE_LABELS: Record<string, string> = {
   leave: '请假',
   leave_return: '销假',
-  workstudy_position: '勤工助学 · 岗位审批',
-  workstudy_application: '勤工助学 · 申请录用',
+  workstudy_position: '勤工助学 · 岗位申请',
+  workstudy_application: '勤工助学 · 学生申请',
+  workstudy_salary: '勤工助学 · 薪资申请',
   workstudy_timesheet: '勤工助学 · 工时确认',
   test_smoke_global: '系统测试',
   rbac_test: '系统测试',
@@ -42,6 +43,7 @@ export const FUNCTIONAL_BIZ_TYPES = new Set([
   'leave_return',
   'workstudy_position',
   'workstudy_application',
+  'workstudy_salary',
   'workstudy_timesheet',
 ]);
 

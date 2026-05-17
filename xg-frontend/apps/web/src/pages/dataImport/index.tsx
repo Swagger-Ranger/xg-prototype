@@ -36,8 +36,8 @@ const SCENARIOS: { key: ImportScenario; title: string; desc: string; icon: React
   },
   {
     key: 'counselor',
-    title: '辅导员角色赋予',
-    desc: '给已存在的教师批量配角色 + 从属单位',
+    title: '教职工角色赋予',
+    desc: '给已存在的教职工批量配角色 + 从属单位',
     icon: <UserSwitchOutlined />,
   },
 ];
