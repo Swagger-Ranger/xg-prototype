@@ -58,6 +58,14 @@ public class WorkStudyApplication extends BaseEntity {
     @TableField("offboard_reason")
     private String offboardReason;
 
+    /**
+     * 雇主辞退子分类（仅 reason=terminated_by_employer 时填写）：
+     * performance / discipline / position_dissolved / mismatch / other.
+     * 影响 R011 勤工履职异常 规则是否触发关怀任务。
+     */
+    @TableField("dismissal_category")
+    private String dismissalCategory;
+
     @TableField("offboard_note")
     private String offboardNote;
 

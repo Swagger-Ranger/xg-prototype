@@ -33,7 +33,10 @@ class WorkStudyEligibilityTest {
                 /* sysUserMapper */      null,
                 /* studentProfile */     null,
                 /* formDataValidator */  null,
-                /* objectMapper */       new ObjectMapper());
+                /* objectMapper */       new ObjectMapper(),
+                /* notificationOrch */   null,
+                /* employerService */    null,
+                /* studentEventPub */    null);
     }
 
     private WorkStudyPosition pos(int headcount, int hired) {

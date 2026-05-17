@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.OffsetDateTime;
+
 @Getter
 @Setter
 public class YearSettingUpsertRequest {
@@ -22,4 +24,12 @@ public class YearSettingUpsertRequest {
 
     private Boolean applicationOpen;
     private Boolean defaultAllowSelfArrange;
+
+    // 三阶段时间窗(V114)。任一对 _start/_end 为 null = 该阶段不限时段。
+    private OffsetDateTime positionWindowStart;
+    private OffsetDateTime positionWindowEnd;
+    private OffsetDateTime applicationWindowStart;
+    private OffsetDateTime applicationWindowEnd;
+    private OffsetDateTime salaryWindowStart;
+    private OffsetDateTime salaryWindowEnd;
 }

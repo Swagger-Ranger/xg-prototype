@@ -105,7 +105,6 @@ class YearSettingServiceTest {
         src.setTitle("图书馆值班");
         src.setPositionType("fixed");
         src.setEmployerId(7L);
-        src.setHourlyRate(new BigDecimal("18.50"));
         src.setSalaryUnit("hour");
         src.setSalaryAmount(new BigDecimal("18.50"));
         src.setHeadcount(3);

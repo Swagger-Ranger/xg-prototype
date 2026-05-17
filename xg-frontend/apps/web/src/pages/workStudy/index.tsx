@@ -417,15 +417,22 @@ export default function WorkStudyManagement() {
       id,
       mode,
       reason,
+      dismissalCategory,
       note,
     }: {
       id: string;
       mode: 'employer' | 'student';
       reason?: 'completed' | 'terminated_by_employer';
+      dismissalCategory?:
+        | 'performance'
+        | 'discipline'
+        | 'position_dissolved'
+        | 'mismatch'
+        | 'other';
       note?: string;
     }) => {
       if (mode === 'employer') {
-        await offboardByEmployer(id, { reason, note });
+        await offboardByEmployer(id, { reason, dismissalCategory, note });
       } else {
         await offboardByStudent(id, { note });
       }
@@ -443,10 +450,15 @@ export default function WorkStudyManagement() {
   const handleOffboard = () => {
     if (!offboardRecord) return;
     offboardForm.validateFields().then((v) => {
+      const isEmployer = offboardRecord.mode === 'employer';
+      const reason = isEmployer ? v.reason : undefined;
       offboardMutation.mutate({
         id: offboardRecord.app.id,
         mode: offboardRecord.mode,
-        reason: offboardRecord.mode === 'employer' ? v.reason : undefined,
+        reason,
+        // 只有"单位终止"路径才透传子分类；任期到期 / 学生离职不带
+        dismissalCategory:
+          isEmployer && reason === 'terminated_by_employer' ? v.dismissalCategory : undefined,
         note: v.note,
       });
     });
@@ -619,6 +631,9 @@ export default function WorkStudyManagement() {
       batchOffboardMutation.mutate({
         application_ids: ids,
         reason: v.reason,
+        // 与单条逻辑一致：只有"单位终止"路径才透传子分类
+        dismissalCategory:
+          v.reason === 'terminated_by_employer' ? v.dismissalCategory : undefined,
         note: v.note || undefined,
       });
     });
@@ -1793,15 +1808,45 @@ export default function WorkStudyManagement() {
         )}
         <Form form={offboardForm} layout="vertical" style={{ marginTop: 8 }}>
           {offboardRecord?.mode === 'employer' && (
-            <Form.Item label="原因" name="reason" rules={[{ required: true, message: '请选择原因' }]}>
-              <Radio.Group
-                options={[
-                  { label: '单位终止', value: 'terminated_by_employer' },
-                  { label: '任期到期', value: 'completed' },
-                ]}
-                optionType="button"
-              />
-            </Form.Item>
+            <>
+              <Form.Item label="原因" name="reason" rules={[{ required: true, message: '请选择原因' }]}>
+                <Radio.Group
+                  options={[
+                    { label: '单位终止', value: 'terminated_by_employer' },
+                    { label: '任期到期', value: 'completed' },
+                  ]}
+                  optionType="button"
+                />
+              </Form.Item>
+              {/* 终止类别：仅在"单位终止"路径出现，驱动主动关怀 R011 精准触发。
+                  把"裁岗 / 匹配不佳"从"被辞"里分出来，避免学生被误标。*/}
+              <Form.Item
+                noStyle
+                shouldUpdate={(prev, cur) => prev.reason !== cur.reason}
+              >
+                {({ getFieldValue }) =>
+                  getFieldValue('reason') === 'terminated_by_employer' && (
+                    <Form.Item
+                      label="终止类别"
+                      name="dismissalCategory"
+                      rules={[{ required: true, message: '请选择终止类别' }]}
+                      tooltip="不同类别会用于学校学工系统的关怀判断；学生本人看不到具体类别"
+                    >
+                      <Select
+                        placeholder="选择最贴近的类别"
+                        options={[
+                          { label: '工作表现 / 能力不达标', value: 'performance' },
+                          { label: '违反岗位纪律（旷工 / 顶替 / 冲突）', value: 'discipline' },
+                          { label: '单位裁岗 / 项目结束（学生无责）', value: 'position_dissolved' },
+                          { label: '双方匹配不佳（中性）', value: 'mismatch' },
+                          { label: '其他（请在说明中详述）', value: 'other' },
+                        ]}
+                      />
+                    </Form.Item>
+                  )
+                }
+              </Form.Item>
+            </>
           )}
           <Form.Item label="说明" name="note">
             <TextArea
@@ -1910,6 +1955,32 @@ export default function WorkStudyManagement() {
               ]}
               optionType="button"
             />
+          </Form.Item>
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, cur) => prev.reason !== cur.reason}
+          >
+            {({ getFieldValue }) =>
+              getFieldValue('reason') === 'terminated_by_employer' && (
+                <Form.Item
+                  label="终止类别（统一适用于本批）"
+                  name="dismissalCategory"
+                  rules={[{ required: true, message: '请选择终止类别' }]}
+                  tooltip="批量适用，如不同学生原因不同请分批操作"
+                >
+                  <Select
+                    placeholder="选择最贴近的类别"
+                    options={[
+                      { label: '工作表现 / 能力不达标', value: 'performance' },
+                      { label: '违反岗位纪律', value: 'discipline' },
+                      { label: '单位裁岗 / 项目结束', value: 'position_dissolved' },
+                      { label: '双方匹配不佳', value: 'mismatch' },
+                      { label: '其他', value: 'other' },
+                    ]}
+                  />
+                </Form.Item>
+              )
+            }
           </Form.Item>
           <Form.Item label="说明" name="note">
             <TextArea rows={3} maxLength={2000} placeholder="选填，会一并写入每条记录的离岗备注" />

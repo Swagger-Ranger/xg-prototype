@@ -147,6 +147,8 @@ export interface WorkStudyApplication {
   engaged_at: string | null;
   offboarded_at: string | null;
   offboard_reason: 'completed' | 'terminated_by_employer' | 'resigned_by_student' | null;
+  /** 仅 reason=terminated_by_employer 时有值 */
+  dismissal_category: DismissalCategory | null;
   offboard_note: string | null;
   offboard_operator_id: string | null;
   // B2 面试通知（status=pending 时可发）
@@ -387,9 +389,19 @@ export function decideApplication(id: string, data: DecisionData): Promise<void>
 
 // --- Offboarding (A2) ---
 
+/** 雇主辞退子分类（仅 reason=terminated_by_employer 时有意义；驱动 R011 主动关怀） */
+export type DismissalCategory =
+  | 'performance'        // 工作表现 / 能力不达标 → 中等信号
+  | 'discipline'         // 违反岗位纪律 → 强信号
+  | 'position_dissolved' // 单位裁岗（学生无责）→ 不触发关怀
+  | 'mismatch'           // 双方匹配不佳（中性）→ 不触发关怀
+  | 'other';             // 其他 → 备注必填
+
 export interface OffboardByEmployerPayload {
   /** completed = 任期到期；terminated_by_employer = 单位主动终止（默认） */
   reason?: 'completed' | 'terminated_by_employer';
+  /** 仅 reason=terminated_by_employer 时需要 */
+  dismissalCategory?: DismissalCategory;
   note?: string;
 }
 
@@ -488,6 +500,8 @@ export async function draftApplyIntro(payload: DraftApplyIntroReq): Promise<Draf
 export interface BatchOffboardPayload {
   application_ids: string[];
   reason?: 'completed' | 'terminated_by_employer';
+  /** 仅 reason=terminated_by_employer 时需要 */
+  dismissalCategory?: DismissalCategory;
   note?: string;
 }
 

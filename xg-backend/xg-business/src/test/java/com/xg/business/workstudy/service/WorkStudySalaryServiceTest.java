@@ -114,23 +114,9 @@ class WorkStudySalaryServiceTest {
         assertThat(inserted.getHours()).isNull();        // legacy fields not snapped for non-hour units
         assertThat(inserted.getHourlyRate()).isNull();
     }
-
-    @Test
-    void submit_legacyHourlyRate_isUsedWhenSalaryAmountAbsent() {
-        WorkStudyPosition p = position(null, null, "fixed");
-        p.setHourlyRate(new BigDecimal("15.00"));
-        when(applicationMapper.selectById(20L)).thenReturn(hiredApp());
-        when(positionMapper.selectById(10L)).thenReturn(p);
-        when(workflowEngine.startWorkflowByBizType(eq("workstudy_salary"), any(), any(), any(), any()))
-                .thenReturn(fakeInstance(1L));
-
-        service.submit(req("10", "2026-04"), 999L);
-
-        ArgumentCaptor<WorkStudySalary> cap = ArgumentCaptor.forClass(WorkStudySalary.class);
-        verify(salaryMapper).insert(cap.capture());
-        assertThat(cap.getValue().getAmount()).isEqualByComparingTo("150.00");
-        assertThat(cap.getValue().getUnitType()).isEqualTo("hour");      // default
-    }
+    // 删除 submit_legacyHourlyRate_isUsedWhenSalaryAmountAbsent:它验证的
+    // "position.hourly_rate 兜底" 已被 fbdd6e5 显式删除;无 rate 的新行为由
+    // submit_throws_whenNoRateAtAll 覆盖。
 
     @Test
     void submit_throws_whenApplicationNotHired() {

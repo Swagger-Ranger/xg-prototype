@@ -10,6 +10,8 @@ public class ApplicationQueryRequest extends PageQuery {
     private Long positionId;
     private Long studentId;
     private String status;
+    /** Post-hire lifecycle filter: on_duty / offboarded. Independent of {@link #status}. */
+    private String engagementStatus;
 
     /**
      * Comma-separated relation keys to expand inline. Currently supports

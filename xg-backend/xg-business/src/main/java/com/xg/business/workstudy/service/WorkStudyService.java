@@ -31,6 +31,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
+import com.xg.platform.event.StudentEventPublisher;
+import com.xg.platform.event.StudentEventType;
 import com.xg.platform.notification.recipient.RecipientContext;
 import com.xg.platform.notification.service.NotificationOrchestrator;
 import com.xg.platform.system.mapper.SysUserMapper;
@@ -70,6 +72,7 @@ public class WorkStudyService {
     private final ObjectMapper objectMapper;
     private final NotificationOrchestrator notificationOrchestrator;
     private final EmployerService employerService;
+    private final StudentEventPublisher studentEventPublisher;
 
     /** Defaults when a year_setting row is missing for the position's academic_year. */
     private static final int DEFAULT_MAX_FIXED = 1;
@@ -582,6 +585,22 @@ public class WorkStudyService {
         app.setDecidedBy(deciderId);
         app.setDecidedAt(OffsetDateTime.now());
         applicationMapper.updateById(app);
+
+        // R012 隐性经济压力：单次没信号，30 天内累计 ≥ 3 次被拒才进规则池。
+        // 这里把单次事件入流，让 alert 引擎自己做累计 — 业务侧不做"加权"判断。
+        if ("reject".equals(action)) {
+            WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
+            Map<String, Object> data = new HashMap<>();
+            data.put("application_id", app.getId());
+            data.put("position_id", app.getPositionId());
+            data.put("position_title", pos == null ? null : pos.getTitle());
+            data.put("decision_note", req.getDecisionNote());
+            studentEventPublisher.publish(
+                    app.getStudentId(),
+                    StudentEventType.WORKSTUDY_APPLY_REJECTED,
+                    "workstudy",
+                    data);
+        }
     }
 
     // ==========================================================================
@@ -596,6 +615,9 @@ public class WorkStudyService {
         boolean isAdmin = operatorRoles != null && operatorRoles.stream()
                 .anyMatch(r -> "school_admin".equals(r) || "student_affairs_officer".equals(r));
         String resolvedReason = "completed".equals(req.getReason()) ? "completed" : "terminated_by_employer";
+        String resolvedCategory = "terminated_by_employer".equals(resolvedReason)
+                ? req.getDismissalCategory()
+                : null;
 
         for (Long applicationId : req.getApplicationIds()) {
             try {
@@ -619,7 +641,7 @@ public class WorkStudyService {
                     result.setSkipped(result.getSkipped() + 1);
                     continue;
                 }
-                doOffboard(app, pos, resolvedReason, req.getNote(), operatorId);
+                doOffboard(app, pos, resolvedReason, resolvedCategory, req.getNote(), operatorId);
                 notifyOffboardToStudent(app, pos, resolvedReason);
                 result.setSucceeded(result.getSucceeded() + 1);
             } catch (Exception e) {
@@ -742,7 +764,8 @@ public class WorkStudyService {
         WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
         if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
         String resolved = "completed".equals(req.getReason()) ? "completed" : "terminated_by_employer";
-        doOffboard(app, pos, resolved, req.getNote(), operatorId);
+        String category = "terminated_by_employer".equals(resolved) ? req.getDismissalCategory() : null;
+        doOffboard(app, pos, resolved, category, req.getNote(), operatorId);
         notifyOffboardToStudent(app, pos, resolved);
     }
 
@@ -755,18 +778,20 @@ public class WorkStudyService {
         }
         WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
         if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
-        doOffboard(app, pos, "resigned_by_student", req.getNote(), studentId);
+        doOffboard(app, pos, "resigned_by_student", null, req.getNote(), studentId);
         notifyOffboardToEmployer(app, pos);
     }
 
     private void doOffboard(WorkStudyApplication app, WorkStudyPosition pos,
-                            String reason, String note, Long operatorId) {
+                            String reason, String dismissalCategory,
+                            String note, Long operatorId) {
         if (!"on_duty".equals(app.getEngagementStatus())) {
             throw WorkStudyErrorCode.APPLICATION_NOT_ON_DUTY.exception();
         }
         app.setEngagementStatus("offboarded");
         app.setOffboardedAt(OffsetDateTime.now());
         app.setOffboardReason(reason);
+        app.setDismissalCategory(dismissalCategory);
         app.setOffboardNote(note);
         app.setOffboardOperatorId(operatorId);
         applicationMapper.updateById(app);
@@ -778,6 +803,46 @@ public class WorkStudyService {
             pos.setHiredCount(pos.getHiredCount() - 1);
             positionMapper.updateById(pos);
         }
+
+        publishOffboardEvent(app, pos, reason, dismissalCategory, note);
+    }
+
+    /**
+     * 写主动关怀事件流。severity 按 reason + dismissal_category 联合判定，
+     * 决定本事件是否进入 R011 紧急通道。完成/匹配不佳/学生主动离职给低分，
+     * 避免误报关怀；纪律类拉到 紧急 级。失败由 publisher 内部吞掉，不影响离岗。
+     */
+    private void publishOffboardEvent(WorkStudyApplication app, WorkStudyPosition pos,
+                                      String reason, String dismissalCategory, String note) {
+        int severity = resolveOffboardSeverity(reason, dismissalCategory);
+        Map<String, Object> data = new HashMap<>();
+        data.put("application_id", app.getId());
+        data.put("position_id", pos.getId());
+        data.put("position_title", pos.getTitle());
+        data.put("employer_id", pos.getEmployerId());
+        data.put("reason", reason);
+        data.put("dismissal_category", dismissalCategory);
+        // 离岗 note 是雇主/学生自由文本，AI 不消费、规则不消费，仅供辅导员阅读。
+        data.put("note", note);
+        studentEventPublisher.publish(
+                app.getStudentId(),
+                StudentEventType.WORKSTUDY_OFFBOARDED,
+                "workstudy",
+                data,
+                OffsetDateTime.now(),
+                severity);
+    }
+
+    private static int resolveOffboardSeverity(String reason, String category) {
+        if ("completed".equals(reason)) return 0;
+        if ("resigned_by_student".equals(reason)) return 2;
+        // reason == terminated_by_employer
+        if ("discipline".equals(category)) return 7;       // 强行为信号
+        if ("performance".equals(category)) return 5;      // 中等
+        if ("other".equals(category)) return 5;            // 中等（备注必填，留给规则后置判断）
+        if ("position_dissolved".equals(category)) return 2; // 学生无责
+        if ("mismatch".equals(category)) return 2;         // 双方匹配，中性
+        return 5;                                          // 未填子分类时按中等保底
     }
 
     /** Authority check used by the controller for employer-side offboard. */
@@ -935,6 +1000,18 @@ public class WorkStudyService {
         t.setStatus("disputed");
         t.setDisputeNote(req.getNote());
         timesheetMapper.updateById(t);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("timesheet_id", t.getId());
+        data.put("position_id", t.getPositionId());
+        data.put("month", t.getMonth());
+        data.put("hours_reported", t.getHoursReported());
+        data.put("dispute_note", req.getNote());
+        studentEventPublisher.publish(
+                t.getStudentId(),
+                StudentEventType.WORKSTUDY_TIMESHEET_DISPUTED,
+                "workstudy",
+                data);
     }
 
     @Transactional

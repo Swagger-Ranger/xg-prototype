@@ -49,7 +49,8 @@ class WorkStudyEnforceEligibilityTest {
                 yearSettingMapper, /* workflowEngine */ null,
                 /* workflowInstance */ null, /* taskInstance */ null,
                 sysUserMapper, studentProfileMapper,
-                /* formDataValidator */ null, new ObjectMapper());
+                /* formDataValidator */ null, new ObjectMapper(),
+                /* notificationOrch */ null, /* employerService */ null, /* studentEventPub */ null);
 
         // Default: a generic eligible student (not gender/grade/college/aid blocked).
         SysUser u = new SysUser();

@@ -7,8 +7,8 @@ import com.xg.business.workstudy.mapper.WorkStudySalaryMapper;
 import com.xg.business.workstudy.model.WorkStudyApplication;
 import com.xg.business.workstudy.model.WorkStudyPosition;
 import com.xg.business.workstudy.model.WorkStudySalary;
-import com.xg.platform.notification.service.NotificationService;
-import com.xg.platform.notification.service.SendNotificationRequest;
+import com.xg.platform.notification.recipient.RecipientContext;
+import com.xg.platform.notification.service.NotificationOrchestrator;
 import com.xg.platform.workflow.event.WorkflowFinishedEvent;
 import com.xg.platform.workflow.mapper.TaskInstanceMapper;
 import com.xg.platform.workflow.model.TaskInstance;
@@ -19,7 +19,9 @@ import org.springframework.stereotype.Component;
 
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Sync work-study business tables when their workflow instances reach a terminal
@@ -49,7 +51,7 @@ public class WorkStudyWorkflowListener {
     private final WorkStudyApplicationMapper applicationMapper;
     private final WorkStudySalaryMapper salaryMapper;
     private final TaskInstanceMapper taskMapper;
-    private final NotificationService notificationService;
+    private final NotificationOrchestrator notificationOrchestrator;
 
     @EventListener
     public void onWorkflowFinished(WorkflowFinishedEvent event) {
@@ -160,26 +162,22 @@ public class WorkStudyWorkflowListener {
     private void notifyPositionDecision(WorkStudyPosition pos, boolean approved, WorkflowFinishedEvent event) {
         if (event.getInitiatorId() == null) return;
         String title = pos.getTitle() != null ? pos.getTitle() : "勤工岗位";
-
-        SendNotificationRequest req = new SendNotificationRequest();
-        req.setSourceType("workstudy_position");
-        req.setSourceId(pos.getId());
-        req.setRecipientUserIds(List.of(event.getInitiatorId()));
-        req.setChannels(List.of("in_app"));
-
-        if (approved) {
-            req.setTitle("岗位审批通过");
-            req.setContent(String.format("您发布的勤工岗位「%s」已通过审批，现已对学生开放申请。", title));
-            req.setLevel("normal");
-        } else {
+        // 复用通用 WORKFLOW_APPROVED / WORKFLOW_REJECTED 模板,与 leave 等其他流程一致
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("biz_label", "岗位审批");
+        vars.put("summary", String.format("发布的勤工岗位「%s」", title));
+        if (!approved) {
             String reason = lastDecisionComment(event.getInstanceId());
-            req.setTitle("岗位审批被驳回");
-            req.setContent(reason != null && !reason.isBlank()
-                    ? String.format("您发布的勤工岗位「%s」未通过审批：%s 您可修改后重新提交。", title, reason)
-                    : String.format("您发布的勤工岗位「%s」未通过审批，您可修改后重新提交。", title));
-            req.setLevel("important");
+            vars.put("reject_reason", reason != null && !reason.isBlank() ? reason : "无");
         }
-        safeSend(req, "position decision", pos.getId());
+        try {
+            notificationOrchestrator.send(
+                    approved ? "WORKFLOW_APPROVED" : "WORKFLOW_REJECTED",
+                    "workstudy_position", pos.getId(),
+                    RecipientContext.applicant(event.getInitiatorId()), vars);
+        } catch (Exception e) {
+            log.warn("send position decision notification failed source_id={}: {}", pos.getId(), e.getMessage());
+        }
     }
 
     private void notifyApplicationDecision(WorkStudyApplication app, boolean approved, Long instanceId) {
@@ -189,61 +187,58 @@ public class WorkStudyWorkflowListener {
             WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
             if (pos != null && pos.getTitle() != null) positionTitle = pos.getTitle();
         }
-
-        SendNotificationRequest req = new SendNotificationRequest();
-        req.setSourceType("workstudy_application");
-        req.setSourceId(app.getId());
-        req.setRecipientUserIds(List.of(app.getStudentId()));
-        req.setChannels(List.of("in_app"));
-
-        if (approved) {
-            req.setTitle("勤工申请已通过");
-            req.setContent(String.format("您申请的「%s」岗位已通过审核，请按用人单位安排到岗。", positionTitle));
-            req.setLevel("normal");
-        } else {
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("biz_label", "勤工申请");
+        vars.put("summary", String.format("申请的「%s」岗位", positionTitle));
+        if (!approved) {
             String reason = lastDecisionComment(instanceId);
-            req.setTitle("勤工申请未通过");
-            req.setContent(reason != null && !reason.isBlank()
-                    ? String.format("您申请的「%s」岗位未通过审核：%s", positionTitle, reason)
-                    : String.format("您申请的「%s」岗位未通过审核。", positionTitle));
-            req.setLevel("important");
+            vars.put("reject_reason", reason != null && !reason.isBlank() ? reason : "无");
         }
-        safeSend(req, "application decision", app.getId());
+        try {
+            notificationOrchestrator.send(
+                    approved ? "WORKFLOW_APPROVED" : "WORKFLOW_REJECTED",
+                    "workstudy_application", app.getId(),
+                    RecipientContext.applicant(app.getStudentId()), vars);
+        } catch (Exception e) {
+            log.warn("send application decision notification failed source_id={}: {}", app.getId(), e.getMessage());
+        }
     }
 
     private void notifySalaryDecision(WorkStudySalary salary, boolean approved, WorkflowFinishedEvent event) {
-        SendNotificationRequest req = new SendNotificationRequest();
-        req.setSourceType("workstudy_salary");
-        req.setSourceId(salary.getId());
-        req.setChannels(List.of("in_app"));
         String month = salary.getMonth() != null ? salary.getMonth() : "本月";
         String amount = salary.getAmount() != null
                 ? salary.getAmount().setScale(2, RoundingMode.HALF_UP).toPlainString()
                 : "—";
 
         if (approved) {
-            // Money is the student's; tell them.
+            // 钱是学生的,通知学生;走 WORKSTUDY_SALARY_CONFIRMED 自定义模板(带"到账提示")
             if (salary.getStudentId() == null) return;
-            req.setRecipientUserIds(List.of(salary.getStudentId()));
-            req.setTitle("勤工薪资已确认");
-            // 朝夕方案 B：不引入 paid 状态，但文案明确"确认 ≠ 已到账"，给学生一个时间预期。
-            // 真正到账日期由学校线下财务决定，系统不追踪；学生看到这条通知后可以耐心等。
-            req.setContent(String.format(
-                    "您 %s 的勤工薪资 ¥%s 已审核通过，通常 1-2 周内到账校园卡。若超期未到请咨询资助中心。",
-                    month, amount));
-            req.setLevel("normal");
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("month", month);
+            vars.put("amount", amount);
+            try {
+                notificationOrchestrator.send(
+                        "WORKSTUDY_SALARY_CONFIRMED", "workstudy_salary", salary.getId(),
+                        RecipientContext.applicant(salary.getStudentId()), vars);
+            } catch (Exception e) {
+                log.warn("send salary confirmed notification failed source_id={}: {}", salary.getId(), e.getMessage());
+            }
         } else {
-            // Rejection is actionable for the submitter (employer), not the student.
+            // 驳回信息对申报人(employer)才有可操作性,复用通用 WORKFLOW_REJECTED
             if (event.getInitiatorId() == null) return;
             String reason = lastDecisionComment(event.getInstanceId());
-            req.setRecipientUserIds(List.of(event.getInitiatorId()));
-            req.setTitle("薪资单审核被驳回");
-            req.setContent(reason != null && !reason.isBlank()
-                    ? String.format("您提交的 %s 薪资单未通过审核：%s 请核对后重新提交。", month, reason)
-                    : String.format("您提交的 %s 薪资单未通过审核，请核对后重新提交。", month));
-            req.setLevel("important");
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("biz_label", "薪资单审核");
+            vars.put("summary", String.format("提交的 %s 薪资单", month));
+            vars.put("reject_reason", reason != null && !reason.isBlank() ? reason : "无");
+            try {
+                notificationOrchestrator.send(
+                        "WORKFLOW_REJECTED", "workstudy_salary", salary.getId(),
+                        RecipientContext.applicant(event.getInitiatorId()), vars);
+            } catch (Exception e) {
+                log.warn("send salary rejected notification failed source_id={}: {}", salary.getId(), e.getMessage());
+            }
         }
-        safeSend(req, "salary decision", salary.getId());
     }
 
     private TaskInstance lastDecisionTask(Long instanceId) {
@@ -261,11 +256,4 @@ public class WorkStudyWorkflowListener {
         return t == null ? null : t.getComment();
     }
 
-    private void safeSend(SendNotificationRequest req, String label, Long sourceId) {
-        try {
-            notificationService.send(req);
-        } catch (Exception e) {
-            log.warn("send {} notification failed source_id={}: {}", label, sourceId, e.getMessage());
-        }
-    }
 }
