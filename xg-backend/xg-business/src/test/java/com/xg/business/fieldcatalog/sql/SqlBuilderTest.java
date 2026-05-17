@@ -1,6 +1,5 @@
 package com.xg.business.fieldcatalog.sql;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.business.fieldcatalog.loader.FieldCatalogLoader;
 import com.xg.business.fieldcatalog.model.FieldCatalog;
 import com.xg.business.fieldcatalog.model.FieldCatalog.FieldDef;
@@ -94,8 +93,8 @@ class SqlBuilderTest {
 
     @Test
     void integratesWith_realStudentYaml() {
-        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-        FieldCatalogLoader loader = new FieldCatalogLoader(mapper);
+        // FieldCatalogLoader 重构后自带内部 YAML_MAPPER,不再注入 ObjectMapper(与 RBAC 无关的存量测试对齐)。
+        FieldCatalogLoader loader = new FieldCatalogLoader();
         loader.load();
         FieldCatalog student = loader.getAll().get("student");
 
