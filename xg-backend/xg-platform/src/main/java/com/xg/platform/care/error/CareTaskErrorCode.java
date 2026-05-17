@@ -19,7 +19,9 @@ public enum CareTaskErrorCode implements ErrorCode {
     CARE_TASK_REJECT_REASON_REQUIRED("CARE_TASK_REJECT_REASON_REQUIRED", "请选择拒绝原因"),
     CARE_TASK_TRANSFER_TARGET_REQUIRED("CARE_TASK_TRANSFER_TARGET_REQUIRED", "请选择转介目标部门并填写说明"),
     CARE_BRIEF_REFRESH_TOO_FREQUENT("CARE_BRIEF_REFRESH_TOO_FREQUENT", "分析过于频繁，请 5 分钟后再试"),
-    CARE_RULE_NOT_FOUND("CARE_RULE_NOT_FOUND", "规则不存在或非当前规则集内置规则");
+    CARE_RULE_NOT_FOUND("CARE_RULE_NOT_FOUND", "规则不存在或非当前规则集内置规则"),
+    CARE_ADMIN_FORBIDDEN("CARE_ADMIN_FORBIDDEN", "无权访问院系/学校管理视图"),
+    CARE_DRILL_QUOTA_EXCEEDED("CARE_DRILL_QUOTA_EXCEEDED", "今日下钻额度已用尽；紧急情况请联系更高权限人员协助");
 
     private final String code;
     private final String message;

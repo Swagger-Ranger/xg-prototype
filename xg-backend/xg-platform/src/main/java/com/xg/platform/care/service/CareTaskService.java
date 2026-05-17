@@ -71,10 +71,14 @@ public class CareTaskService {
     public PageResult<CareTaskView> list(CareTaskQueryRequest req) {
         LambdaQueryWrapper<CareTask> q = new LambdaQueryWrapper<>();
 
-        // W2.2 安全收口：强制只看自己的任务，不认 assigneeScope=all。
-        // assigneeScope=all（院系 / 学校视角）必须配套角色校验，W2.5 接通管理视图时再开，
-        // 在此之前任何放开都是越权看全租户任务的口子。
-        q.eq(CareTask::getAssignedTo, CurrentUser.id());
+        // W2.5：assigneeScope=all（院系/学校视角看本校全部）必须配套服务端角色校验。
+        // 仅当显式请求 all 且当前用户是管理角色（dean/school_admin/学工部部长/超管，
+        // 服务端从 Sa-Token 读，不认前端传 scope）才放开 assigned_to 过滤；
+        // 否则一律强制只看自己的任务——任何无校验的放开都是越权看全租户的口子。
+        boolean wantAll = "all".equals(req.getAssigneeScope());
+        if (!(wantAll && CareAdminAccess.isManager(CareAdminAccess.currentRoles()))) {
+            q.eq(CareTask::getAssignedTo, CurrentUser.id());
+        }
         if (req.getStudentId() != null) {
             q.eq(CareTask::getStudentId, req.getStudentId());
         }

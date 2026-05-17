@@ -18,6 +18,7 @@ public final class CareNotifyPolicy {
     public static final String DAILY_DIGEST = "care_task_daily_digest";
     public static final String CRITICAL_DASHBOARD = "care_task_critical_dashboard";
     public static final String URGE = "care_task_urge";
+    public static final String DRILL_ANOMALY = "care_task_drill_anomaly";
 
     /**
      * 任务创建即时通知的模板：high→即时提醒，critical→看板提示（仅站内）。
