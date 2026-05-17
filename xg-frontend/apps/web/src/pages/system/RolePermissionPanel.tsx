@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Badge,
+  Button,
   Card,
   Checkbox,
   Collapse,
@@ -10,25 +12,31 @@ import {
   Modal,
   Space,
   Spin,
+  Tabs,
   Tag,
   Tooltip,
   message,
 } from 'antd';
 import {
-  LockOutlined,
-  ThunderboltOutlined,
+  DeleteOutlined,
   InfoCircleOutlined,
+  LockOutlined,
+  PlusOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type PermissionItem,
   type RoleSummary,
+  deleteRole,
   getRoleDetail,
   grantRolePerms,
   listRoles,
   revokeRolePerm,
 } from '@/api/rolePermission';
 import { describeApiError } from '@/utils/api-error';
+import CreateRoleModal from './CreateRoleModal';
+import RoleMembersTable from '@/components/role/RoleMembersTable';
 
 /**
  * 「角色权限」管理页（系统管理 → 角色权限 tab）。
@@ -60,10 +68,26 @@ const MODULE_LABELS: Record<string, string> = {
 export default function RolePermissionPanel() {
   const queryClient = useQueryClient();
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createPrefill, setCreatePrefill] = useState<string>('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ?new=1&prefill=... 进来时（通常是 AI 助手跳转）自动弹出新建对话框；
+  // 弹出后立刻把 query 参数清掉，避免刷新 / 后退再开。
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setCreatePrefill(searchParams.get('prefill') ?? '');
+      setCreateOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      next.delete('prefill');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const rolesQuery = useQuery({
-    queryKey: ['admin.roles'],
-    queryFn: listRoles,
+    queryKey: ['admin.roles', 'role'],
+    queryFn: () => listRoles({ kind: 'role' }),
     staleTime: 30 * 1000,
   });
 
@@ -121,12 +145,23 @@ export default function RolePermissionPanel() {
             ))}
             <RoleGroupHeader
               label="自定义角色"
-              hint="P3 仅展示。新增 / 删除自定义角色留待后续扩展"
+              hint="为特殊岗位自建角色 — 给一组用户配一组权限码。如需建「评审委员会」「迎新志愿者」等临时编组,请用「团队管理」。"
               count={customRoles.length}
+              action={
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={() => setCreateOpen(true)}
+                  style={{ padding: 0, height: 18, fontSize: 12 }}
+                >
+                  新建自定义角色
+                </Button>
+              }
             />
             {customRoles.length === 0 ? (
               <div style={{ padding: '8px 0', color: 'var(--fg-3)', fontSize: 12 }}>
-                暂无自定义角色
+                暂无自定义角色,点击右上「新建自定义角色」开始
               </div>
             ) : (
               customRoles.map((r) => (
@@ -154,9 +189,26 @@ export default function RolePermissionPanel() {
             role={detailQuery.data.role}
             permissions={detailQuery.data.permissions}
             onChange={invalidate}
+            onDeleted={() => {
+              setSelectedCode(null);
+              invalidate();
+            }}
           />
         )}
       </div>
+      <CreateRoleModal
+        open={createOpen}
+        onClose={() => {
+          setCreateOpen(false);
+          setCreatePrefill('');
+        }}
+        allRoles={rolesQuery.data ?? []}
+        initialAiText={createPrefill}
+        onCreated={(r) => {
+          invalidate();
+          setSelectedCode(r.code);
+        }}
+      />
     </div>
   );
 }
@@ -165,10 +217,12 @@ function RoleGroupHeader({
   label,
   hint,
   count,
+  action,
 }: {
   label: string;
   hint: string;
   count: number;
+  action?: React.ReactNode;
 }) {
   return (
     <div
@@ -184,15 +238,11 @@ function RoleGroupHeader({
       <span style={{ fontSize: 12, color: 'var(--fg-2)', fontWeight: 500 }}>
         {label}
       </span>
-      <Badge
-        count={count}
-        showZero
-        color="#d9d9d9"
-        style={{ fontSize: 11 }}
-      />
+      <Badge count={count} showZero color="#d9d9d9" style={{ fontSize: 11 }} />
       <Tooltip title={hint}>
         <InfoCircleOutlined style={{ color: 'var(--fg-4)', fontSize: 12 }} />
       </Tooltip>
+      {action && <div style={{ marginLeft: 'auto' }}>{action}</div>}
     </div>
   );
 }
@@ -206,40 +256,44 @@ function RoleRow({
   selected: boolean;
   onSelect: () => void;
 }) {
+  // hover 时把 code 挂在 tooltip 里 — 列表里不直接显示 monospace 字符，避免视觉杂乱
   return (
-    <div
-      onClick={onSelect}
-      style={{
-        padding: '8px 10px',
-        borderRadius: 6,
-        cursor: 'pointer',
-        background: selected ? 'rgba(22, 119, 255, 0.08)' : 'transparent',
-        border: selected ? '1px solid #1677ff' : '1px solid transparent',
-        transition: 'background 0.15s',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontWeight: selected ? 600 : 400, fontSize: 13 }}>{role.name}</span>
-        <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-          {role.effective_perm_count} 项
+    <Tooltip
+      title={
+        <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
+          code: {role.code}
+          {role.override_perm_count > 0 ? ` · 已自定义 ${role.override_perm_count} 项` : ''}
         </span>
-      </div>
+      }
+      mouseEnterDelay={0.4}
+      placement="right"
+    >
       <div
+        onClick={onSelect}
         style={{
-          fontSize: 11,
-          color: 'var(--fg-3)',
-          marginTop: 2,
-          fontFamily: 'monospace',
+          padding: '8px 10px',
+          borderRadius: 6,
+          cursor: 'pointer',
+          background: selected ? 'rgba(22, 119, 255, 0.08)' : 'transparent',
+          border: selected ? '1px solid #1677ff' : '1px solid transparent',
+          transition: 'background 0.15s',
         }}
       >
-        {role.code}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontWeight: selected ? 600 : 400, fontSize: 13 }}>{role.name}</span>
+          <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>
+            {role.effective_perm_count} 项
+          </span>
+        </div>
         {role.override_perm_count > 0 && (
-          <Tag color="gold" style={{ marginLeft: 6, padding: '0 4px', fontSize: 10 }}>
-            +{role.override_perm_count} 自定义
-          </Tag>
+          <div style={{ marginTop: 2 }}>
+            <Tag color="gold" style={{ padding: '0 4px', fontSize: 10, margin: 0 }}>
+              +{role.override_perm_count} 已调整
+            </Tag>
+          </div>
         )}
       </div>
-    </div>
+    </Tooltip>
   );
 }
 
@@ -247,14 +301,36 @@ function RoleDetail({
   role,
   permissions,
   onChange,
+  onDeleted,
 }: {
   role: RoleSummary;
   permissions: PermissionItem[];
   onChange: () => void;
+  onDeleted: () => void;
 }) {
   // super_admin 是 wildcard：所有权限在后端都返回 source=default、granted=true。UI 提示
   // "通配，不可修改"，禁掉所有勾选交互。
   const isSuperAdmin = role.code === 'super_admin';
+
+  const deleteMut = useMutation({
+    mutationFn: () => deleteRole(role.code),
+    onSuccess: () => {
+      message.success(`已删除「${role.name}」`);
+      onDeleted();
+    },
+    onError: (e) => message.error(describeApiError(e, '删除失败')),
+  });
+
+  function confirmDelete() {
+    Modal.confirm({
+      title: `删除自定义角色「${role.name}」？`,
+      content: '若该角色还有用户绑定，删除会被拒绝；请先到「用户管理」或本页「成员」tab 解绑全部用户。',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: () => deleteMut.mutateAsync(),
+    });
+  }
 
   // 按 module 分组
   const byModule = useMemo(() => {
@@ -321,9 +397,21 @@ function RoleDetail({
               有效权限 <b style={{ color: '#1677ff' }}>{role.effective_perm_count}</b>
               <span style={{ marginLeft: 6 }}>·</span>
               <span style={{ marginLeft: 6 }}>
-                自定义 <b style={{ color: '#faad14' }}>{role.override_perm_count}</b>
+                已调整 <b style={{ color: '#faad14' }}>{role.override_perm_count}</b>
               </span>
             </span>
+            {!role.is_builtin && (
+              <Button
+                danger
+                size="small"
+                type="text"
+                icon={<DeleteOutlined />}
+                loading={deleteMut.isPending}
+                onClick={confirmDelete}
+              >
+                删除
+              </Button>
+            )}
           </Space>
         </div>
       }
@@ -345,39 +433,55 @@ function RoleDetail({
         />
       )}
 
-      <Collapse
-        defaultActiveKey={Object.keys(byModule)}
+      <Tabs
         size="small"
-        items={Object.entries(byModule).map(([mod, perms]) => {
-          const grantedCount = perms.filter((p) => p.granted).length;
-          return {
-            key: mod,
-            label: (
-              <Space>
-                <span style={{ fontWeight: 500 }}>
-                  {MODULE_LABELS[mod] ?? mod}
-                </span>
-                <Tag style={{ margin: 0, padding: '0 6px', fontSize: 11 }}>
-                  {grantedCount} / {perms.length}
-                </Tag>
-              </Space>
-            ),
+        items={[
+          {
+            key: 'members',
+            label: '成员',
+            children: <RoleMembersTable roleCode={role.code} roleName={role.name} />,
+          },
+          {
+            key: 'perms',
+            label: '权限',
             children: (
-              <List
+              <Collapse
+                defaultActiveKey={Object.keys(byModule)}
                 size="small"
-                dataSource={perms}
-                renderItem={(p) => (
-                  <PermRow
-                    perm={p}
-                    isSuperAdmin={isSuperAdmin}
-                    onToggle={(checked) => handleToggle(p, checked)}
-                    busy={grantMut.isPending || revokeMut.isPending}
-                  />
-                )}
+                items={Object.entries(byModule).map(([mod, perms]) => {
+                  const grantedCount = perms.filter((p) => p.granted).length;
+                  return {
+                    key: mod,
+                    label: (
+                      <Space>
+                        <span style={{ fontWeight: 500 }}>
+                          {MODULE_LABELS[mod] ?? mod}
+                        </span>
+                        <Tag style={{ margin: 0, padding: '0 6px', fontSize: 11 }}>
+                          {grantedCount} / {perms.length}
+                        </Tag>
+                      </Space>
+                    ),
+                    children: (
+                      <List
+                        size="small"
+                        dataSource={perms}
+                        renderItem={(p) => (
+                          <PermRow
+                            perm={p}
+                            isSuperAdmin={isSuperAdmin}
+                            onToggle={(checked) => handleToggle(p, checked)}
+                            busy={grantMut.isPending || revokeMut.isPending}
+                          />
+                        )}
+                      />
+                    ),
+                  };
+                })}
               />
             ),
-          };
-        })}
+          },
+        ]}
       />
     </Card>
   );

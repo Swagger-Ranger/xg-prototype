@@ -1,5 +1,7 @@
 package com.xg.platform.workflow.engine;
 
+import com.xg.platform.workflow.assignee.AssigneeDescriptor;
+import com.xg.platform.workflow.assignee.AssigneeDescriptorProvider;
 import com.xg.platform.workflow.mapper.AssigneeLookupMapper;
 import com.xg.platform.workflow.model.WorkflowInstance;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +25,7 @@ import java.util.Set;
 @Component
 @Order(100)
 @RequiredArgsConstructor
-public class BuiltinAssigneeStrategy implements AssigneeStrategy {
+public class BuiltinAssigneeStrategy implements AssigneeStrategy, AssigneeDescriptorProvider {
 
     private static final Set<String> SUPPORTED = Set.of(
             "counselor|same_class",
@@ -55,5 +57,22 @@ public class BuiltinAssigneeStrategy implements AssigneeStrategy {
             case "student" -> List.of(initiatorId);
             default -> List.of();
         };
+    }
+
+    /** 内置角色不限 bizType(空 bizTypes);中文 label 给编辑器/AI,不暴露 role code。 */
+    @Override
+    public List<AssigneeDescriptor> descriptors() {
+        return List.of(
+                d("counselor", "same_class", "学生所在班级辅导员"),
+                d("class_master", "same_class", "学生所在班级班主任"),
+                d("class_monitor", "same_class", "学生所在班级班长"),
+                d("dean", "same_college", "学生所在学院院长"),
+                d("college_secretary", "same_college", "学生所在学院学工秘书"),
+                d("student_affairs_officer", "global", "学工处老师（全校）"),
+                d("student", "self", "申请人本人"));
+    }
+
+    private AssigneeDescriptor d(String role, String scope, String label) {
+        return new AssigneeDescriptor(role, scope, Set.of(), label, false, "core");
     }
 }

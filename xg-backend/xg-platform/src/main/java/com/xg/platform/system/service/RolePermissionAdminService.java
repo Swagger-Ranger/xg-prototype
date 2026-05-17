@@ -9,6 +9,7 @@ import com.xg.platform.system.dto.CreateRoleRequest;
 import com.xg.platform.system.dto.GrantRolePermsRequest;
 import com.xg.platform.system.dto.PermissionItem;
 import com.xg.platform.system.dto.RoleDetailView;
+import com.xg.platform.system.dto.RoleEffectiveMatrixItem;
 import com.xg.platform.system.dto.RoleSummary;
 import com.xg.platform.system.dto.UpdateRoleRequest;
 import com.xg.platform.system.mapper.RolePermissionAdminMapper;
@@ -156,6 +157,48 @@ public class RolePermissionAdminService {
     }
 
     /**
+     * §8.2 审计导出:列出全部 kind='role' 角色的 default / override / effective 权限码。
+     * team 不是权限载体(§6.2),不进矩阵。各列排序,便于跨版本 diff。
+     * 复用 getRoleDetail / listRoles 同一套 DEFAULTS ∪ DB ∪ WILDCARD 语义,不另立规则。
+     */
+    public List<RoleEffectiveMatrixItem> effectiveMatrix() {
+        List<Map<String, Object>> rows = mapper.listRoles("role", null, null);
+        List<String> allCodes = null; // 懒加载:仅 wildcard 角色才需要全表
+        List<RoleEffectiveMatrixItem> out = new ArrayList<>(rows.size());
+
+        for (Map<String, Object> r : rows) {
+            String code = asString(r.get("code"));
+            Long roleId = asLong(r.get("id"));
+            Set<String> defaults = RolePermissionDefaults.defaultsOf(code);
+            List<String> overrideCodes = mapper.findOverridePermCodes(roleId);
+
+            List<String> defaultList;
+            Set<String> effective = new HashSet<>();
+            if (defaults.contains(RolePermissionDefaults.WILDCARD)) {
+                defaultList = List.of(RolePermissionDefaults.WILDCARD);
+                if (allCodes == null) {
+                    allCodes = mapper.listAllPermissions().stream()
+                            .map(p -> asString(p.get("code"))).toList();
+                }
+                effective.addAll(allCodes);
+            } else {
+                defaultList = new ArrayList<>(defaults);
+                effective.addAll(defaults);
+            }
+            effective.addAll(overrideCodes);
+
+            RoleEffectiveMatrixItem item = new RoleEffectiveMatrixItem();
+            item.setCode(code);
+            item.setName(asString(r.get("name")));
+            item.setDefaultPermissions(defaultList.stream().sorted().toList());
+            item.setOverridePermissions(overrideCodes.stream().sorted().toList());
+            item.setEffectivePermissions(effective.stream().sorted().toList());
+            out.add(item);
+        }
+        return out;
+    }
+
+    /**
      * 给角色批量加权限。规则:
      * <ul>
      *   <li>DEFAULTS 已经覆盖的,跳过(不报错)</li>
@@ -169,6 +212,14 @@ public class RolePermissionAdminService {
             return 0;
         }
         Map<String, Object> roleRow = findRoleOrThrow(roleCode);
+
+        // team 是业务编组,不授予功能权限;功能权限只来自 kind='role'(RBAC 落地方案 §6.2/§6.3)。
+        // 即使误调到此,也不让 sys_role_permission 写入 team 行,从源头堵住"加入团队即提权"。
+        if ("team".equals(asString(roleRow.get("kind")))) {
+            throw new BizException(GlobalErrorCode.BAD_REQUEST.getCode(),
+                    "团队不授予功能权限,请到角色权限页配置角色");
+        }
+
         Long roleId = asLong(roleRow.get("id"));
         Set<String> defaults = RolePermissionDefaults.defaultsOf(roleCode);
 

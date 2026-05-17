@@ -19,7 +19,7 @@ import java.util.Set;
  *
  * <h3>合并规则</h3>
  * <pre>
- *   user 权限 = ⋃ role∈userRoles { DEFAULTS[role.code] } ⋃ DB sys_role_permission rows for those roles
+ *   user 权限 = ⋃ role∈kind='role' { DEFAULTS[role.code] } ⋃ DB sys_role_permission rows (kind='role')
  *   if WILDCARD ∈ above 集合: → 替换为 sys_permission 全表 code 列表
  * </pre>
  *
@@ -51,8 +51,10 @@ public class StpInterfaceImpl implements StpInterface {
 
         Set<String> perms = new HashSet<>();
 
-        // 1) DEFAULTS 层 —— 按 role.code 查代码里写死的默认权限集
-        List<String> roleCodes = userRoleMapper.findRoleCodesByUserId(userId);
+        // 1) DEFAULTS 层 —— 按 role.code 查代码里写死的默认权限集。
+        //    只取 kind='role'(findFunctionalRoleCodesByUserId):team 是业务编组,不授予
+        //    功能权限,否则某 team code 撞上 DEFAULTS key 即提权(RBAC 落地方案 §6.2/§6.3)。
+        List<String> roleCodes = userRoleMapper.findFunctionalRoleCodesByUserId(userId);
         for (String code : roleCodes) {
             perms.addAll(RolePermissionDefaults.defaultsOf(code));
         }
