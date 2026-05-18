@@ -2,91 +2,125 @@
 
 适用于 CentOS 7.9 云服务器的快速部署。
 
-## 快速开始
+## 部署架构（重要变更 2026-05）
 
-### 1. 登录服务器并安装 Docker
+**不再在云主机上构建源码**。云主机只需要装 docker，所有镜像和前端 dist 在本地 Mac 上构建好，scp 上去。
+
+```
+[本地 Mac arm64]                          [云主机 x86_64]
+─────────────                            ───────────────
+代码改动
+  ↓
+build-local.sh                            装 docker 即可
+  ├─ buildx 交叉编译 amd64 镜像
+  ├─ docker save | gzip → dist/images/
+  └─ pnpm build         → dist/web-dist/
+  ↓
+sync-to-cloud.sh         ─── rsync ───→  /opt/xg-prototype/deploy/
+                                            ↓
+                                         update.sh
+                                            ├─ docker load *.tar.gz
+                                            └─ docker compose up -d --no-build
+```
+
+云主机**无需** JDK / Python / Node / gradle / pnpm 等任何编译工具链。
+
+> **本地开发不受影响**：`docker compose up -d --build` 仍然能直接在开发机上拉起整套服务（含 `xg-web-builder` oneshot 构建前端）。新流程是叠加在 base compose 上的一个 `docker-compose.prod.yml` 覆盖文件，**仅在云上**生效——本地开发完全沿用原来的工作流。详见下方"本地开发模式"。
+
+## 本地开发模式（开发机）
+
+如果你是本地开发者、要在自己的机器上拉起整套环境，**和以前一样**：
+
+```bash
+cd deploy
+cp .env.example .env                              # 首次
+docker compose --profile lite up -d --build       # 构建并启动
+```
+
+- `xg-java` / `xg-python` 在本地 build（Mac arm64 → arm64，Linux x86 → x86，原生架构）
+- `xg-web-builder` 用 `Dockerfile.web` 把前端 build 出来，写到 `deploy/web-dist/`
+- `nginx` 通过 bind mount 从 `deploy/web-dist/` 读取前端
+
+> 本地开发**不要**带 `-f docker-compose.prod.yml`——prod 覆盖文件是云部署专用的，会跳过前端构建，本地用了会得到空白页。
+
+## 云部署快速开始
+
+### 一、云主机准备（仅一次）
 
 ```bash
 ssh root@你的服务器IP
 
-# 下载并运行 Docker 安装脚本
+# 安装 Docker（CentOS 7.9）
 curl -fsSL https://your-repo/deploy/scripts/install-docker-centos7.sh | bash
+
+# 预创建目录
+mkdir -p /opt/xg-prototype/deploy
 ```
 
-### 2. 克隆项目
+### 二、本地 Mac 配置（仅一次）
 
 ```bash
-cd /opt
-git clone https://your-git-repo/xg-prototype.git
-cd xg-prototype/deploy
+# 1. 安装 pnpm (前端构建用)
+npm install -g pnpm@9.1.0
+
+# 2. 启用 buildx (Docker Desktop 默认已开)
+docker buildx version    # 验证
+
+# 3. 配置云主机连接
+cat > deploy/.env.deploy <<EOF
+CLOUD_HOST=你的服务器IP
+CLOUD_USER=root
+CLOUD_PATH=/opt/xg-prototype
+# CLOUD_PORT=22
+# CLOUD_SSH_KEY=~/.ssh/id_rsa
+EOF
 ```
 
-### 3. 配置环境
+### 三、首次部署
 
+**本地 Mac**：
 ```bash
-# 复制环境变量模板
+# 1. 构建（约 5-10 min, 含交叉编译 + 前端构建）
+./deploy/scripts/build-local.sh
+# 末尾会打印 IMAGE_TAG，例如: a3f1b2c
+
+# 2. 同步到云主机
+./deploy/scripts/sync-to-cloud.sh
+```
+
+**云主机**：
+```bash
+cd /opt/xg-prototype/deploy
+
+# 1. 配置环境变量（首次）
 cp .env.example .env
-
-# 编辑配置（务必修改所有密码）
 vim .env
-```
+#   → IMAGE_TAG=a3f1b2c                (改成 build 输出的 tag)
+#   → SUPERADMIN_INITIAL_PASSWORD=...  (必改!)
+#   → DB_PASS / REDIS_PASS / ...
 
-**⚠️ 重要**：必须修改 `SUPERADMIN_INITIAL_PASSWORD`，这是超级管理员的初始密码（用户名：admin）。如果不设置，服务将拒绝启动。
-
-### 4. 启动服务
-
-#### 方式一：使用一键部署脚本（推荐）--todo 后续要检查一下这个脚本
-
-```bash
-cd /opt/xg-prototype/deploy
-./scripts/deploy.sh
-# 按提示输入配置，自动完成日志初始化
-```
-
-#### 方式二：手动启动（需额外初始化日志）
-
-```bash
-cd /opt/xg-prototype/deploy
-
-# 先执行日志初始化（重要！）
+# 2. 初始化日志目录（首次）
 ./scripts/setup-logs.sh
 
-# 再启动服务
-# 轻量模式（4核8G推荐）
-docker compose --profile lite up -d --build
-
-# 标准模式（8核16G推荐，含监控）
-docker compose --profile full up -d --build
+# 3. 加载镜像 + 启动
+./scripts/update.sh                # 默认 lite
+# 或: ./scripts/update.sh -f       # full 含监控
 ```
 
-> **命令详解：**
->
-> ```sh
-> docker compose --profile lite up -d --build
-> │             │              │   │     │
-> │             │              │   │     └─ 强制重新构建镜像（有 build: 字段的 service）
-> │             │              │   └────── detached：后台运行，不阻塞终端
-> │             │              └────────── 子命令：创建并启动容器
-> │             └───────────────────────── 启用 lite profile（profile 机制下面详讲）
-> └─────────────────────────────────────── docker compose v2 写法（v1 是 docker-compose）
-> ```
->
-> **项目的 profile 分布**
->
-> | Service          | profile 字段      | `--profile lite` | `--profile full` | 不带 profile |
-> | :--------------- | :---------------- | :--------------: | :--------------: | :----------: |
-> | `postgres`       | 无                |        ✅         |        ✅         |      ✅       |
-> | `redis`          | 无                |        ✅         |        ✅         |      ✅       |
-> | `minio`          | 无                |        ✅         |        ✅         |      ✅       |
-> | `xg-java`        | `["lite","full"]` |        ✅         |        ✅         |      ❌       |
-> | `xg-python`      | `["lite","full"]` |        ✅         |        ✅         |      ❌       |
-> | `xg-web-builder` | `["lite","full"]` |        ✅         |        ✅         |      ❌       |
-> | `nginx`          | `["lite","full"]` |        ✅         |        ✅         |      ❌       |
-> | `prometheus`     | `["full"]`        |        ❌         |        ✅         |      ❌       |
-> | `grafana`        | `["full"]`        |        ❌         |        ✅         |      ❌       |
+**⚠️ 重要**：必须修改 `.env` 中的 `SUPERADMIN_INITIAL_PASSWORD`（超管初始密码，用户名 admin），未设置时服务会拒绝启动。
 
-
-
+> **profile 分布**
+>
+> | Service      | profile 字段      | `--profile lite` | `--profile full` |
+> | :----------- | :---------------- | :--------------: | :--------------: |
+> | `postgres`   | 无                |        ✅         |        ✅         |
+> | `redis`      | 无                |        ✅         |        ✅         |
+> | `minio`      | 无                |        ✅         |        ✅         |
+> | `xg-java`    | `["lite","full"]` |        ✅         |        ✅         |
+> | `xg-python`  | `["lite","full"]` |        ✅         |        ✅         |
+> | `nginx`      | `["lite","full"]` |        ✅         |        ✅         |
+> | `prometheus` | `["full"]`        |        ❌         |        ✅         |
+> | `grafana`    | `["full"]`        |        ❌         |        ✅         |
 
 
 ### 5. 验证部署
@@ -100,52 +134,58 @@ curl http://localhost/health
 curl http://localhost:8080/actuator/health
 ```
 
-## 更新代码
+## 代码更新流程
 
+代码改动后的标准三步：
+
+**本地 Mac**：
 ```bash
-cd /opt/xg-prototype
+# 改完代码后
+./deploy/scripts/build-local.sh                     # 全部重建
+# 或选择性重建:
+./deploy/scripts/build-local.sh --services java     # 只改了 Java
+./deploy/scripts/build-local.sh --services java,web # Java + 前端
 
-# 拉取最新代码
-git pull
-
-# 运行更新脚本（自动重新构建、部署和配置日志）
-./deploy/scripts/update.sh
+./deploy/scripts/sync-to-cloud.sh                   # 同步
 ```
 
-或使用快捷命令：
-
-```bash
-./deploy/scripts/update.sh -p lite    # 轻量模式
-./deploy/scripts/update.sh -p full    # 标准模式
-./deploy/scripts/update.sh -n         # 无缓存构建（完全重建）
-```
-
-## 一键部署脚本（可选）
-
-项目提供了交互式部署脚本，自动完成所有步骤：
-
+**云主机**：
 ```bash
 cd /opt/xg-prototype/deploy
-./scripts/deploy.sh
+vim .env                            # 把 IMAGE_TAG 改为新 tag (build 末尾会打印)
+./scripts/update.sh                 # 加载新镜像 + 重启 + 健康检查
+# 或: ./scripts/update.sh -q        # 快速重启 (不加载新镜像，仅 restart)
 ```
 
-按提示输入 Git 仓库地址和其他配置即可自动完成部署。
+### 回滚
+
+旧镜像 `docker images xg-java` 仍在云上，回滚只需改 `.env` 的 `IMAGE_TAG` 为旧版本，重跑 `./scripts/update.sh` 即可。
 
 ## 目录结构
 
 ```
 deploy/
-├── docker-compose.yml      # 主编排文件
-├── .env.example           # 环境变量模板
-├── nginx/                 # Nginx 配置
-│   ├── nginx.conf
-│   └── conf.d/
-├── scripts/               # 部署脚本
-│   ├── install-docker-centos7.sh  # Docker 安装
-│   ├── deploy.sh                  # 一键部署
-│   └── update.sh                  # 代码更新
-└── docs/
-    └── centos7-deployment.md      # 详细文档
+├── docker-compose.yml                  # 主编排 (本地开发默认入口，含 build:+image:)
+├── docker-compose.prod.yml             # 云部署覆盖 (仅 disable xg-web-builder)
+├── docker-compose.dev.yml              # 本地开发覆盖 (仅基础设施, 应用本机跑)
+├── .env.example                        # 环境变量模板 (含 IMAGE_TAG / WEB_DIST_DIR)
+├── .env.deploy                         # 云主机连接信息 (本地用, git 忽略)
+├── Dockerfile.java                     # 本地 buildx 用
+├── Dockerfile.python                   # 本地 buildx 用
+├── Dockerfile.web                      # [DEPRECATED] 前端改本地 pnpm build
+├── nginx/ init-db/ prometheus/ ...     # 配置目录
+├── dist/                               # build-local.sh 产出 (git 忽略)
+│   ├── images/xg-java-<tag>.tar.gz
+│   ├── images/xg-python-<tag>.tar.gz
+│   ├── web-dist/                       # nginx bind mount
+│   └── MANIFEST.txt
+└── scripts/
+    ├── build-local.sh                  # [本地] 交叉编译 + 打包
+    ├── sync-to-cloud.sh                # [本地] rsync 到云
+    ├── load-and-up.sh                  # [云上] 加载镜像 + 起服务
+    ├── update.sh                       # [云上] 入口 (调用 load-and-up + 健康检查)
+    ├── install-docker-centos7.sh       # [云上] 首次装 docker
+    └── setup-logs.sh                   # [云上] 首次建日志目录
 ```
 
 ## 常用命令
@@ -199,9 +239,15 @@ netstat -tlnp | grep -E '80|8080|8000'
 # 重启单个服务
 docker compose restart xg-java
 
-# 清理并重建
+# 清理并重启 (镜像在本地构建, 云上不 build)
 docker compose --profile lite down
-docker compose --profile lite up -d --build --no-cache
+docker compose --profile lite up -d --no-build
+
+# 镜像丢了 (被 docker prune 误清), 重新加载
+./scripts/load-and-up.sh
+
+# 想确认在跑的镜像版本
+docker inspect xg-java --format '{{.Config.Image}}'
 ```
 
 更多详情请查看 `docs/centos7-deployment.md`

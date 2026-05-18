@@ -42,6 +42,17 @@ services:
           memory: 256M
 
   # 开发模式下不启动应用服务
+  #
+  # TODO(2026-05): 下面这些 `profiles: ["disabled"]` 实际上**没有真正生效**。
+  # Compose 对 profile 列表是 append 不是 replace，base 里的 ["lite","full"]
+  # 不会被覆盖；只是因为常规用法是 `docker compose -f base -f dev up -d`
+  # (不带 --profile) 时只起无 profile 的 postgres/redis/minio，副作用上凑效。
+  # 任何人误用 `--profile lite` 配 dev 覆盖，这五个服务还是会被拉起。
+  #
+  # 正确写法（Compose 2.24+）：
+  #   xg-java:
+  #     profiles: !override ["disabled"]
+  # 参见 deploy/docker-compose.prod.yml 的同款修复。下次 cleanup 一并改掉。
   xg-java:
     profiles: ["disabled"]
   xg-python:

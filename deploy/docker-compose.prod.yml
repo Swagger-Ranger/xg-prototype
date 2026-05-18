@@ -1,0 +1,26 @@
+# ============================================================
+# 生产/云部署 Compose 覆盖
+# ============================================================
+# 与 docker-compose.yml 叠加使用，专用于"本地构建好镜像 → scp 上云 → load 启动"
+# 工作流。云上不应该再 build 任何源码。
+#
+# 启动：
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     --profile lite up -d --no-build
+#
+# 由 deploy/scripts/load-and-up.sh 和 update.sh 自动调用，一般无需手动指定。
+# ============================================================
+#
+# 这个覆盖文件做的事情：
+#   1) xg-web-builder 的 profiles 用 `!override` 标签**替换**为 ["disabled"]——
+#      不加 !override 的话 Compose 默认会 append，得到 [lite, full, disabled]，
+#      还是会在 --profile lite 时被拉起，相当于覆盖无效。
+#      nginx 的 depends_on 标了 required:false，web-builder 缺席不会报错。
+#
+#   2) 不动 xg-java / xg-python——base 里同时声明了 image+build，配合 `--no-build`
+#      就会直接用 build-local.sh 加载进来的预编 amd64 镜像，不会读 build context。
+# ============================================================
+
+services:
+  xg-web-builder:
+    profiles: !override ["disabled"]

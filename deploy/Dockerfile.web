@@ -1,5 +1,14 @@
 # 前端 Web 构建 Dockerfile
-# 用于在 Docker 中构建前端，避免在服务器安装 Node.js
+#
+# [DEPRECATED 2026-05-18]
+# 已不在 docker-compose.yml 中引用。前端构建改为本地 `pnpm build` 直接产出 dist，
+# 由 deploy/scripts/build-local.sh + sync-to-cloud.sh 同步到云上，nginx bind mount。
+# 此文件保留仅作为"无本地 Node 环境时容器内 fallback 构建"的备选方案，可手动:
+#   docker buildx build --platform linux/amd64 \
+#     -f deploy/Dockerfile.web -t xg-web:tag xg-frontend/
+# 后续如确认无人使用，可整体删除。
+#
+# 历史用途：在 Docker 中构建前端，避免在服务器安装 Node.js
 
 FROM node:20-alpine AS builder
 

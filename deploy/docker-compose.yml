@@ -133,6 +133,9 @@ services:
   # ─── 应用服务（lite 或 full profile）───
 
   xg-java:
+    # image+build 并存：本地 `up --build` 重建镜像并按 image 名打 tag；
+    # 云上 `up --no-build` 直接用 build-local.sh 加载的预编镜像。
+    image: xg-java:${IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile.java
@@ -191,6 +194,7 @@ services:
       - backend
 
   xg-python:
+    image: xg-python:${IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile.python
@@ -238,9 +242,9 @@ services:
       - frontend
       - backend
 
-  # 前端构建服务：构建镜像并把产物复制到 web_dist 卷（由 nginx 挂载）
-  # 作为 oneshot 任务，在 nginx 启动前完成。也可手动触发：
-  #   docker compose run --rm xg-web-builder
+  # 前端构建 oneshot 容器：本地开发用，把构建产物写到与 nginx 共用的 bind mount 路径。
+  # 云上不需要（产物由 sync-to-cloud.sh 直接 rsync），通过 docker-compose.prod.yml
+  # 把 profile 改为 ["disabled"] 来跳过。
   xg-web-builder:
     build:
       context: ../xg-frontend
@@ -249,7 +253,7 @@ services:
     container_name: xg-web-builder
     profiles: ["lite", "full"]
     volumes:
-      - web_dist:/web-dist
+      - ${WEB_DIST_DIR:-./web-dist}:/web-dist
     command: ["sh", "-c", "rm -rf /web-dist/* && cp -r /output/. /web-dist/ && echo 'Frontend assets copied:' && ls -la /web-dist/"]
     restart: "no"
 
@@ -260,7 +264,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - web_dist:/usr/share/nginx/html:ro
+      - ${WEB_DIST_DIR:-./web-dist}:/usr/share/nginx/html:ro
       - ${HOST_LOG_DIR:-/data/logs}/nginx:/var/log/nginx
     ports:
       - "80:80"
@@ -270,6 +274,7 @@ services:
         condition: service_started
       xg-web-builder:
         condition: service_completed_successfully
+        required: false
     deploy:
       resources:
         limits:
@@ -413,7 +418,6 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
-  web_dist:
   one_api_data:
 
 networks:
