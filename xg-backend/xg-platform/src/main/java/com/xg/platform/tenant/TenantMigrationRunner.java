@@ -82,6 +82,16 @@ public class TenantMigrationRunner implements ApplicationRunner {
         }
         ensureSchemaExists(schemaName);
 
+        // TODO(liufei, P1 后处理): 这段 legacy 判定过于"乐观"——只要 schema 里有任意表 + 没有
+        //   flyway_schema_history,就一刀切把 baseline 设到 classpath 最高版本,跳过所有 V*.sql。
+        //   原意是兼容 P0 早期手工接管的 tenant_demo,但任何用 deploy 脚本 / psql 手工灌过表
+        //   (哪怕只灌了 sys_user 3 张表) 的演示库都会被误判,从而漏跑后续所有迁移,导致表/列
+        //   缺失、登录炸 (典型症状: sys_role.kind / work_study_application.engagement_status
+        //   does not exist)。2026-05 已踩坑一次。
+        //   建议: (a) 删 legacy 分支,强制所有 schema 走标准 Flyway 流程;
+        //         (b) 或改成显式 opt-in (读 schema 内的标记表 / 启动参数,而不是猜);
+        //         (c) 改动需配回归测试 (新 schema / 残缺 schema / 完整 schema 三种状态)。
+        //   等当前产品功能稳定后再单独提 PR,本次不动避免影响面扩散。
         boolean legacy = hasNonFlywayTables(schemaName) && !hasFlywayHistory(schemaName);
         String baseline = legacy ? maxClasspathMigrationVersion() : "0";
 
