@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>朝夕 · 关怀模块技术白皮书 v1.0</title>
+<style>
+  :root{
+    --ac:#5e8fff; --ac-hi:#3b6fe0; --ac-bg:#eef3ff; --ac-ring:#cdddff;
+    --fg:#1f2733; --fg-2:#3d4757; --fg-3:#6b7686; --fg-4:#97a1b2; --fg-5:#c7cedb;
+    --bg:#ffffff; --bg-1:#f7f9fc; --bg-2:#fbfcfe; --bd:#e6eaf0; --bd-2:#eef1f6;
+    --danger:#cf1322; --danger-bg:#fff2f0; --danger-bd:#ffccc7;
+    --warn:#b45309; --warn-bg:#fef6e7; --warn-bd:#f6d99a;
+    --ok:#047857; --ok-bg:#e9f7f1; --ok-bd:#b9e3d2;
+    --mono:'SFMono-Regular',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --r:12px; --r-s:8px; --r-xs:6px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font:15px/1.75 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;color:var(--fg-2);background:var(--bg-1)}
+  a{color:var(--ac-hi);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.86em;background:var(--ac-bg);color:var(--ac-hi);padding:1.5px 6px;border-radius:4px;border:1px solid var(--ac-ring)}
+  h1,h2,h3,h4{color:var(--fg);font-weight:680;line-height:1.35;letter-spacing:-.01em}
+  h2{font-size:23px;margin:54px 0 14px;padding-bottom:10px;border-bottom:2px solid var(--bd)}
+  h2 .num{color:var(--ac);font-variant-numeric:tabular-nums;margin-right:10px}
+  h3{font-size:17.5px;margin:30px 0 10px}
+  h4{font-size:15px;margin:20px 0 6px;color:var(--fg-2)}
+  p{margin:10px 0}
+  .wrap{display:flex;max-width:1240px;margin:0 auto;gap:34px;padding:0 28px}
+  /* ---------- cover ---------- */
+  .cover{background:linear-gradient(135deg,#3b6fe0 0%,#5e8fff 48%,#8aa9ff 100%);color:#fff;padding:74px 28px 60px;position:relative;overflow:hidden}
+  .cover::after{content:"";position:absolute;right:-120px;top:-120px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.10)}
+  .cover::before{content:"";position:absolute;right:60px;bottom:-160px;width:300px;height:300px;border-radius:50%;background:rgba(255,255,255,.08)}
+  .cover-inner{max-width:1240px;margin:0 auto;padding:0 0;position:relative;z-index:1}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:18px;letter-spacing:.04em}
+  .brand .dot{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:17px}
+  .cover h1{color:#fff;font-size:42px;margin:30px 0 12px;letter-spacing:-.02em}
+  .cover .sub{font-size:17px;color:rgba(255,255,255,.92);max-width:760px;line-height:1.7}
+  .cover .meta{margin-top:30px;display:flex;gap:30px;flex-wrap:wrap;font-size:13px;color:rgba(255,255,255,.85)}
+  .cover .meta b{display:block;color:#fff;font-size:15px;font-weight:600;margin-top:2px}
+  /* ---------- layout ---------- */
+  nav.toc{position:sticky;top:0;align-self:flex-start;width:248px;flex:none;max-height:100vh;overflow:auto;padding:30px 0 40px;font-size:13.5px}
+  nav.toc .t{font-size:12px;letter-spacing:.08em;color:var(--fg-4);text-transform:uppercase;font-weight:700;margin:0 0 10px}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:s}
+  nav.toc li{counter-increment:s;margin:1px 0}
+  nav.toc a{display:block;color:var(--fg-3);padding:6px 12px 6px 14px;border-left:2px solid transparent;border-radius:0 6px 6px 0}
+  nav.toc a:hover{color:var(--ac-hi);background:var(--ac-bg);text-decoration:none}
+  nav.toc a::before{content:counter(s) "  ";color:var(--fg-5);font-family:var(--mono);font-size:11px}
+  main{flex:1;min-width:0;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:8px 46px 70px;margin:30px 0 60px;box-shadow:0 1px 3px rgba(20,30,60,.04)}
+  main>section:first-of-type h2{margin-top:34px}
+  /* ---------- components ---------- */
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+  th,td{border:1px solid var(--bd);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--bg-1);color:var(--fg);font-weight:650;white-space:nowrap}
+  td code{white-space:nowrap}
+  tr:nth-child(2n) td{background:var(--bg-2)}
+  .lead{font-size:16px;color:var(--fg-2);background:var(--bg-1);border-left:3px solid var(--ac);padding:14px 18px;border-radius:0 8px 8px 0;margin:18px 0}
+  .box{border:1px solid var(--bd);border-left:4px solid var(--ac);background:var(--ac-bg);border-radius:0 var(--r-s) var(--r-s) 0;padding:12px 16px;margin:18px 0;font-size:14px}
+  .box .h{font-weight:700;color:var(--ac-hi);margin-bottom:4px;font-size:13px;letter-spacing:.02em}
+  .box.red{border-left-color:var(--danger);background:var(--danger-bg);border-color:var(--danger-bd)}
+  .box.red .h{color:var(--danger)}
+  .box.amber{border-left-color:var(--warn);background:var(--warn-bg);border-color:var(--warn-bd)}
+  .box.amber .h{color:var(--warn)}
+  .box.green{border-left-color:var(--ok);background:var(--ok-bg);border-color:var(--ok-bd)}
+  .box.green .h{color:var(--ok)}
+  .badge{display:inline-block;font-size:11.5px;font-weight:650;padding:2px 9px;border-radius:20px;line-height:1.5;white-space:nowrap}
+  .b-crit{background:rgba(207,19,34,.12);color:var(--danger)}
+  .b-high{background:rgba(180,83,9,.14);color:var(--warn)}
+  .b-mid{background:rgba(94,143,255,.14);color:var(--ac-hi)}
+  .b-low{background:#eef1f6;color:var(--fg-3)}
+  .b-ok{background:rgba(4,120,87,.12);color:var(--ok)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0}
+  .card{border:1px solid var(--bd);border-radius:var(--r-s);padding:15px 17px;background:var(--bg-2)}
+  .card .k{font-size:12px;color:var(--fg-4);letter-spacing:.04em;text-transform:uppercase;font-weight:700}
+  .card .v{font-size:15px;color:var(--fg);font-weight:600;margin-top:6px}
+  .card p{font-size:13px;color:var(--fg-3);margin:6px 0 0}
+  pre{background:#0f1726;color:#d6e2f5;border-radius:var(--r-s);padding:16px 18px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.7;margin:16px 0}
+  pre .c{color:#7c89a3}
+  pre .k{color:#7cc4ff}
+  pre .s{color:#9be0a8}
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;margin:18px 0}
+  .flow .n{flex:1;min-width:130px;border:1px solid var(--bd);background:var(--bg-2);border-radius:var(--r-s);padding:11px 13px;font-size:13px}
+  .flow .n b{display:block;color:var(--fg);font-size:13.5px;margin-bottom:3px}
+  .flow .n small{color:var(--fg-4)}
+  .arr{display:flex;align-items:center;color:var(--fg-5);font-size:18px;flex:none}
+  .sm{font-size:12.5px;color:var(--fg-4)}
+  ul.tick{list-style:none;padding-left:4px;margin:12px 0}
+  ul.tick li{padding-left:24px;position:relative;margin:7px 0}
+  ul.tick li::before{content:"▸";position:absolute;left:6px;color:var(--ac);font-weight:700}
+  hr{border:0;border-top:1px solid var(--bd);margin:40px 0}
+  footer{text-align:center;color:var(--fg-4);font-size:12.5px;padding:30px 0 50px}
+  .anchor{scroll-margin-top:20px}
+  @media(max-width:980px){nav.toc{display:none}main{padding:8px 22px 50px}.wrap{padding:0 14px}}
+  @media print{nav.toc{display:none}body{background:#fff}main{border:0;box-shadow:none;margin:0;padding:0}.cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="cover-inner">
+    <div class="brand"><span class="dot">朝</span> 朝夕 · 高校学生工作服务平台</div>
+    <h1>关怀模块技术白皮书</h1>
+    <div class="sub">从被动「异常预警」到主动「关怀任务」——一套规则触发、辅导员闭环处置、AI 辅助但不替代人判断、并内建危机求助快速通道的学生关怀系统的架构、数据模型与设计约束。</div>
+    <div class="meta">
+      <div>版本<b>v1.0</b></div>
+      <div>日期<b>2026-05-18</b></div>
+      <div>适用阶段<b>P0（公有云 AI，单机部署）</b></div>
+      <div>读者<b>架构 / 研发 / 技术评审</b></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc">
+    <p class="t">目录</p>
+    <ol>
+      <li><a href="#s1">定位与背景</a></li>
+      <li><a href="#s2">总体架构</a></li>
+      <li><a href="#s3">数据模型</a></li>
+      <li><a href="#s4">任务生命周期与状态机</a></li>
+      <li><a href="#s5">规则引擎</a></li>
+      <li><a href="#s6">AI 辅助：小夕画像</a></li>
+      <li><a href="#s7">多角色与权限边界</a></li>
+      <li><a href="#s8">AI 观察员集成</a></li>
+      <li><a href="#s9">危机求助快速通道</a></li>
+      <li><a href="#s10">关键设计约束与权衡</a></li>
+      <li><a href="#s11">安全与合规</a></li>
+      <li><a href="#s12">演进路线</a></li>
+      <li><a href="#s13">附录</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <section id="s1" class="anchor">
+    <h2><span class="num">01</span>定位与背景</h2>
+    <p class="lead">关怀模块解决的核心问题：把分散在请假、违纪、考勤、勤工、跟进记录里的弱信号，<b>规则化地聚合成「该不该管、谁来管、什么时候管完」的可闭环任务</b>，并用 AI 降低辅导员的判断与沟通成本，但绝不替辅导员做处置决定。</p>
+
+    <h3>1.1 从 student_alert 到 care_task</h3>
+    <p>早期系统用 <code>student_alert</code> 做「异常预警」——一条预警只有「开/关」两态，是被动看板。关怀模块用 <code>care_task</code> 取代它：每条命中规则的信号成为一个有 <b>责任人（assigned_to）</b>、<b>SLA（due_at）</b>、<b>7 态状态机</b>、<b>转介 / 改期 / 误报反馈</b> 的工作项。<code>student_alert</code> 在 P0 过渡期并行保留（旧 <code>/alerts</code> 页与后端未删），但已从导航、AI 观察员、schema-catalog 中全面摘除（A1 硬切）。</p>
+
+    <h3>1.2 设计哲学</h3>
+    <ul class="tick">
+      <li><b>人是决策者，AI 是放大器。</b>所有结案、转介、误报判定由辅导员做；AI 只产出「为什么触发 / 可以聊什么 / 不宜碰什么 / 可对接资源」的辅助画像。</li>
+      <li><b>规则可运维、可降级。</b>规则集版本化、可启停、可整体调严重度；AI 不可用时全部业务经传统界面完整运行。</li>
+      <li><b>安全优先于完整。</b>危机求助走独立通道，刻意不进规则引擎、不喂大模型，宁可少一行分类也不漏一次危机。</li>
+      <li><b>最小爆炸半径。</b>取代旧预警时保持对外契约（metric key、ref 类型字面量）不变，把改动锁在数据源与文案层。</li>
+    </ul>
+  </section>
+
+  <section id="s2" class="anchor">
+    <h2><span class="num">02</span>总体架构</h2>
+    <p>关怀是单体 Java 服务内的一个领域模块，AI 能力通过 Python Sidecar 经 REST 调用，前端在 Web 管理端与小程序共享类型与请求层。</p>
+
+    <div class="flow">
+      <div class="n"><b>信号源</b><small>请假 / 违纪 / 考勤 / 勤工 / 跟进事件（student_event_log）</small></div>
+      <div class="arr">→</div>
+      <div class="n"><b>规则引擎</b><small>CareRuleEngine：R001–R012 命中 → care_task（含去重 / 冷却）</small></div>
+      <div class="arr">→</div>
+      <div class="n"><b>任务库 + 状态机</b><small>care_task：7 态 / SLA / 转介 / 反馈 + 审计</small></div>
+      <div class="arr">→</div>
+      <div class="n"><b>处置触达</b><small>辅导员工作台 / AI 观察员 / 通知 Orchestrator</small></div>
+    </div>
+
+    <h3>2.1 技术栈</h3>
+    <table>
+      <tr><th>层</th><th>选型</th><th>关怀模块用到的点</th></tr>
+      <tr><td>主服务</td><td>Java 17 + Spring Boot 3</td><td>规则引擎、状态机、管理视图、JdbcTemplate 聚合指标</td></tr>
+      <tr><td>AI Sidecar</td><td>Python 3.11 + FastAPI</td><td>小夕画像生成、AI 观察员洞察综合（DeepSeek / 通义千问 公有云 API）</td></tr>
+      <tr><td>ORM</td><td>MyBatis-Plus</td><td>care_task 等实体；多租户插件 Schema 级隔离</td></tr>
+      <tr><td>存储</td><td>PostgreSQL 15+</td><td>业务表、<code>trigger_data</code> JSONB、审计、pgvector / 全文检索</td></tr>
+      <tr><td>缓存</td><td>Redis</td><td>会话、限流（小夕 brief 5 分钟刷新限流）</td></tr>
+      <tr><td>前端</td><td>React 18 + Ant Design 5 / Taro 3</td><td>关怀工作台、AI 观察员卡片、危机泳道；Web 与小程序共享 API 层</td></tr>
+    </table>
+
+    <div class="box"><div class="h">租户隔离</div>所有 SQL 经 MyBatis-Plus 多租户插件按 Schema 自动路由（租户 <code>default</code> → schema <code>tenant_default</code>）；指标聚合用裸 JDBC 时显式拼 <code>schema</code> 前缀并校验 schema 名合法，异步场景从表字段恢复 TenantContext。</div>
+  </section>
+
+  <section id="s3" class="anchor">
+    <h2><span class="num">03</span>数据模型</h2>
+    <h3>3.1 核心表 <code>care_task</code></h3>
+    <table>
+      <tr><th>列</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>id</code></td><td>bigint PK</td><td>关怀任务 ID</td></tr>
+      <tr><td><code>tenant_id</code></td><td>varchar</td><td>租户</td></tr>
+      <tr><td><code>student_id</code></td><td>bigint</td><td>学生 = <code>sys_user.id</code>（非 student_profile.id）</td></tr>
+      <tr><td><code>rule_id</code> / <code>rule_version</code></td><td>varchar</td><td>命中规则代号（R0xx，产品方维护）+ 规则集版本</td></tr>
+      <tr><td><code>severity</code></td><td>varchar</td><td><span class="badge b-crit">critical</span> <span class="badge b-high">high</span> <span class="badge b-mid">medium</span> <span class="badge b-low">low</span></td></tr>
+      <tr><td><code>trigger_data</code></td><td>jsonb</td><td>命中证据快照（事件 ID 列表、摘要、<code>rule_name</code> 中文名）。独立于 student_event_log 防归档丢证据</td></tr>
+      <tr><td><code>status</code></td><td>varchar</td><td>7 态状态机（见 §4），默认 <code>pending</code></td></tr>
+      <tr><td><code>assigned_to</code></td><td>bigint</td><td>责任辅导员（由 OrgAssignment 决定）——<b>权限与可操作性的锚点</b></td></tr>
+      <tr><td><code>due_at</code></td><td>timestamptz</td><td>SLA 截止；过期未关闭由定时任务迁 <code>overdue</code></td></tr>
+      <tr><td><code>accepted_at/by</code> · <code>closed_at/by/reason</code> · <code>transferred_to</code></td><td>—</td><td>处置副作用字段，由 Service 在转移前写入</td></tr>
+      <tr><td><code>current_brief_id</code></td><td>bigint</td><td>指向 task_ai_brief_history 最新可用小夕画像；空=未生成</td></tr>
+      <tr><td><code>reschedule_count</code> · <code>trigger_count</code> · <code>last_triggered_at</code> · <code>cooldown_until</code></td><td>—</td><td>改期次数；规则累计命中次数与去重 / 冷却（V125）</td></tr>
+    </table>
+
+    <h3>3.2 关联表</h3>
+    <div class="grid">
+      <div class="card"><div class="k">care_task_audit</div><div class="v">处置审计</div><p>每次状态转移 / 下钻 / 督办留痕，from→to、actor、role、时间。</p></div>
+      <div class="card"><div class="k">care_task_feedback</div><div class="v">规则效果反馈</div><p>误报 / 改进建议 / 拒绝原因，喂回规则效果报表。</p></div>
+      <div class="card"><div class="k">task_ai_brief_history</div><div class="v">小夕画像版本</div><p>brief 历史；current_brief_id 指向最新可用版。</p></div>
+      <div class="card"><div class="k">counselor_talk</div><div class="v">谈话回链</div><p><code>source_care_task_id</code>（单向）记录谈话源自哪个关怀任务（与 source_alert_id 平行）。</p></div>
+      <div class="card"><div class="k">crisis_signal</div><div class="v">危机线索</div><p>并行例外通道，<b>无 assigned_to</b>，独立审计（见 §9）。</p></div>
+    </div>
+  </section>
+
+  <section id="s4" class="anchor">
+    <h2><span class="num">04</span>任务生命周期与状态机</h2>
+    <p>状态机是<b>静态常量表，不入库</b>（<code>CareTaskTransitions</code>）——防止规则被运行时改坏。非法 <code>(from, event)</code> 抛 <code>CARE_TASK_INVALID_TRANSITION</code>，全局异常处理器透传中文文案。前端据此网关按钮可见性（<code>isAllowed</code>），避免对非法态发起调用。</p>
+
+    <h3>4.1 事件</h3>
+    <table>
+      <tr><th>事件</th><th>触发者</th><th>必填</th></tr>
+      <tr><td><code>ACCEPT</code> 接单</td><td>辅导员</td><td>—</td></tr>
+      <tr><td><code>REJECT</code> 拒绝 / 误报</td><td>辅导员</td><td>reason_code（写 feedback）</td></tr>
+      <tr><td><code>RESOLVE</code> 完成</td><td>辅导员</td><td>note（可选）</td></tr>
+      <tr><td><code>TRANSFER</code> 转介</td><td>辅导员</td><td>target_dept + reason_detail</td></tr>
+      <tr><td><code>RESCHEDULE</code> 改期</td><td>辅导员</td><td>days ∈ {1,3,7}，reschedule_count+1</td></tr>
+      <tr><td><code>SAVE_FOLLOWUP</code></td><td>Service 内部</td><td>首次保存跟进 → accepted 进 in_progress</td></tr>
+      <tr><td><code>OVERDUE_TICK</code></td><td>系统定时</td><td>due_at 过 → overdue</td></tr>
+    </table>
+
+    <h3>4.2 状态转移表</h3>
+    <p class="sm">列＝当前状态，行＝事件；单元格＝目标状态，空＝非法。</p>
+    <table>
+      <tr><th>事件 \ 状态</th><th>pending</th><th>accepted</th><th>in_progress</th><th>overdue</th><th>resolved/rejected/transferred</th></tr>
+      <tr><td><code>ACCEPT</code></td><td>accepted</td><td>—</td><td>—</td><td>accepted</td><td rowspan="7" style="text-align:center;color:var(--fg-4)">终态<br>不再迁移</td></tr>
+      <tr><td><code>REJECT</code></td><td>rejected</td><td>rejected</td><td>—</td><td>—</td></tr>
+      <tr><td><code>RESOLVE</code></td><td>—</td><td>resolved</td><td>resolved</td><td>resolved</td></tr>
+      <tr><td><code>TRANSFER</code></td><td>transferred</td><td>transferred</td><td>transferred</td><td>transferred</td></tr>
+      <tr><td><code>RESCHEDULE</code></td><td>pending</td><td>pending</td><td>—</td><td>—</td></tr>
+      <tr><td><code>SAVE_FOLLOWUP</code></td><td>—</td><td>in_progress</td><td>—</td><td>—</td></tr>
+      <tr><td><code>OVERDUE_TICK</code></td><td>overdue</td><td>overdue</td><td>—</td><td>—</td></tr>
+    </table>
+    <div class="box amber"><div class="h">前端按钮必须按状态网关</div>受理仅 <code>pending/overdue</code> 合法、误报仅 <code>pending/accepted</code> 合法、完成仅 <code>accepted/in_progress/overdue</code> 合法。任何快捷入口（含 AI 观察员卡片）对非法态调用都会 400——按钮可见性必须与本表一致，输入型转移（转介 / 带备注完成）走详情页。</div>
+
+    <h3>4.3 SLA 与超期</h3>
+    <p>仅 <code>pending / accepted</code> 会被 <code>OVERDUE_TICK</code> 迁 <code>overdue</code>；<code>in_progress</code> 已在跟进中，超期由 SLA 报表呈现而不进 overdue（避免无谓抛/catch）。</p>
+  </section>
+
+  <section id="s5" class="anchor">
+    <h2><span class="num">05</span>规则引擎</h2>
+    <p><code>CareRuleEngine</code> 周期扫描信号，命中内置规则集（<code>R001–R012</code>，产品方维护、<code>rule_version</code> 版本化）即生成 care_task，并把命中证据写入 <code>trigger_data</code>（含 <code>rule_name</code> 中文名，前端展示不暴露 R0xx 代号）。</p>
+    <ul class="tick">
+      <li><b>去重 / 冷却（V125）：</b><code>trigger_count</code> / <code>last_triggered_at</code> / <code>cooldown_until</code> 防同一规则对同一学生短时间内重复刷任务。</li>
+      <li><b>可运维：</b><code>/care/rules</code> 启停单条规则、<code>/care/rules/severity-offset</code> 全局严重度偏移（−1 / 0 / +1），不改代码。</li>
+      <li><b>效果闭环：</b><code>/care/rules/effect-report</code> 按规则给出命中数、接单率、办结率、平均办结时长、误报率、拒绝原因分布——误报 / 拒绝反馈直接喂回此报表。</li>
+    </ul>
+    <div class="box"><div class="h">DSL 受限</div>规则表达式受限语法，computed 仅允许内置函数（<code>duration_days</code> / <code>date_diff</code> / <code>if_then</code>），不暴露通用脚本引擎。</div>
+  </section>
+
+  <section id="s6" class="anchor">
+    <h2><span class="num">06</span>AI 辅助：小夕画像</h2>
+    <p>每个 care_task 可懒加载一份「小夕怎么看」结构化画像，帮辅导员快速进入谈话，<b>不替代判断、不参与状态决策</b>。</p>
+    <pre><span class="c">// CareBrief（小夕画像，PRD §11.3）</span>
+{
+  <span class="k">why</span>:               <span class="s">"为什么触发——把规则命中翻译成人能懂的一句话"</span>,
+  <span class="k">talking_points</span>:    <span class="s">["可以聊的话题…"]</span>,
+  <span class="k">avoid_topics</span>:      <span class="s">["本次不宜触碰…"]</span>,
+  <span class="k">campus_resources</span>:  <span class="s">["可对接资源（心理中心 / 资助 / 学业）…"]</span>,
+  <span class="k">follow_up_days</span>:    <span class="s">7</span>
+}</pre>
+    <table>
+      <tr><th>方面</th><th>设计</th></tr>
+      <tr><td>三态</td><td><code>ready</code> 展示 / <code>pending</code> 懒加载中 / <code>failed</code> 可重试</td></tr>
+      <tr><td>限流</td><td>手动「重新分析」命中 5 分钟限流抛中文 BizException</td></tr>
+      <tr><td>降级</td><td>AI 区失败 ≠ 任务失败：sanitize 拦截 / 懒加载失败 / 限流 均不影响详情页处置按钮可用性</td></tr>
+      <tr><td>版本</td><td>task_ai_brief_history 留历史，<code>current_brief_id</code> 指最新可用版</td></tr>
+    </table>
+  </section>
+
+  <section id="s7" class="anchor">
+    <h2><span class="num">07</span>多角色与权限边界</h2>
+    <p>关怀的可见 / 可操作范围由 <code>care_task.assigned_to</code> 锚定，统一口径 <code>CareAdminAccess</code>。该口径同时约束：列表 API、首屏摘要、AI 观察员、schema-catalog NL→SQL。</p>
+    <table>
+      <tr><th>角色</th><th>口径</th><th>说明</th></tr>
+      <tr><td>辅导员 counselor / 班主任 class_master</td><td><code>ct.assigned_to = :owner_id</code></td><td>只看 / 只可处置分派给本人的任务</td></tr>
+      <tr><td>院系领导 dean / 学工部部长 / 校级管理员 / 超管</td><td><code>""</code>（不过滤）</td><td>看本校全部（本院收窄留 P1）</td></tr>
+      <tr><td>学生 student</td><td><code>ct.student_id = :owner_id</code></td><td>只读知情兜底，不主推 / 不弹窗</td></tr>
+    </table>
+    <div class="box red"><div class="h">role_scope 必须枚举所有角色</div>schema-catalog 里未列角色，<code>roleScopeFor</code> 返回 <code>""</code> = 不过滤 = 越权。新增可被 AI 观察员查询的表，role_scope 必须穷举所有角色。</div>
+
+    <h3>7.1 管理视图</h3>
+    <table>
+      <tr><th>端点</th><th>用途</th></tr>
+      <tr><td><code>GET /care/admin/summary</code></td><td>本周总量 / 办结 / 处理中 / 超期 / Top 规则 / 严重度分布（脱 rule_id，不点名学生 / 辅导员）</td></tr>
+      <tr><td><code>GET /care/admin/overdue</code> · <code>/trends</code></td><td>超期清单、按规则趋势</td></tr>
+      <tr><td><code>POST /care/admin/tasks/{id}/urge</code></td><td>督办：领导界面只显示「已督办」，后端经 Orchestrator 私下提醒责任辅导员</td></tr>
+      <tr><td><code>POST /care/admin/drill-down/{studentId}</code></td><td>下钻看个体：理由 ≥30 字、配额受限、写下钻日志（见 §11）</td></tr>
+    </table>
+  </section>
+
+  <section id="s8" class="anchor">
+    <h2><span class="num">08</span>AI 观察员集成</h2>
+    <p>辅导员 / 院系工作台首屏的「AI 观察员 · 主动关怀」卡片，是关怀任务的智能聚合入口。本节是关怀与 AI 的耦合面，也是本系统改动密度最高处。</p>
+
+    <h3>8.1 数据链路</h3>
+    <div class="flow">
+      <div class="n"><b>WorkspaceMetricsService</b><small>JDBC 聚合 care_task → metrics.recent_alerts（key 名沿用旧契约）</small></div>
+      <div class="arr">→</div>
+      <div class="n"><b>InsightService</b><small>持久化一行 insight，永不抛错（降级空数组）</small></div>
+      <div class="arr">→</div>
+      <div class="n"><b>Sidecar /insights</b><small>DeepSeek 综合，产出 category=「主动关怀」洞察 + refs</small></div>
+      <div class="arr">→</div>
+      <div class="n"><b>InsightCard.tsx</b><small>渲染行 + 状态网关动作</small></div>
+    </div>
+
+    <div class="box"><div class="h">最小爆炸半径的关键约定</div>取代旧 student_alert 时，<b>metric key 名（<code>recent_alerts</code> / <code>rule_name</code> …）与 ref 类型字面量 <code>"alert"</code> 全部保持不变</b>，只换底层数据源与文案。<code>"alert"</code> 是对用户不可见的内部字符串，保留它使 sidecar 的 reflection 校验、前端类型、过滤逻辑零改动——id 现在是 care_task.id。</div>
+
+    <h3>8.2 行渲染以后端为准，不依赖 LLM 完整性</h3>
+    <p>大模型常只为最严重的几条出 <code>ref</code>，导致「标题说 4 条只渲染 2 行」。因此卡片的可操作行<b>直接取后端权威的 <code>recent_alerts</code></b>（按 SQL 严重度排序 critical→low），只要该洞察引用了关怀任务就把全部待处理 care_task 渲染出来——LLM 只负责文字综述，不负责枚举。</p>
+
+    <h3>8.3 按状态机网关的快捷动作</h3>
+    <table>
+      <tr><th>status</th><th>受理</th><th>误报</th><th>完成</th><th>发起谈话</th></tr>
+      <tr><td>pending</td><td>✓ accept</td><td>✓ reject(rule_not_applicable)</td><td>—</td><td>✓</td></tr>
+      <tr><td>accepted</td><td>—</td><td>✓</td><td>✓ 跳详情填备注</td><td>✓</td></tr>
+      <tr><td>in_progress</td><td>—</td><td>—</td><td>✓ 跳详情填备注</td><td>✓</td></tr>
+      <tr><td>overdue</td><td>✓</td><td>—</td><td>✓ 跳详情填备注</td><td>✓</td></tr>
+    </table>
+    <p class="sm">受理 / 误报为卡内一键（误报＝以 <code>rule_not_applicable</code> 关闭并回写规则效果反馈）；完成＝跳 <code>/care/task/:id</code> 详情页带结案备注正式 RESOLVE，避免一键误关紧急任务；点规则名亦进详情页（同关怀工作台）。</p>
+
+    <div class="box amber"><div class="h">口径必须按 assigned_to，不能按「学生属于本班」</div>recentAlerts / alerts_open / alerts_critical 的辅导员口径必须 <code>WHERE assigned_to = counselorId</code>（dean=全部，单班抽屉再按本班学生收窄）。曾按 student-in-class 导致：卡片 10 条但首屏 4 条自相矛盾；且对非本人任务调受理/误报会被 <code>requireOwnedTask</code> 拒绝、按钮静默失败。必须与 care role_scope 与首屏摘要完全同口径。</div>
+
+    <h3>8.4 谈话回链（option B）</h3>
+    <p>从卡片「发起谈话」带 <code>careTaskId</code> 进辅导谈话页，落库时写 <code>counselor_talk.source_care_task_id</code>（单向，与 source_alert_id 平行）。<b>不</b>做 care_task 反向列、不联动状态机——保持关怀状态机纯净。</p>
+  </section>
+
+  <section id="s9" class="anchor">
+    <h2><span class="num">09</span>危机求助快速通道</h2>
+    <p>危机通道（<code>crisis_signal</code>）是与关怀 R001–R012 <b>并行的 P1 例外通道</b>，处理「学生显式求助 / 需立即人工核实」。它与关怀共享工作台与画像，但在架构上刻意隔离。</p>
+    <div class="box red"><div class="h">三条安全红线</div>
+      <b>① 不进规则引擎</b>——xg-ai 判定显式求助命中后回调 <code>CrisisSignalService.report</code>，不走 CareRuleEngine。<br>
+      <b>② 不喂大模型</b>——危机数据<b>不进 insight metrics、不进 LLM 上下文</b>，AI 观察员的危机条由前端直接拉 <code>/crisis-signal</code> 渲染，绝不让模型编辑 / 转述危机内容。<br>
+      <b>③ 通知不静默失败</b>——首次通知 <code>send</code> 返回 null 语义歧义（去重/无收件人/模板缺失/真失败），一律按失败响亮报错留人工介入，绝不当「已送达」。
+    </div>
+    <table>
+      <tr><th>方面</th><th>设计</th></tr>
+      <tr><td>开关</td><td><code>xg.crisis.enabled</code> 默认 <code>false</code>，仅门控 <code>report()</code> 入口（关闭即 no-op，对正常 chat 零影响）；list / detail / close <b>不</b>受开关门控</td></tr>
+      <tr><td>幂等</td><td>同 <code>(tenant, messageId, ruleVersion)</code> 复用同一行，不重复发首次通知</td></tr>
+      <tr><td>权限</td><td>crisis_signal <b>无 assigned_to</b>，越权过滤落在「学生归谁管」——经 <code>AssigneeLookupMapper.findCounselorsOfStudent</code> 反查（与危机通知收件人解析同一条双轨 SQL，口径不漂移）</td></tr>
+      <tr><td>审计更严</td><td>详情每次「谁在何时看了」都写一条 view 审计，比普通关怀更严</td></tr>
+      <tr><td>通知</td><td>固定模板 <code>CRISIS_SIGNAL_IMMEDIATE</code>，经 NotificationOrchestrator 触达责任辅导员</td></tr>
+    </table>
+    <h3>9.1 观察员中的危机警示条</h3>
+    <p>AI 观察员卡片<b>最顶部</b>（独立于 LLM 输出）渲染红色警示条：<code>⚠ 危机 · 需立即人工核实 · N 例</code>，按学生聚合（同学生多条 pending 折叠成一行，避免刷屏），点「立即核实」跳 <code>/crisis/:signalId</code>——与关怀工作台危机泳道同源同入口、复用危机配色（<code>#cf1322 / #fff2f0 / #ffccc7</code>）。</p>
+  </section>
+
+  <section id="s10" class="anchor">
+    <h2><span class="num">10</span>关键设计约束与权衡</h2>
+    <div class="grid">
+      <div class="card"><div class="k">租户隔离</div><div class="v">Schema 级</div><p>所有 SQL 经多租户插件路由；裸 JDBC 显式拼 schema 并校验合法。</p></div>
+      <div class="card"><div class="k">AI 可降级</div><div class="v">try-catch 包裹</div><p>AI 不可用时关怀全流程经传统界面完整运行。</p></div>
+      <div class="card"><div class="k">通知铁律</div><div class="v">必走 Orchestrator</div><p>新模块发通知 = seed 一行 notification_template + 调 Orchestrator，禁止绕开。</p></div>
+      <div class="card"><div class="k">轻量优先</div><div class="v">不加新组件</div><p>能用 PG（JSONB / 全文 / 向量）解决的不引入 MQ/ES。</p></div>
+      <div class="card"><div class="k">Tool 粒度</div><div class="v">用户任务级</div><p>AI Tool 是「接单 / 完成」而非 CRUD；用户身份从上下文取，不暴露给 Agent。</p></div>
+      <div class="card"><div class="k">文案约束</div><div class="v">不暴露 code</div><p>UI 全中文，不出现 rule_id / role_code / 英文枚举词。</p></div>
+    </div>
+    <h3>10.1 取舍记录</h3>
+    <ul class="tick">
+      <li><b>保留 ref 类型字面量 <code>"alert"</code></b>：语义上已是 care，但它是内部不可见串。改它会连锁波及 sidecar reflection、TS 类型、前端过滤——收益为零、风险扩大，故只换数据不换字面量。</li>
+      <li><b>谈话回链只做单向</b>：care_task 不加反向列、不因建谈话自动推进状态——关怀状态机是闭环判断的核心，不让旁路写入污染。</li>
+      <li><b>危机按学生聚合</b>：观察员是摘要面，6 条同一学生危机折叠成 1 行点开看最近——可读性优先于逐条罗列。</li>
+    </ul>
+  </section>
+
+  <section id="s11" class="anchor">
+    <h2><span class="num">11</span>安全与合规</h2>
+    <ul class="tick">
+      <li><b>身份铁律：</b>危机回调的 <code>studentId</code> 必须是调用方重校验已认证 token 解析出的，不接受 xg-ai 自报。</li>
+      <li><b>下钻最小化：</b>领导看个体须填 ≥30 字理由、受配额限制、写下钻日志（actor / 学生 / 理由 / 时间）；配额满抛中文 BizException。</li>
+      <li><b>督办不泄露：</b>领导界面只显示「已督办」，提醒经 Orchestrator 私下发给责任辅导员，不暴露处置细节给上级界面。</li>
+      <li><b>危机详情可追溯：</b>每次查看写 view 审计，比普通关怀严。</li>
+      <li><b>脱敏展示：</b>管理摘要脱 rule_id、不点名学生 / 辅导员；前端不展示英文 code。</li>
+    </ul>
+  </section>
+
+  <section id="s12" class="anchor">
+    <h2><span class="num">12</span>演进路线</h2>
+    <table>
+      <tr><th>方向</th><th>P0（当前）</th><th>P1+</th></tr>
+      <tr><td>预警下线</td><td>student_alert 后端 / 旧 /alerts 并行保留，导航 / 观察员 / catalog 已摘除</td><td>W4–W8 并行期后彻底下线 student_alert</td></tr>
+      <tr><td>管理范围</td><td>dean 看本校全部</td><td>本院收窄、跨校结构隔离</td></tr>
+      <tr><td>认证</td><td>统一兜底密码 + Sa-Token</td><td>接 CAS / OAuth2 SSO</td></tr>
+      <tr><td>危机通道</td><td>脚手架，<code>enabled</code> 可开；D1/D2/D3 决策未拍板前默认关</td><td>词表受控注入、分诊增强、决策项落地</td></tr>
+      <tr><td>AI 模型</td><td>全公有云 API（DeepSeek / 通义千问）</td><td>视规模评估私有化 / 多模型路由</td></tr>
+    </table>
+  </section>
+
+  <section id="s13" class="anchor">
+    <h2><span class="num">13</span>附录</h2>
+    <h3>13.1 关怀 API 一览</h3>
+    <table>
+      <tr><th>方法 / 路径</th><th>用途</th></tr>
+      <tr><td><code>GET /api/v1/care/tasks</code></td><td>列表（statuses / severities / assigneeScope=self|all …）</td></tr>
+      <tr><td><code>GET /api/v1/care/tasks/{id}</code></td><td>详情（区一 + 区二 + 历史）</td></tr>
+      <tr><td><code>POST …/{id}/accept · /resolve · /reject · /reschedule · /transfer · /feedback</code></td><td>状态机动作（按 §4.2 网关）</td></tr>
+      <tr><td><code>GET …/{id}/brief</code> · <code>POST …/{id}/brief/refresh</code></td><td>小夕画像（懒加载 / 5 分钟限流）</td></tr>
+      <tr><td><code>POST /api/v1/care/scan</code></td><td>手动触发规则扫描</td></tr>
+      <tr><td><code>GET/POST /api/v1/care/rules…</code></td><td>规则启停 / 严重度偏移 / 效果报表</td></tr>
+      <tr><td><code>… /api/v1/care/admin/…</code></td><td>summary / overdue / trends / urge / drill-down</td></tr>
+      <tr><td><code>GET /api/v1/crisis-signal</code> · <code>/{id}</code> · <code>POST /{id}/close</code></td><td>危机线索 列表（角色收窄）/ 详情（写审计）/ 关闭</td></tr>
+    </table>
+    <h3>13.2 术语</h3>
+    <table>
+      <tr><th>词</th><th>释义</th></tr>
+      <tr><td>care_task</td><td>关怀任务，规则命中生成、辅导员闭环处置的工作项</td></tr>
+      <tr><td>assigned_to</td><td>责任辅导员 sys_user.id，权限与可操作性锚点</td></tr>
+      <tr><td>小夕 / 朝夕</td><td>AI 助手「小夕」/ 产品「朝夕」</td></tr>
+      <tr><td>AI 观察员</td><td>工作台首屏 LLM 综合洞察卡（InsightCard），含主动关怀与危机条</td></tr>
+      <tr><td>schema-catalog</td><td>AI 观察员 NL→SQL 的白名单 + 角色可见范围（role_scope）配置</td></tr>
+      <tr><td>A1 硬切</td><td>把异常预警口径从 student_alert 整体切到 care_task</td></tr>
+    </table>
+  </section>
+
+  <hr>
+  <footer>朝夕 · 高校学生工作服务平台 — 关怀模块技术白皮书 v1.0 · 2026-05-18 · 内部技术文档</footer>
+  </main>
+</div>
+
+</body>
+</html>

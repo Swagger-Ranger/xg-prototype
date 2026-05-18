@@ -7,7 +7,7 @@ import {
   ReloadOutlined, BulbOutlined, LikeOutlined, DislikeOutlined,
   DatabaseOutlined, ThunderboltOutlined,
   PushpinOutlined, PushpinFilled,
-  CheckCircleOutlined, StopOutlined, MessageOutlined,
+  CheckCircleOutlined, StopOutlined, MessageOutlined, FlagOutlined, WarningFilled,
   NotificationOutlined, FormOutlined, SendOutlined, EyeOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -25,7 +25,8 @@ import {
 } from '@/api/insight';
 import { getPendingEnriched } from '@/api/workflow';
 import { getClassRoster } from '@/api/counselor';
-import { acceptCareTask, rejectCareTask, type CareSeverity } from '@/api/care';
+import { acceptCareTask, rejectCareTask, type CareSeverity, type CareStatus } from '@/api/care';
+import { listCrisisSignals, type CrisisSignalListItem } from '@/api/crisis';
 import { remindForm } from '@/api/collection';
 import { useAIActionStore, type PinnedRef } from '@/stores/ai-action.store';
 import { useBatchAction } from '@/hooks/useBatchAction';
@@ -216,6 +217,40 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
     queryFn: () => getLatestInsight(role, classId),
   });
 
+  // 危机线索：crisis 是与 care 并行的安全例外通道，**刻意不入 insight
+  // metrics / 不喂 LLM**（设计红线）。前端直接拉 listCrisisSignals —
+  // 服务端已按角色收窄（辅导员只见本人学生、管理角色见全部），与关怀
+  // 工作台危机泳道同源同 queryKey。同一学生多条 pending 折叠成一行。
+  const { data: crisisList = [] } = useQuery<CrisisSignalListItem[]>({
+    queryKey: ['crisis.list'],
+    queryFn: listCrisisSignals,
+  });
+  const crisisGroups = useMemo(() => {
+    const m = new Map<
+      number,
+      { studentId: number; studentName: string; count: number; latestSignalId: number; latestAt: string }
+    >();
+    for (const c of crisisList) {
+      const g = m.get(c.student_id);
+      if (!g) {
+        m.set(c.student_id, {
+          studentId: c.student_id,
+          studentName: c.student_name ?? '未知学生',
+          count: 1,
+          latestSignalId: c.signal_id,
+          latestAt: c.created_at,
+        });
+      } else {
+        g.count += 1;
+        if (c.created_at > g.latestAt) {
+          g.latestAt = c.created_at;
+          g.latestSignalId = c.signal_id;
+        }
+      }
+    }
+    return [...m.values()];
+  }, [crisisList]);
+
   // metrics.recent_alerts is the list of open 主动关怀 (care_task) rows the
   // backend pinned to the insight (student_alert retired — A1 hard-cut). We
   // look up by id so an `alert` ref (ref type kept as the internal string
@@ -227,6 +262,10 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
     student_name: string;
     severity: CareSeverity;
     rule_name: string;
+    // care 7 态状态机：受理(ACCEPT) 仅 pending/overdue 合法、误报(REJECT) 仅
+    // pending/accepted 合法（CareTaskTransitions）。按 status 网关按钮，
+    // 否则对 in_progress 等非法态调用会 400；其余处置去详情页（关怀工作台同款）。
+    status: CareStatus;
   }
   const alertMap = useMemo<Map<string, RecentAlertRow>>(() => {
     const m = new Map<string, RecentAlertRow>();
@@ -242,6 +281,7 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
           student_name: String(r.student_name ?? '未知学生'),
           severity: (r.severity ?? 'medium') as CareSeverity,
           rule_name: String(r.rule_name ?? '关怀任务'),
+          status: String(r.status ?? '') as CareStatus,
         });
       }
     } catch {
@@ -413,6 +453,62 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
           重新分析
         </Button>
       </div>
+
+      {crisisGroups.length > 0 && (
+        <div
+          style={{
+            border: '1px solid #ffccc7',
+            background: '#fff2f0',
+            borderRadius: 8,
+            padding: '8px 12px',
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 600,
+              color: '#cf1322',
+              fontSize: 13,
+              marginBottom: 8,
+            }}
+          >
+            <WarningFilled />
+            <span>危机 · 需立即人工核实 · {crisisGroups.length} 例</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {crisisGroups.map((g) => (
+              <div
+                key={g.studentId}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 10px',
+                  background: '#fff',
+                  border: '1px solid #ffccc7',
+                  borderRadius: 6,
+                }}
+              >
+                <span style={{ fontWeight: 600, color: '#cf1322' }}>{g.studentName}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#a8071a' }}>
+                  · 危机求助 · {g.count > 1 ? `${g.count} 次未核实` : '需核实'}
+                </span>
+                <Button
+                  size="small"
+                  danger
+                  type="primary"
+                  onClick={() => navigate(`/crisis/${g.latestSignalId}`)}
+                >
+                  立即核实
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className={styles.empty}>
@@ -625,17 +721,17 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
                 </div>
               )}
               {(() => {
-                const rows: RecentAlertRow[] = [];
-                const seen = new Set<string>();
-                for (const raw of it.refs ?? []) {
-                  const r = normalizeRef(raw);
-                  if (!r || r.type !== 'alert' || !r.id) continue;
-                  if (seen.has(r.id)) continue;
-                  const row = alertMap.get(r.id);
-                  if (!row) continue;
-                  seen.add(r.id);
-                  rows.push(row);
-                }
+                // 行以后端权威 recent_alerts(alertMap) 为准，**不**依赖 LLM
+                // 实际吐了几个 alert ref —— DeepSeek 常只 ref 紧急的、漏掉其余，
+                // 导致"标题说4条只渲染2行"。只要该洞察引用了关怀任务(有任一
+                // alert ref)，就把全部待处理 care_task 渲染出来；alertMap 保留
+                // SQL 的严重度排序(critical→…→low)。
+                const hasAlertRef = (it.refs ?? []).some(
+                  (raw) => normalizeRef(raw)?.type === 'alert',
+                );
+                const rows: RecentAlertRow[] = hasAlertRef
+                  ? [...alertMap.values()]
+                  : [];
                 if (rows.length === 0) return null;
                 return (
                   <div className={styles.alertInline}>
@@ -654,7 +750,13 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
                             >
                               {row.student_name}
                             </span>
-                            <span className={styles.alertRule}>· {row.rule_name}</span>
+                            <span
+                              className={styles.alertRule}
+                              title="查看关怀任务详情"
+                              onClick={() => navigate(`/care/task/${row.id}`)}
+                            >
+                              · {row.rule_name}
+                            </span>
                           </span>
                           <span className={styles.alertActions}>
                             {handled ? (
@@ -663,22 +765,36 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
                               </span>
                             ) : (
                               <>
-                                <Button
-                                  size="small"
-                                  icon={<CheckCircleOutlined />}
-                                  loading={pending && alertActionMut.variables?.action === 'acknowledge'}
-                                  onClick={() => alertActionMut.mutate({ id: row.id, action: 'acknowledge' })}
-                                >
-                                  受理
-                                </Button>
-                                <Button
-                                  size="small"
-                                  icon={<StopOutlined />}
-                                  loading={pending && alertActionMut.variables?.action === 'false_positive'}
-                                  onClick={() => alertActionMut.mutate({ id: row.id, action: 'false_positive' })}
-                                >
-                                  误报
-                                </Button>
+                                {(row.status === 'pending' || row.status === 'overdue') && (
+                                  <Button
+                                    size="small"
+                                    icon={<CheckCircleOutlined />}
+                                    loading={pending && alertActionMut.variables?.action === 'acknowledge'}
+                                    onClick={() => alertActionMut.mutate({ id: row.id, action: 'acknowledge' })}
+                                  >
+                                    受理
+                                  </Button>
+                                )}
+                                {(row.status === 'accepted' || row.status === 'in_progress' || row.status === 'overdue') && (
+                                  <Button
+                                    size="small"
+                                    icon={<FlagOutlined />}
+                                    title="去详情页填结案备注后完成"
+                                    onClick={() => navigate(`/care/task/${row.id}`)}
+                                  >
+                                    完成
+                                  </Button>
+                                )}
+                                {(row.status === 'pending' || row.status === 'accepted') && (
+                                  <Button
+                                    size="small"
+                                    icon={<StopOutlined />}
+                                    loading={pending && alertActionMut.variables?.action === 'false_positive'}
+                                    onClick={() => alertActionMut.mutate({ id: row.id, action: 'false_positive' })}
+                                  >
+                                    误报
+                                  </Button>
+                                )}
                                 <Button
                                   size="small"
                                   type="primary"

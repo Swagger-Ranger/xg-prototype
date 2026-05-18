@@ -50,7 +50,8 @@ public class WorkspaceMetricsService {
         m.put("alerts_open_total", countOrZero(
                 "SELECT COUNT(*) FROM " + schema + ".care_task " +
                         "WHERE status IN ('pending','accepted','in_progress','overdue')"));
-        m.put("recent_alerts", recentAlerts(schema, null, 8));
+        // dean role_scope "" → 看本校全部（不按 assigned_to 收窄）。
+        m.put("recent_alerts", recentAlerts(schema, null, null, 8));
 
         m.put("leave_pending", countOrZero(
                 "SELECT COUNT(*) FROM " + schema + ".leave_request WHERE status = 'pending'"));
@@ -182,16 +183,21 @@ public class WorkspaceMetricsService {
                         "WHERE status = 'approved' AND cancel_time IS NULL " +
                         "  AND end_time < NOW() AND student_id IN (" + idList + ")"));
 
-        // student_alert 退役 → 口径切到 care_task；open = 未关闭的关怀状态。
+        // student_alert 退役 → care_task。辅导员只看分派给自己的（assigned_to=本人），
+        // 对齐 care_task.yaml role_scope 与首屏 getCareSummary 服务端口径，
+        // 保证卡片每行都能被本人 受理/误报（否则点了后端 requireOwnedTask 拒绝、行不变）。
+        // 单班抽屉再按本班学生收窄；非 care 指标仍按班级学生口径不变。
+        String careScope = " AND assigned_to = " + counselorId
+                + (classId != null ? " AND student_id IN (" + idList + ")" : "");
         m.put("alerts_open", countOrZero(
                 "SELECT COUNT(*) FROM " + schema + ".care_task " +
-                        "WHERE status IN ('pending','accepted','in_progress','overdue') " +
-                        "  AND student_id IN (" + idList + ")"));
+                        "WHERE status IN ('pending','accepted','in_progress','overdue')" + careScope));
         m.put("alerts_critical", countOrZero(
                 "SELECT COUNT(*) FROM " + schema + ".care_task " +
                         "WHERE status IN ('pending','accepted','in_progress','overdue') " +
-                        "  AND severity = 'critical' AND student_id IN (" + idList + ")"));
-        m.put("recent_alerts", recentAlerts(schema, idList, 8));
+                        "  AND severity = 'critical'" + careScope));
+        m.put("recent_alerts", recentAlerts(schema, counselorId,
+                classId != null ? idList : null, 8));
 
         m.put("violations_last_30d", countOrZero(
                 "SELECT COUNT(*) FROM " + schema + ".student_event_log " +
@@ -295,8 +301,17 @@ public class WorkspaceMetricsService {
      * identical to the old shape so the sidecar reflection and the frontend
      * alertMap parse unchanged; rule_name is the care rule's Chinese name pulled
      * from trigger_data (CareRuleEngine writes trigger_data.rule_name).
+     *
+     * <p>Scoping must match care_task's ownership model (care_task.yaml role_scope):
+     * a counselor passes {@code assignedTo=counselorId} so every row shown is one
+     * they can actually 受理/误报 (the accept/reject endpoints enforce
+     * {@code requireOwnedTask}); dean passes {@code assignedTo=null} (sees all,
+     * role_scope ""). {@code studentFilter} additionally narrows to a single
+     * class (per-class drawer). Filtering by student-in-class instead would show
+     * tasks assigned to a co-counselor whose buttons then silently fail.
      */
-    private List<Map<String, Object>> recentAlerts(String schema, String studentFilter, int limit) {
+    private List<Map<String, Object>> recentAlerts(String schema, Long assignedTo, String studentFilter, int limit) {
+        String assigneeClause = assignedTo == null ? "" : " AND ct.assigned_to = " + assignedTo;
         String filterClause = studentFilter == null || studentFilter.isBlank()
                 ? ""
                 : " AND ct.student_id IN (" + studentFilter + ")";
@@ -305,7 +320,7 @@ public class WorkspaceMetricsService {
                 "ct.created_at, u.real_name AS student_name, ct.status " +
                 "FROM " + schema + ".care_task ct " +
                 "JOIN " + schema + ".sys_user u ON u.id = ct.student_id " +
-                "WHERE ct.status IN ('pending','accepted','in_progress','overdue')" + filterClause + " " +
+                "WHERE ct.status IN ('pending','accepted','in_progress','overdue')" + assigneeClause + filterClause + " " +
                 "ORDER BY CASE ct.severity " +
                 "  WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, " +
                 "ct.created_at DESC LIMIT ?";
