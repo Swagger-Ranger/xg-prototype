@@ -33,9 +33,11 @@ async def report(
         async with httpx.AsyncClient(
             base_url=settings.java_base_url, timeout=5.0, trust_env=False
         ) as client:
+            # Java 全局 Jackson SNAKE_CASE：键必须 snake_case（message_id/rule_version），
+            # 否则绑定为 null → Java 端 BAD_REQUEST 400。
             resp = await client.post(
                 _ENDPOINT,
-                json={"messageId": message_id, "ruleVersion": rule_version},
+                json={"message_id": message_id, "rule_version": rule_version},
                 headers=headers,
             )
         if resp.status_code == 200:
