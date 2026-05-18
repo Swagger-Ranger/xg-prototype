@@ -15,6 +15,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.agent.alert_rule_author import run as run_alert_rule_author
+from app.agent.care_brief import run as run_care_brief
 from app.agent.workflow_author import run as run_workflow_author
 
 router = APIRouter(tags=["agent"])
@@ -53,8 +54,14 @@ async def _workflow_author(
     return await run_workflow_author(current_dsl, instruction, available_roles, trace_id=trace_id)
 
 
+async def _care_brief(context: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+    # 输入安全（§11.2）由 Java 侧按构造保证，这里只信任传入 context
+    return await run_care_brief(context)
+
+
 AGENTS: dict[str, AgentFn] = {
     "alert_rule_author": _alert_rule_author,
+    "care_brief": _care_brief,
     "workflow_author": _workflow_author,
 }
 

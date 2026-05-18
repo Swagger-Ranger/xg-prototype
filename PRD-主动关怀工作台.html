@@ -1,0 +1,2058 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRD · 主动关怀工作台 · v1.0</title>
+<style>
+:root{
+  --c-primary:#5b5bd6;
+  --c-primary-soft:#eef0ff;
+  --c-accent:#f59e0b;
+  --c-accent-soft:#fff7e6;
+  --c-text:#1f2937;
+  --c-text-2:#4b5563;
+  --c-text-3:#6b7280;
+  --c-border:#e5e7eb;
+  --c-bg:#ffffff;
+  --c-bg-2:#fafbfc;
+  --c-bg-3:#f3f4f6;
+  --c-success:#16a34a;
+  --c-warn:#d97706;
+  --c-danger:#dc2626;
+  --c-orange:#ea580c;
+
+  --sev-critical:#dc2626;
+  --sev-high:#ea580c;
+  --sev-medium:#d97706;
+  --sev-low:#16a34a;
+
+  --r-1:.375rem;
+  --r-2:.5rem;
+  --r-3:.75rem;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px;
+  line-height:1.75;
+  color:var(--c-text);
+  background:var(--c-bg-2);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ─── 顶部 ─────────────────────────────────────────────── */
+header.top{
+  background:linear-gradient(135deg,#5b5bd6 0%,#7c6ee6 100%);
+  color:white;
+  padding:2.4rem 2rem 2.2rem;
+  border-bottom:1px solid var(--c-border);
+}
+header.top .wrap{max-width:1280px;margin:0 auto;}
+header.top h1{
+  margin:0 0 .5rem;
+  font-size:2rem;
+  font-weight:700;
+  letter-spacing:.5px;
+}
+header.top .subtitle{
+  margin:0;
+  font-size:1.05rem;
+  opacity:.92;
+  font-weight:300;
+}
+header.top .meta{
+  margin-top:1rem;
+  display:flex;
+  flex-wrap:wrap;
+  gap:1.5rem;
+  font-size:.85rem;
+  opacity:.85;
+}
+header.top .meta span strong{font-weight:500;margin-right:.3rem;opacity:.7;}
+
+/* ─── 主布局 ───────────────────────────────────────────── */
+.layout{
+  max-width:1280px;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:240px 1fr;
+  gap:0;
+  padding:0;
+  background:var(--c-bg);
+}
+@media (max-width: 900px){
+  .layout{grid-template-columns:1fr;}
+  aside.toc{display:none;}
+}
+
+/* ─── 左侧导航 ─────────────────────────────────────────── */
+aside.toc{
+  border-right:1px solid var(--c-border);
+  background:var(--c-bg-2);
+  padding:2rem 0 2rem 1rem;
+  position:sticky;
+  top:0;
+  align-self:start;
+  max-height:100vh;
+  overflow-y:auto;
+  font-size:.88rem;
+}
+aside.toc h4{
+  margin:0 0 .8rem;
+  font-size:.78rem;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  color:var(--c-text-3);
+  font-weight:600;
+}
+aside.toc ol{
+  list-style:none;
+  padding:0;
+  margin:0;
+  counter-reset:s;
+}
+aside.toc ol li{
+  counter-increment:s;
+  margin:0;
+}
+aside.toc a{
+  display:block;
+  padding:.35rem .8rem .35rem .5rem;
+  color:var(--c-text-2);
+  text-decoration:none;
+  border-left:2px solid transparent;
+  line-height:1.5;
+}
+aside.toc a:hover{
+  color:var(--c-primary);
+  background:var(--c-primary-soft);
+}
+aside.toc a.active{
+  color:var(--c-primary);
+  border-left-color:var(--c-primary);
+  background:var(--c-primary-soft);
+  font-weight:600;
+}
+aside.toc a::before{
+  content:counter(s) ".";
+  color:var(--c-text-3);
+  font-variant-numeric:tabular-nums;
+  margin-right:.5rem;
+  font-size:.78rem;
+}
+
+/* ─── 主内容 ───────────────────────────────────────────── */
+main{
+  padding:2.5rem 3rem 4rem;
+  max-width:none;
+  background:var(--c-bg);
+}
+main section{
+  scroll-margin-top:1.5rem;
+  margin-bottom:3rem;
+}
+main h2{
+  font-size:1.55rem;
+  font-weight:700;
+  margin:0 0 1.2rem;
+  padding-bottom:.6rem;
+  border-bottom:2px solid var(--c-primary);
+  color:var(--c-text);
+}
+main h3{
+  font-size:1.18rem;
+  font-weight:600;
+  margin:2rem 0 .8rem;
+  color:var(--c-text);
+}
+main h4{
+  font-size:1rem;
+  font-weight:600;
+  margin:1.5rem 0 .5rem;
+  color:var(--c-text-2);
+}
+main p{margin:.5rem 0 1rem;}
+main ul,main ol{padding-left:1.4rem;margin:.5rem 0 1rem;}
+main li{margin:.2rem 0;}
+main code{
+  background:var(--c-bg-3);
+  padding:.1rem .4rem;
+  border-radius:var(--r-1);
+  font-size:.88em;
+  font-family:"SF Mono",Menlo,Consolas,monospace;
+  color:#b45309;
+}
+main pre{
+  background:#1f2937;
+  color:#e5e7eb;
+  padding:1rem 1.2rem;
+  border-radius:var(--r-2);
+  font-family:"SF Mono",Menlo,Consolas,monospace;
+  font-size:.85rem;
+  line-height:1.6;
+  overflow-x:auto;
+  margin:1rem 0;
+}
+main pre code{background:none;padding:0;color:inherit;}
+main blockquote{
+  border-left:4px solid var(--c-primary);
+  background:var(--c-primary-soft);
+  margin:1rem 0;
+  padding:.8rem 1.2rem;
+  border-radius:0 var(--r-2) var(--r-2) 0;
+  color:var(--c-text);
+}
+main blockquote p{margin:.3rem 0;}
+main blockquote p:last-child{margin-bottom:0;}
+
+/* 表格 */
+.tbl{
+  width:100%;
+  border-collapse:collapse;
+  margin:1rem 0;
+  font-size:.92rem;
+  background:white;
+  border:1px solid var(--c-border);
+  border-radius:var(--r-2);
+  overflow:hidden;
+}
+.tbl th{
+  background:var(--c-bg-3);
+  color:var(--c-text);
+  text-align:left;
+  padding:.7rem .9rem;
+  font-weight:600;
+  border-bottom:1px solid var(--c-border);
+  font-size:.85rem;
+}
+.tbl td{
+  padding:.65rem .9rem;
+  border-bottom:1px solid var(--c-border);
+  vertical-align:top;
+}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:var(--c-bg-2);}
+.tbl code{font-size:.85em;}
+
+/* Callout */
+.callout{
+  border-left:4px solid;
+  padding:.9rem 1.2rem;
+  border-radius:0 var(--r-2) var(--r-2) 0;
+  margin:1.2rem 0;
+}
+.callout-title{font-weight:600;margin-bottom:.3rem;display:flex;align-items:center;gap:.4rem;}
+.callout p:last-child{margin-bottom:0;}
+.callout.tip{border-color:var(--c-success);background:#f0fdf4;}
+.callout.warn{border-color:var(--c-warn);background:var(--c-accent-soft);}
+.callout.danger{border-color:var(--c-danger);background:#fef2f2;}
+.callout.note{border-color:var(--c-primary);background:var(--c-primary-soft);}
+
+/* 严重度徽章 */
+.sev{
+  display:inline-block;
+  padding:.1rem .55rem;
+  border-radius:999px;
+  font-size:.78rem;
+  font-weight:600;
+  letter-spacing:.5px;
+  vertical-align:middle;
+}
+.sev-critical{background:#fee2e2;color:var(--sev-critical);}
+.sev-high{background:#ffedd5;color:var(--sev-high);}
+.sev-medium{background:#fef3c7;color:var(--sev-medium);}
+.sev-low{background:#dcfce7;color:var(--sev-low);}
+
+/* 标签 */
+.tag{
+  display:inline-block;
+  padding:.05rem .5rem;
+  border-radius:var(--r-1);
+  background:var(--c-bg-3);
+  color:var(--c-text-2);
+  font-size:.78rem;
+  font-weight:500;
+  margin-right:.3rem;
+}
+
+/* 一页摘要卡片 */
+.summary-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+  gap:1rem;
+  margin:1.2rem 0;
+}
+.summary-card{
+  background:white;
+  border:1px solid var(--c-border);
+  border-radius:var(--r-3);
+  padding:1.2rem 1.3rem;
+  border-top:3px solid var(--c-primary);
+}
+.summary-card h4{margin:0 0 .5rem;font-size:.92rem;color:var(--c-primary);text-transform:uppercase;letter-spacing:.5px;}
+.summary-card p{margin:0;font-size:.92rem;color:var(--c-text-2);line-height:1.7;}
+
+/* 北极星卡 */
+.north-star{
+  margin:1.5rem 0;
+  background:linear-gradient(135deg,#fff7e6 0%,#fef3c7 100%);
+  border:1px solid #fde68a;
+  padding:1.3rem 1.5rem;
+  border-radius:var(--r-3);
+  font-size:1.05rem;
+  font-weight:500;
+  line-height:1.7;
+}
+.north-star .label{
+  font-size:.78rem;
+  color:var(--c-warn);
+  font-weight:700;
+  letter-spacing:1.5px;
+  margin-bottom:.5rem;
+  text-transform:uppercase;
+}
+
+/* 流程图 / ascii */
+.ascii{
+  background:var(--c-bg-2);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-2);
+  padding:1rem 1.2rem;
+  font-family:"SF Mono",Menlo,Consolas,monospace;
+  font-size:.85rem;
+  line-height:1.5;
+  overflow-x:auto;
+  white-space:pre;
+  margin:1rem 0;
+  color:var(--c-text-2);
+}
+
+/* 原则列表 */
+.principle{
+  background:white;
+  border:1px solid var(--c-border);
+  border-left:3px solid var(--c-primary);
+  border-radius:0 var(--r-2) var(--r-2) 0;
+  padding:1rem 1.3rem;
+  margin:.8rem 0;
+}
+.principle h4{
+  margin:0 0 .4rem;
+  color:var(--c-primary);
+  font-size:1rem;
+}
+.principle p{margin:.2rem 0;font-size:.92rem;}
+.principle ul{margin:.3rem 0 .3rem 1rem;font-size:.92rem;}
+
+/* 双栏 做/不做 */
+.dual{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:1rem;
+  margin:1rem 0;
+}
+@media (max-width: 700px){.dual{grid-template-columns:1fr;}}
+.dual .do, .dual .dont{
+  background:white;
+  border:1px solid var(--c-border);
+  border-radius:var(--r-2);
+  padding:1rem 1.2rem;
+}
+.dual .do{border-top:3px solid var(--c-success);}
+.dual .dont{border-top:3px solid var(--c-danger);}
+.dual h4{margin:0 0 .5rem;}
+.dual .do h4{color:var(--c-success);}
+.dual .dont h4{color:var(--c-danger);}
+.dual ul{margin:0;padding-left:1.3rem;font-size:.92rem;}
+
+/* 任务卡 mockup */
+.mockup{
+  background:white;
+  border:1px solid var(--c-border);
+  border-radius:var(--r-3);
+  padding:0;
+  margin:1.2rem 0;
+  overflow:hidden;
+  box-shadow:0 2px 12px rgba(0,0,0,.04);
+}
+.mockup .mk-head{
+  background:var(--c-bg-3);
+  padding:.7rem 1.1rem;
+  font-size:.83rem;
+  color:var(--c-text-3);
+  border-bottom:1px solid var(--c-border);
+  font-weight:600;
+}
+.mockup .mk-body{padding:1.2rem 1.3rem;}
+.mockup .mk-task{
+  border-left:3px solid var(--sev-critical);
+  background:var(--c-bg-2);
+  padding:.8rem 1rem;
+  margin:.6rem 0;
+  border-radius:0 var(--r-2) var(--r-2) 0;
+}
+.mockup .mk-task.high{border-left-color:var(--sev-high);}
+.mockup .mk-task.medium{border-left-color:var(--sev-medium);}
+.mockup .mk-task .mk-name{font-weight:600;}
+.mockup .mk-task .mk-reason{color:var(--c-text-2);font-size:.9rem;margin:.2rem 0;}
+.mockup .mk-task .mk-actions{margin-top:.4rem;}
+.mockup .mk-task .mk-actions .btn{
+  display:inline-block;
+  padding:.25rem .7rem;
+  background:white;
+  border:1px solid var(--c-border);
+  border-radius:var(--r-1);
+  font-size:.82rem;
+  margin-right:.3rem;
+  color:var(--c-text-2);
+}
+.mockup .mk-task .mk-actions .btn.primary{background:var(--c-primary);color:white;border-color:var(--c-primary);}
+.mockup .mk-foot{
+  background:var(--c-bg-2);
+  padding:.6rem 1.2rem;
+  font-size:.82rem;
+  color:var(--c-text-3);
+  border-top:1px solid var(--c-border);
+}
+
+/* AI 助手区 */
+.ai-card{
+  background:linear-gradient(135deg, #eef0ff 0%, #f5f3ff 100%);
+  border:1px solid #c7d2fe;
+  border-radius:var(--r-2);
+  padding:1rem 1.2rem;
+  margin:.8rem 0;
+}
+.ai-card .ai-head{
+  font-weight:600;
+  color:var(--c-primary);
+  font-size:.88rem;
+  margin-bottom:.5rem;
+  display:flex;
+  align-items:center;
+  gap:.4rem;
+}
+.ai-card .ai-head::before{
+  content:"✦";
+  font-size:1.1rem;
+}
+.ai-card ul{font-size:.9rem;margin:.3rem 0 .3rem 1.2rem;}
+.ai-card .ai-disclaim{
+  font-size:.75rem;
+  color:var(--c-text-3);
+  margin-top:.6rem;
+  font-style:italic;
+}
+
+/* 风险等级标识 */
+.risk-h{color:var(--c-danger);font-weight:700;}
+.risk-m{color:var(--c-warn);font-weight:600;}
+.risk-l{color:var(--c-success);}
+
+/* footer */
+footer.bot{
+  text-align:center;
+  padding:2rem 1rem;
+  color:var(--c-text-3);
+  font-size:.82rem;
+  border-top:1px solid var(--c-border);
+  background:var(--c-bg-2);
+  max-width:1280px;
+  margin:0 auto;
+}
+
+/* 打印优化 */
+@media print{
+  aside.toc{display:none;}
+  .layout{grid-template-columns:1fr;}
+  main{padding:1rem;}
+  header.top{background:white;color:black;border-bottom:2px solid #333;}
+  main h2{page-break-after:avoid;}
+  .summary-card,.principle,.mockup,.callout{page-break-inside:avoid;}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <h1>主动关怀工作台 · PRD v1.2</h1>
+    <p class="subtitle">从"异常预警"到"主动关怀"——高校学生工作的线索发现、关怀建议与闭环留痕系统</p>
+    <div class="meta">
+      <span><strong>版本</strong>v1.2（评审二轮修订）</span>
+      <span><strong>日期</strong>2026-05-15</span>
+      <span><strong>状态</strong>待复核</span>
+      <span><strong>适用</strong>朝夕 P1 学生异常发现与干预模块</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="toc">
+    <h4>章节导航</h4>
+    <ol>
+      <li><a href="#sec-0" class="active">一页摘要</a></li>
+      <li><a href="#sec-1">为什么做</a></li>
+      <li><a href="#sec-2">产品定位</a></li>
+      <li><a href="#sec-3">五条核心原则</a></li>
+      <li><a href="#sec-4">用户与场景</a></li>
+      <li><a href="#sec-5">产品形态</a></li>
+      <li><a href="#sec-6">核心功能</a></li>
+      <li><a href="#sec-7">业务规则</a></li>
+      <li><a href="#sec-8">AI 能力边界</a></li>
+      <li><a href="#sec-9">合规与伦理</a></li>
+      <li><a href="#sec-10">数据模型</a></li>
+      <li><a href="#sec-11">API 设计</a></li>
+      <li><a href="#sec-12">交互设计</a></li>
+      <li><a href="#sec-13">验收标准</a></li>
+      <li><a href="#sec-14">实施路径</a></li>
+      <li><a href="#sec-15">风险登记</a></li>
+      <li><a href="#sec-16">附录</a></li>
+    </ol>
+  </aside>
+
+  <main>
+
+  <!-- ────────────────────────────────── 0. 一页摘要 -->
+  <section id="sec-0">
+    <h2>〇、给三种读者的一页摘要</h2>
+
+    <div class="callout warn">
+      <div class="callout-title">v1.2 改动摘要（评审第二轮 8 项必改）</div>
+      <p style="margin:.3rem 0 .8rem">v1.1 改太多动了 schema 结构和工期，二轮评审发现 3 处倒退 + 5 处细节没磨平。v1.2 是局部修正，<strong>没有方向性翻盘</strong>，主要是把 v1.1 改过头的地方拉回来。</p>
+      <table class="tbl" style="margin:.5rem 0">
+        <thead><tr><th style="width:32px">#</th><th>改动</th><th style="width:80px">章节</th><th style="width:120px">来自</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><strong>AI 风格回到"中性话术"</strong>：schema 字段名回到 <code>talking_points / avoid_topics</code>；prompt 仅加强"禁决断 + 禁祈使句"</td><td>6.4</td><td>小李 "v1.1 改过头了"</td></tr>
+          <tr><td>2</td><td><strong>批量预生成改 3 次</strong>：06:00 全量 + 08:00 增量 + 13:00 增量</td><td>6.4</td><td>老周 "06:00 时序漏洞"</td></tr>
+          <tr><td>3</td><td><strong>下钻 N 按角色分级</strong>：院副书记 20 / 学校管理者 50 / 校领导不限只留痕</td><td>9.5</td><td>张副书记 "N=10 不够"</td></tr>
+          <tr><td>4</td><td><strong>删院系视图"辅导员 Z 积压"类点名建议</strong>：系统建议只能院级聚合</td><td>5.2</td><td>张+小+王 "不能曝光辅导员"</td></tr>
+          <tr><td>5</td><td><strong>新增 6.2.5 反馈飞轮回流机制</strong>：匿名化 + 学校 opt-in + 产品方 warehouse</td><td>6.2.5（新）</td><td>老陈 "飞轮断了"</td></tr>
+          <tr><td>6</td><td><strong>AI brief 持久化为 history</strong>：新表 <code>task_ai_brief_history</code>，append-only</td><td>10.5（新）/ 6.4</td><td>老陈 "覆盖审计断链"</td></tr>
+          <tr><td>7</td><td><strong>学生只读改为"未关闭关怀类型摘要"</strong>：不展示数字、不展示历史总数</td><td>9.4.1</td><td>王教授 "次数本身是判断"</td></tr>
+          <tr><td>8</td><td><strong>工期 6 周 → 8 周</strong>：W3 拆 + UAT 拆</td><td>14.1</td><td>林姐 "6 周还是不够"</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <h4>致 学工领导</h4>
+        <p>这个系统不是"预测谁会出事"，是把全校散落在各系统里的学生异常信号集中起来，告诉辅导员"今天该主动联系哪几个学生、聊什么、怎么记录"。所有判断基于明确规则、可解释、可追溯。AI 不做诊断、不下结论、不替学校决定。学校能拿到的是：每周多少次主动关怀、多少次形成闭环、哪些规则有效、哪些误报多。</p>
+      </div>
+      <div class="summary-card">
+        <h4>致 辅导员</h4>
+        <p>每天上班打开它，看到不超过 5 个人的"今日关怀清单"。每个人下面写清楚：为什么进入清单、建议聊什么、不建议碰什么。聊完一键归档，下次不再骚扰你。它不会推 50 条 alert 让你自己挑，也不会给学生打风险分让你尴尬。</p>
+      </div>
+      <div class="summary-card">
+        <h4>致 产品 / 研发</h4>
+        <p>核心动作是把传统"异常预警"升级为"主动关怀任务系统"：alert 不是通知，是带建议动作、建议话术、建议时限的任务；AI 只做解释和提纲、不参与判定；通知按严重度分层扇出避免骚扰；全流程留痕、可审计、可申诉、可调优。</p>
+      </div>
+    </div>
+
+    <div class="north-star">
+      <div class="label">★ 北极星指标</div>
+      每位辅导员每周完成 ≥ 5 次系统推荐的主动关怀，且其中 ≥ 80% 形成闭环记录。
+    </div>
+  </section>
+
+  <!-- ────────────────────────────────── 1. 为什么做 -->
+  <section id="sec-1">
+    <h2>一、为什么要做这件事</h2>
+
+    <h3>1.1 学工现场的三个真实痛点</h3>
+
+    <div class="callout danger">
+      <div class="callout-title">痛点 A · 信息散、看不全</div>
+      <p>学生的异常信号散落在请假、考勤、违纪、成绩、欠费、宿舍、心理咨询等 7-10 个系统里。辅导员要主动跨系统查，绝大部分人不会查、没时间查、也查不全。<strong>结果是：出事之前总有信号，出事之后才被串联。</strong></p>
+    </div>
+
+    <div class="callout danger">
+      <div class="callout-title">痛点 B · 系统会推，但推得没人看</div>
+      <p>很多学校上过"预警系统"，最后都死在两件事上：</p>
+      <ul>
+        <li>一上线就推 80 条 alert，辅导员不知道哪条要紧</li>
+        <li>推送之后，辅导员不知道下一步做什么——电话？家长？心理？</li>
+      </ul>
+      <p><strong>结果：alert 变成另一个"未读红点"。</strong></p>
+    </div>
+
+    <div class="callout danger">
+      <div class="callout-title">痛点 C · 责任不清、不敢用</div>
+      <p>如果系统说"该生高风险"，辅导员就要担责：</p>
+      <ul>
+        <li>我去找了、学生有想法、出事算谁的？</li>
+        <li>我没去找、系统报过、出事算谁的？</li>
+      </ul>
+      <p><strong>模糊定性让辅导员拒绝使用。</strong></p>
+    </div>
+
+    <h3>1.2 同类产品的失败模式 & 我们的对策</h3>
+    <table class="tbl">
+      <thead><tr><th>失败模式</th><th>表现</th><th>我们怎么避免</th></tr></thead>
+      <tbody>
+        <tr><td>黑箱评分</td><td>"该生 87 分高危"，没人知道为什么</td><td><strong>不做总分</strong>，每条线索单独存在、单独可解释</td></tr>
+        <tr><td>大杂烩规则</td><td>200 条规则混在一个池子，运维瘫痪</td><td>规则按 <strong>风险类型 + 严重度</strong> 两层归类</td></tr>
+        <tr><td>AI 自动定性</td><td>模型说"疑似抑郁"直接推</td><td>AI <strong>只做解释和提纲</strong>，不参与判定</td></tr>
+        <tr><td>推一堆没人管</td><td>推送数 ≠ 关怀数</td><td>北极星指标是 <strong>完成关怀次数</strong>，不是触发数</td></tr>
+        <tr><td>给学生贴标签</td><td>"重点关注学生"档案永久标记</td><td>状态附在 alert 上，<strong>不附在学生上</strong></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ────────────────────────────────── 2. 产品定位 -->
+  <section id="sec-2">
+    <h2>二、产品定位</h2>
+
+    <h3>2.1 一句话</h3>
+    <blockquote>
+      <p><strong>主动关怀工作台</strong>是一套"学生异常线索发现 + 主动关怀建议 + 闭环跟进留痕"的辅导员工具。</p>
+    </blockquote>
+
+    <h3>2.2 我们做什么、不做什么</h3>
+
+    <div class="dual">
+      <div class="do">
+        <h4>✓ 做</h4>
+        <ul>
+          <li>全校系统行为标准化、汇总到事件中心</li>
+          <li>可解释的规则识别异常组合，生成"关怀任务"</li>
+          <li>给每个任务配 AI 解释 + 沟通提纲 + 建议时限</li>
+          <li>全程留痕：谁看、谁接、聊什么、何时关闭</li>
+          <li>给学校管理者一份"主动关怀工作汇总"</li>
+        </ul>
+      </div>
+      <div class="dont">
+        <h4>✗ 不做</h4>
+        <ul>
+          <li>不做学生风险总分排名</li>
+          <li>不做学生"高风险/低风险"标签</li>
+          <li>不让 AI 替学校做决定（联系家长、转介、上报）</li>
+          <li>不直接告诉学生"你被预警了"</li>
+          <li>不做心理诊断（路由到心理中心）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────────────────────────────── 3. 五条核心原则 -->
+  <section id="sec-3">
+    <h2>三、五条核心原则（不可妥协）</h2>
+
+    <div class="principle">
+      <h4>原则 1 · 一切预警必须可解释</h4>
+      <p>每条任务必须能回答四问：</p>
+      <ul>
+        <li>这是哪个学生？</li>
+        <li>为什么进入清单？（哪些事件、什么时间、什么阈值）</li>
+        <li>建议怎么办？（动作、话题、时限）</li>
+        <li>谁负责跟？（指派人 + SLA）</li>
+      </ul>
+      <p><strong>任何不可解释的输出禁止上线。</strong></p>
+    </div>
+
+    <div class="principle">
+      <h4>原则 2 · 不做评分排名、不贴标签</h4>
+      <ul>
+        <li>不出现"风险分 87"这种数字</li>
+        <li>不出现"重点关注学生"这种永久标签</li>
+        <li>学生档案上 <strong>只展示当前未关闭的关怀线索</strong>，关闭后不留分级痕迹（仅保留事件本身）</li>
+      </ul>
+    </div>
+
+    <div class="principle">
+      <h4>原则 3 · AI 不参与判定</h4>
+      <div class="dual" style="margin-top:.5rem">
+        <div class="do">
+          <h4>AI 可以</h4>
+          <ul>
+            <li>解释一条规则为什么触发</li>
+            <li>基于学生画像给沟通提纲</li>
+            <li>整理谈话录音 / 文字成结构化记录</li>
+            <li>摘要群体趋势给领导</li>
+          </ul>
+        </div>
+        <div class="dont">
+          <h4>AI 不能</h4>
+          <ul>
+            <li>下结论说"该生有风险"</li>
+            <li>自动外发任何通知给学生 / 家长</li>
+            <li>参与任务的"接 / 拒 / 改期"决策</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="principle">
+      <h4>原则 4 · 一切预警必须可闭环</h4>
+      <p>不接受"提示完就结束"。每条任务必须有终点：</p>
+      <ul>
+        <li>已完成（聊了、记了）</li>
+        <li>已拒绝（说明原因）</li>
+        <li>已改期（再给一次机会）</li>
+        <li>已转介（说明转给谁）</li>
+      </ul>
+      <p>未闭环的任务进入"超期池"，自动升级到院系领导视图。</p>
+    </div>
+
+    <div class="principle">
+      <h4>原则 5 · 敏感数据最小化</h4>
+      <table class="tbl">
+        <thead><tr><th>数据类型</th><th>用法</th></tr></thead>
+        <tbody>
+          <tr><td>学籍、成绩、考勤、请假、违纪</td><td>可用于规则判断、可喂给 AI</td></tr>
+          <tr><td>资助、欠费</td><td>可用于规则判断，<strong>不喂给 AI</strong></td></tr>
+          <tr><td>心理咨询、医疗、家庭信息</td><td><strong>不参与规则、不喂给 AI</strong>，仅心理中心专用模块使用</td></tr>
+          <tr><td>自由文本（谈话内容、留言）</td><td>命中关键词时仅路由到心理中心，不进辅导员视图</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ────────────────────────────────── 4. 用户与场景 -->
+  <section id="sec-4">
+    <h2>四、用户、场景与北极星</h2>
+
+    <h3>4.1 用户角色</h3>
+    <table class="tbl">
+      <thead><tr><th>角色</th><th>用它做什么</th><th>每天用多久</th></tr></thead>
+      <tbody>
+        <tr><td><strong>辅导员</strong>（主用户）</td><td>看今日关怀清单、接任务、记录、归档</td><td>5–15 分钟</td></tr>
+        <tr><td>院系学工领导</td><td>看本院汇总、督促超期、看趋势</td><td>2–5 分钟</td></tr>
+        <tr><td>学校学工管理者</td><td>看全校汇总、看规则效果</td><td>周 / 月</td></tr>
+        <tr><td>规则管理员</td><td>编辑规则、看噪声、调阈值、灰度</td><td>周 / 月</td></tr>
+        <tr><td>心理中心（P2）</td><td>接收心理关怀线索，决定是否反向告知辅导员</td><td>按需</td></tr>
+      </tbody>
+    </table>
+    <p><strong>不直接面向学生</strong>——学生通过申诉机制（P2）可查询关于自己的关怀记录。</p>
+
+    <h3>4.2 三个核心场景</h3>
+
+    <h4>场景 A · 辅导员早晨 5 分钟（最高频）</h4>
+    <div class="mockup">
+      <div class="mk-head">主动关怀 · 今日 3 项</div>
+      <div class="mk-body">
+        <div class="mk-task">
+          <div class="mk-name">张三 · 计科 2102 <span class="sev sev-critical">紧急 / 48h</span></div>
+          <div class="mk-reason">近 7 天缺课 4 次 + 1 门期中不及格</div>
+          <div class="ai-card">
+            <div class="ai-head">AI 助手 · 小夕</div>
+            <ul>
+              <li><strong>建议聊</strong>：先关心身体和情绪，再问最近作息和学习节奏；问问课程是否跟得上</li>
+              <li><strong>不建议碰</strong>：不要直接问家庭经济、不要问感情</li>
+              <li><strong>可对接资源</strong>：学业导师、学习帮扶小组</li>
+            </ul>
+            <div class="ai-disclaim">AI 建议仅供参考，决策请以学生实际情况为准</div>
+          </div>
+          <div class="mk-actions">
+            <span class="btn primary">接单</span>
+            <span class="btn">改期</span>
+            <span class="btn">详情</span>
+          </div>
+        </div>
+        <div class="mk-task high">
+          <div class="mk-name">李四 · 计科 2103 <span class="sev sev-high">关注 / 7d</span></div>
+          <div class="mk-reason">14 天连续晚归 2 次 + 食堂消费下降</div>
+        </div>
+        <div class="mk-task medium">
+          <div class="mk-name">王五 · 计科 2101 <span class="sev sev-medium">关注 / 7d</span></div>
+          <div class="mk-reason">欠学费 32 天 + 申请过两次困难补助</div>
+        </div>
+      </div>
+      <div class="mk-foot">进行中 2 · 已完成本周 11 · 超期 0</div>
+    </div>
+
+    <h4>场景 B · 院系领导周一晨会 1 分钟（v1.2 修订）</h4>
+    <div class="mockup">
+      <div class="mk-head">本院主动关怀 · 计算机学院 · 本周</div>
+      <div class="mk-body">
+        <p style="font-size:.92rem;color:var(--c-text-2);">📊 任务总数 <strong>28</strong> · 完成 22 · 进行中 5 · 超期 <span class="risk-h">1</span></p>
+        <p style="font-size:.92rem;"><strong>需要您介入：</strong>张三任务超期 5 天 — <span class="btn primary" style="display:inline-block;padding:.15rem .6rem;border-radius:4px;font-size:.78rem;">督办</span> <span style="color:var(--c-text-3);font-size:.82rem">（不展示责任辅导员）</span></p>
+        <p style="font-size:.92rem;"><strong>本月触发最多的规则：</strong>① 连续缺课 (11) · ② 晚归异常 (7) · ③ 期中不及格 (5)</p>
+        <p style="font-size:.92rem;"><strong>系统建议（v1.2：院级聚合，禁点名）：</strong>全院任务积压率 18%（高于上月 8%）；连续缺课规则触发偏多，建议查考勤数据准确性；紧急级 24h 接单率 76%（目标 90%）</p>
+      </div>
+    </div>
+    <div class="callout warn">
+      <div class="callout-title">v1.2 关键变化</div>
+      <p>超期督办从"领导明面点名辅导员"改为"领导触发督办 → 系统私下通知辅导员"。同样达到效果，但<strong>不在管理界面上把辅导员姓名摆给上级看</strong>，避免组织对立。</p>
+    </div>
+
+    <h4>场景 C · 突发事件 30 分钟回溯</h4>
+    <div class="callout note">
+      <p>凌晨学生 W 在朋友圈发不当言论，值班接到。系统进入 W 档案：</p>
+      <ul>
+        <li>当前关怀线索：0</li>
+        <li>近 90 天关怀历史：2 条均已解决（4/12 晚归 · 4/20 心理咨询预约转心理中心）</li>
+        <li>谁看过：辅导员 X、心理中心 Y</li>
+        <li>处置记录可查</li>
+      </ul>
+      <p>值班据此研判，知道"系统报过、人也跟过"，决策更踏实。</p>
+    </div>
+
+    <h3>4.3 北极星与副指标</h3>
+
+    <div class="north-star">
+      <div class="label">★ 北极星</div>
+      每位辅导员每周完成 ≥ 5 次系统推荐的主动关怀，且其中 ≥ 80% 形成闭环记录。
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>类别</th><th>指标</th><th>目标</th></tr></thead>
+      <tbody>
+        <tr><td>有效性</td><td>高严重度任务 24h 内接单率</td><td>≥ 90%</td></tr>
+        <tr><td>有效性</td><td>关怀任务平均闭环时长</td><td>≤ 5 天</td></tr>
+        <tr><td>噪声</td><td>单规则 30 天误报率</td><td>≤ 20%</td></tr>
+        <tr><td>噪声</td><td>单辅导员每日新增任务数</td><td>≤ 5</td></tr>
+        <tr><td>满意</td><td>辅导员月度 NPS</td><td>≥ 30</td></tr>
+        <tr><td>合规</td><td>审计完整率</td><td>100%</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="callout-title">反指标（出现即警觉）</div>
+      <ul>
+        <li>单日推送任务 &gt; 50 条 → 噪声失控</li>
+        <li>"误报"标记占比 &gt; 30% → 规则失效</li>
+        <li>任务平均查看时间 &lt; 10 秒 → 被忽略</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ────────────────────────────────── 5. 产品形态 -->
+  <section id="sec-5">
+    <h2>五、产品形态总览（三视图）</h2>
+
+    <h3>5.1 视图 A · 辅导员关怀工作台（核心视图）</h3>
+    <p>设计要点：</p>
+    <ul>
+      <li>首屏最多 5 个任务，超过的折叠</li>
+      <li>不展示任何风险分</li>
+      <li>状态标签用"紧急 / 关注 / 提醒"代替 critical / high / medium</li>
+      <li>接单是一个动作，不只是查看</li>
+    </ul>
+
+    <h3>5.2 视图 B · 院系领导 / 学校管理者视图（v1.2 修订）</h3>
+    <p>设计要点：</p>
+    <ul>
+      <li><strong>不展示个体学生明细</strong>（隐私 + 越权），只看汇总</li>
+      <li>唯一展示学生名的入口：超期任务卡片——但<strong>不展示责任辅导员名字</strong></li>
+      <li><strong>系统建议严禁点名辅导员个体</strong>（评审 v1.2 必改 #4）</li>
+      <li>系统建议只能在以下聚合维度生成：全院 / 全校汇总数字、规则维度、严重度维度、时间窗口维度</li>
+      <li><strong>不能</strong>针对单个辅导员、单个学生、单个班级</li>
+    </ul>
+    <div class="callout danger">
+      <div class="callout-title">为什么禁个体曝光</div>
+      <ol>
+        <li>系统在领导面前点名辅导员 = 变相绩效监控，<strong>会让辅导员把系统当对立面</strong>，PRD 北极星指标（辅导员周活）就会塌</li>
+        <li>个人化绩效评估涉及《个人信息保护法》自动化决策相关条款</li>
+        <li>v1.1 写"辅导员 Z 任务积压" 是没经过组织行为学检视的设计错误</li>
+      </ol>
+    </div>
+
+    <h3>5.3 视图 C · 规则运维视图</h3>
+    <ul>
+      <li>规则列表 + 30 天效果漏斗（触发 / 接单 / 完成 / 误报）</li>
+      <li>噪声告警：误报率高、拒绝率高、永远没人接的规则</li>
+      <li>版本管理 + 灰度上线</li>
+      <li>反馈原因聚合 top 3</li>
+    </ul>
+  </section>
+
+  <!-- ────────────────────────────────── 6. 核心功能 -->
+  <section id="sec-6">
+    <h2>六、核心功能模块</h2>
+
+    <h3>6.1 风险事件中心</h3>
+    <p><strong>职责</strong>：把分散在各业务系统的学生行为，标准化为"事件流"，作为整个系统的<strong>数据飞轮起点</strong>。</p>
+
+    <h4>6.1.1 数据飞轮总览</h4>
+    <div class="ascii">┌──────────────────────────────────────────────────────────────────┐
+│                     数据飞轮闭环                                  │
+│                                                                  │
+│   业务模块行为                                                   │
+│      ↓ (Publisher 写入，失败吞掉不阻塞业务)                       │
+│   student_event_log  ←──────────────────┐                       │
+│      ↓                                   │                       │
+│   规则引擎评估                            │ 反馈回写              │
+│      ↓                                   │ (调阈值 / 标失效)     │
+│   care_task（带 AI 解释 + SLA）          │                       │
+│      ↓                                   │                       │
+│   辅导员处理 + care_task_feedback ──────┘                        │
+│      ↓                                                           │
+│   规则运维：误报率 / 拒绝原因聚合 → 自动建议调整                  │
+└──────────────────────────────────────────────────────────────────┘</div>
+
+    <div class="callout note">
+      <div class="callout-title">飞轮的关键设计点</div>
+      <ul>
+        <li><strong>业务无感知</strong>：事件写入失败不影响业务事务（log warn 后吞掉），事件流是观测层不是业务层</li>
+        <li><strong>append-only</strong>：<code>student_event_log</code> 永不更新永不删除，是审计与回溯的真相源</li>
+        <li><strong>反馈双向</strong>：<code>care_task_feedback</code> 把辅导员的处置结果回写，规则运维侧据此调阈值</li>
+        <li><strong>脱敏存储</strong>：<code>event_data jsonb</code> 只存结构化字段，不存姓名 / 身份证 / 自由文本</li>
+      </ul>
+    </div>
+
+    <h4>6.1.2 事件来源（8 大类）</h4>
+    <table class="tbl">
+      <thead><tr><th>来源系统</th><th>事件类型</th><th>风险信号含义</th></tr></thead>
+      <tbody>
+        <tr><td>请假</td><td><code>leave_submit</code> · <code>leave_cancelled</code> · <code>leave_overdue</code></td><td>频繁请假 / 超期未销假</td></tr>
+        <tr><td>考勤</td><td><code>checkin_late</code> · <code>checkin_absent</code> · <code>course_absence</code></td><td>课堂出勤异常</td></tr>
+        <tr><td>违纪</td><td><code>violation_recorded</code> · <code>violation_appeal_*</code></td><td>行为问题</td></tr>
+        <tr><td>成绩</td><td><code>exam_failed</code> · <code>grade_drop</code></td><td>学业风险</td></tr>
+        <tr><td>资助 / 财务</td><td><code>tuition_overdue</code> · <code>hardship_apply</code></td><td>经济压力</td></tr>
+        <tr><td>宿舍 / 查寝</td><td><code>dorm_check_absent</code> · <code>dorm_late_return</code></td><td>行为脱轨</td></tr>
+        <tr><td>谈话</td><td><code>counselor_talk_recorded</code></td><td>跟进基线</td></tr>
+        <tr style="background:#fff7e6"><td><strong>勤工助学</strong> <span class="tag" style="background:#fde68a;color:#92400e">本次新增</span></td><td><code>workstudy_offboarded</code> · <code>workstudy_no_show</code> · <code>workstudy_apply_rejected</code> · <code>workstudy_timesheet_disputed</code></td><td>履职异常 + 隐性经济压力</td></tr>
+      </tbody>
+    </table>
+
+    <h4>勤工助学事件细则（本次新增）</h4>
+    <table class="tbl">
+      <thead><tr><th>事件</th><th>触发动作</th><th>信号含义</th><th>severity</th></tr></thead>
+      <tbody>
+        <tr><td><code>workstudy_offboarded</code></td><td>申请的 <code>engagement_status</code> 流转到 <code>offboarded</code></td><td>由 <code>offboard_reason</code> 与 <code>dismissal_category</code> 联合决定（见下表）</td><td>0–7 动态</td></tr>
+        <tr><td><code>workstudy_no_show</code></td><td>工时表派生：约定上岗周期但 <code>hours_reported = 0</code></td><td>上岗后旷工，独立于课堂考勤的"失联"信号；<strong>需另起 P1 调度器扫工时月表派生</strong></td><td>6</td></tr>
+        <tr><td><code>workstudy_apply_rejected</code></td><td>雇主驳回申请（workflow action=reject）</td><td>单次没信号，<strong>30 天内累计 ≥ 3 次</strong> 才进 R012 规则池</td><td>3</td></tr>
+        <tr><td><code>workstudy_timesheet_disputed</code></td><td>工时表 <code>status</code> 流转到 <code>disputed</code></td><td>与雇主有冲突 → 人际 / 履职问题</td><td>4</td></tr>
+      </tbody>
+    </table>
+
+    <h4>离岗事件的 severity 派生规则</h4>
+    <table class="tbl">
+      <thead><tr><th><code>offboard_reason</code></th><th><code>dismissal_category</code></th><th>severity</th><th>是否进 R011</th></tr></thead>
+      <tbody>
+        <tr><td><code>completed</code>（任期到期）</td><td>——</td><td>0</td><td>否</td></tr>
+        <tr><td><code>resigned_by_student</code>（学生主动离职）</td><td>——</td><td>2</td><td>否</td></tr>
+        <tr><td><code>terminated_by_employer</code></td><td><code>position_dissolved</code>（裁岗 / 项目结束）</td><td>2</td><td>否（学生无责）</td></tr>
+        <tr><td><code>terminated_by_employer</code></td><td><code>mismatch</code>（双方匹配不佳）</td><td>2</td><td>否（中性）</td></tr>
+        <tr><td><code>terminated_by_employer</code></td><td><code>performance</code>（工作表现）</td><td>5</td><td><strong>是（关注级）</strong></td></tr>
+        <tr><td><code>terminated_by_employer</code></td><td><code>other</code>（备注必填）</td><td>5</td><td><strong>是（关注级）</strong></td></tr>
+        <tr style="background:#fef2f2"><td><code>terminated_by_employer</code></td><td><strong><code>discipline</code>（违反纪律）</strong></td><td><strong>7</strong></td><td><strong>是（紧急级）</strong></td></tr>
+        <tr><td><code>terminated_by_employer</code></td><td><code>NULL</code>（雇主未填）</td><td>5</td><td>是（关注级保底）</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <div class="callout-title">设计要点</div>
+      <p><code>dismissal_category</code> 由雇主在离岗弹窗中选择，<strong>不依赖 AI 后置分类</strong>。这样：① 规则引擎直接用字段判断；② 雇主比 AI 更清楚原因；③ 字段稳定可索引、可院系统计。</p>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-title">不入事件流的勤工动作（避免噪音）</div>
+      <p><code>apply_submit</code> · <code>onboarded</code> · <code>timesheet_confirmed</code> · <code>salary_pending</code> —— 都是正常业务流转，没有"异常"含义。</p>
+    </div>
+
+    <h4>6.1.3 事件目录 + 字段字典</h4>
+    <ul>
+      <li>命名规范：<code>&lt;domain&gt;_&lt;verb&gt;[_&lt;modifier&gt;]</code>，全小写、下划线分词</li>
+      <li>字段稳定性：已发布事件的字段名 / 类型禁止修改，新增字段须向后兼容</li>
+      <li><strong>禁止直接写未注册字段</strong>（规则引擎依赖字段字典做表达式校验）</li>
+    </ul>
+
+    <h4>6.1.4 事件存储</h4>
+    <ul>
+      <li>主表：<code>student_event_log</code>（tenant_id / student_id / event_type / event_source / event_data jsonb / severity / occurred_at / created_at）</li>
+      <li>4 个核心索引：<code>(tenant_id, student_id)</code> · <code>(event_type)</code> · <code>(occurred_at DESC)</code> · <code>(student_id, occurred_at DESC)</code></li>
+      <li>严重度部分索引：<code>(severity DESC, occurred_at DESC) WHERE severity &gt;= 5</code> 加速预警引擎扫描</li>
+      <li>保留期：在校期间全量保留；毕业 / 离校后归档到只读区</li>
+    </ul>
+
+    <h3>6.2 规则引擎</h3>
+
+    <h4>6.2.1 规则的归属：产品方维护，不是学校自定义（v1.1 立场修订）</h4>
+    <div class="callout danger">
+      <div class="callout-title">核心立场（v1.1）</div>
+      <p>规则<strong>全部 hard-code 在产品代码里</strong>，作为版本化产品特性发布。类比：杀毒软件病毒库、iOS 通知规则、Gmail 垃圾分类——<strong>用户都不自调，由产品方专家维护</strong>。</p>
+    </div>
+
+    <table class="tbl">
+      <thead><tr><th>谁</th><th>能做什么</th><th>不能做什么</th></tr></thead>
+      <tbody>
+        <tr><td><strong>产品方（朝夕团队）</strong></td><td>编辑阈值 / 改 prompt / 加新规则 / shadow 灰度 / 季度发版</td><td>—</td></tr>
+        <tr><td><strong>学校（学工部 / 信息中心）</strong></td><td>每条规则<strong>开 / 关</strong> + <strong>全局严重度偏移</strong> + 看 read-only 报表</td><td>不能改阈值、SLA、冷却、scope 等任何参数</td></tr>
+        <tr><td>辅导员</td><td>接 / 改期 / 拒绝任务 + 反馈"误报"原因</td><td>不能修改规则</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout note">
+      <div class="callout-title">为什么这样改</div>
+      <ul>
+        <li>阈值是<strong>产品决策</strong>，不是<strong>配置数据</strong>——学校乱调比不调更糟</li>
+        <li>每所学校半年后没人维护是同类产品的全部死法（评审老陈警告）</li>
+        <li>规则集统一升级，跨校反馈反哺产品迭代，<strong>飞轮才真正转起来</strong></li>
+      </ul>
+    </div>
+
+    <h4>6.2.2 三类规则（产品方内置）</h4>
+    <table class="tbl">
+      <thead><tr><th>类型</th><th>用法</th><th>例子</th></tr></thead>
+      <tbody>
+        <tr><td><strong>硬规则</strong></td><td>单一明确阈值，触发即关怀</td><td>学费欠缴 &gt; 30 天</td></tr>
+        <tr><td><strong>组合规则</strong></td><td>多类型事件叠加，组合后触发</td><td>连续缺课 + 晚归异常 + 30 天无谈话</td></tr>
+        <tr><td><strong>趋势规则</strong></td><td>个人历史对比 / 时间窗口变化</td><td>近 10 天消费较过去 60 天下降 60%</td></tr>
+      </tbody>
+    </table>
+    <p><strong>软规则不单独触发任务</strong>——它只贡献"叠加权重"给组合规则。</p>
+
+    <h4>6.2.3 规则内部表达（产品方研发用，不向学校暴露）</h4>
+<pre><code># xg-platform/alert/rules/builtin/R001.yml — 产品方源码，不对外
+id: R001
+name: 连续缺课关怀
+description: 近 5 天累计缺课 ≥ 3 次
+window:
+  rolling_days: 5
+aggregations:
+  absence_count:
+    dimension: ABSENCE
+    metric: count
+condition: absence_count &gt;= 3
+severity: critical
+sla_hours: 24
+cooldown_days: 7
+</code></pre>
+
+    <h4>6.2.4 学校能动的两件事</h4>
+    <ol>
+      <li><strong>规则启停 toggle</strong>——某校政策不查晚归？关掉 R004 即可</li>
+      <li><strong>全局严重度偏移</strong>——试用期希望先观察、不急于推 critical？全校"-1 档"，critical 临时降为 high</li>
+    </ol>
+    <p>学校改这两项<strong>不需要审批、不留 PR、不发版</strong>——这是给学校最小但必要的灵活度。</p>
+
+    <h4>6.2.5 反馈飞轮回流机制（v1.2 新增）</h4>
+    <div class="callout warn">
+      <p>v1.1 把规则收回产品方，但<strong>没说反馈怎么从学校 SaaS 回到产品方</strong>——这是评审老陈警告的"飞轮断了一半"。v1.2 补这个机制。</p>
+    </div>
+
+    <p><strong>当前架构难点</strong></p>
+    <ul>
+      <li>每个 tenant 的 PG schema 物理隔离，<code>care_task_feedback</code> 数据存在学校自己的 schema 里</li>
+      <li>产品方默认看不到学校数据（合规设计）</li>
+      <li>没有汇集机制，"跨校反馈反哺规则迭代"是空话</li>
+    </ul>
+
+    <p><strong>回流设计</strong></p>
+    <table class="tbl">
+      <thead><tr><th>环节</th><th>设计</th></tr></thead>
+      <tbody>
+        <tr><td><strong>匿名化字段</strong></td><td>导出前删除：<code>student_id</code> / <code>counselor_id</code> / <code>tenant_id</code>（用哈希 + per-batch salt 不可逆）/ 任何自由文本（<code>note</code> / <code>reason_detail</code>）</td></tr>
+        <tr><td><strong>保留字段</strong></td><td><code>rule_id</code> / <code>rule_version</code> / <code>severity</code> / <code>feedback_type</code> / <code>reason_code</code> / <code>time_to_close_hours</code> / <code>匿名 tenant 哈希</code></td></tr>
+        <tr><td><strong>学校 opt-in 开关</strong></td><td>部署时默认开（合同条款约定），学校可在管理后台关闭</td></tr>
+        <tr><td><strong>回流方式</strong></td><td>每周一 02:00 由 tenant 侧定时任务批量推送到产品方 <code>feedback_warehouse</code> API（端到端 TLS + 服务端再哈希）</td></tr>
+        <tr><td><strong>产品方落地</strong></td><td>独立 ClickHouse 实例 <code>feedback_warehouse</code>，不与任何 tenant 业务库连通；只有规则维护小组可读</td></tr>
+        <tr><td><strong>合规授权</strong></td><td>部署合同明确条款：① 数据用途仅限规则迭代 ② 不与任何第三方共享 ③ 学校随时可关闭 ④ 季度发布"匿名汇总报告"给学校查阅</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>反馈如何反哺规则</strong></p>
+    <ul>
+      <li>规则维护小组<strong>月度</strong>查 ClickHouse：哪条规则跨校误报率 &gt; 20%？哪条规则全网无人接单？</li>
+      <li>季度发版调整规则阈值 / 删除失效规则 / 新增规则</li>
+      <li>调整理由 + 数据支撑写入产品方内部 <code>xg-platform/alert/rules/CHANGELOG.md</code></li>
+    </ul>
+
+    <p><strong>学校可见性</strong></p>
+    <ul>
+      <li>学校管理后台展示"当前已 opt-in 反馈飞轮"开关 + 链接到匿名化字段说明文档</li>
+      <li>学校可随时关闭，关闭后<strong>不影响</strong>业务运行，仅影响产品迭代速度</li>
+      <li>产品方季度发布"规则集变更说明"，公开告诉所有学校"上季度基于跨校反馈调整了 X / Y 阈值"</li>
+    </ul>
+
+    <div class="callout danger">
+      <p><strong>为什么这件事必须 P1 就有</strong>：反馈飞轮不闭环 = 系统部署上线第一天就开始劣化，半年后规则失效却没人知道。<strong>比"等学校自己管"风险更可控</strong>：至少产品方掌握真相，学校可知。</p>
+    </div>
+
+    <h3>6.3 主动关怀任务（核心数据模型）</h3>
+    <div class="callout note">
+      <div class="callout-title">alert ≠ notification， alert = task</div>
+      <p>每条 alert 生下来就是一个任务，自带：指派人、SLA、建议动作、建议话术、反馈通道。它不是"一个待读消息"，是"一项必须有终点的工作"。</p>
+    </div>
+
+    <p><strong>状态机</strong></p>
+    <div class="ascii">pending ──[接单]──&gt; accepted ──[做了]──&gt; in_progress ──[聊完]──&gt; resolved ✓
+   │             │                                          ↑
+   │             ├──[拒绝]──&gt; rejected（须选原因）            │
+   │             └──[改期]──&gt; pending（次数+1）                │
+   └──[超期未接]──&gt; overdue → 升级到院系视图                  │
+                                                            │
+心理关键词命中 ──&gt; transferred to 心理中心 ──&gt; resolved      │</div>
+
+    <h3>6.4 AI 解释与建议（alert_explainer · v1.2 修订）</h3>
+
+    <h4>6.4.1 触发时机（v1.2 修订：3 次批处理）</h4>
+    <table class="tbl">
+      <thead><tr><th>时间</th><th>范围</th><th>用途</th></tr></thead>
+      <tbody>
+        <tr><td><strong>06:00 全量</strong></td><td>所有 <code>due_date &lt; now + 24h</code> 的任务</td><td>兜底；覆盖夜间 02:00 全量扫描后产生的所有新 alert</td></tr>
+        <tr><td><strong>08:00 增量</strong></td><td><code>created_at</code> 在 06:00 之后的新 alert</td><td>应对辅导员上班前 2 小时的新事件（早间违纪、夜不归宿派生）</td></tr>
+        <tr><td><strong>13:00 增量</strong></td><td><code>created_at</code> 在 08:00 之后的新 alert</td><td>应对上午新产生的事件（午休时段辅导员第二次打开高峰）</td></tr>
+      </tbody>
+    </table>
+    <p>每次写入 <code>task_ai_brief_history</code>（<strong>append-only，不覆盖</strong>），<code>task.current_brief_id</code> 指向最新一条。</p>
+
+    <div class="callout note">
+      <p><strong>v1.1 漏洞修复</strong>：v1.1 单次 06:00 批处理留下漏洞——辅导员 08:30 上班，06:00-08:30 之间的新 alert 没赶上；学生 07:00 违纪 → 08:00 alert 生成 → 08:30 打开<strong>brief 为空</strong>。v1.2 加 08:00 增量解决。</p>
+    </div>
+
+    <h4>6.4.2 降级</h4>
+    <ul>
+      <li>批处理失败的单条 → 退化为懒加载</li>
+      <li>LLM 整体不可用 → 显示原始触发证据，任务接单不阻塞</li>
+      <li>详情页提供"重新分析"按钮，强制触发增量生成（rate-limit 每任务 5 分钟一次）</li>
+    </ul>
+
+    <div class="dual">
+      <div class="do">
+        <h4>输入（喂给 AI）</h4>
+        <ul>
+          <li>任务触发证据（trigger_data）</li>
+          <li>学生基础信息（学籍、专业、年级、班级、宿舍）</li>
+          <li>近 30 天事件流（脱敏）</li>
+          <li>已关闭的关怀历史摘要</li>
+        </ul>
+      </div>
+      <div class="dont">
+        <h4>不喂给 AI</h4>
+        <ul>
+          <li>心理咨询内容</li>
+          <li>家庭情况</li>
+          <li>医疗信息</li>
+          <li>自由文本谈话原文</li>
+        </ul>
+      </div>
+    </div>
+
+    <h4>6.4.3 输出 schema（v1.2 修订：回到中性话术）</h4>
+<pre><code>{
+  "why": "为什么触发此关怀（陈述事实，不下判断）",
+  "talking_points": ["中性话术 1", "..."],          // 可操作的话题提示，删决断 + 删祈使
+  "avoid_topics": ["此次接触不宜触碰的话题"],
+  "campus_resources": ["可对接的校内资源（名称 + 入口）"],
+  "follow_up_days": 7
+}</code></pre>
+
+    <div class="callout note">
+      <p><strong>v1.2 为什么把 schema 改回 v1.0</strong>（评审第二轮小李"v1.1 改过头"）：<code>directions / boundaries</code> 写出来太抽象，辅导员<strong>没法直接用</strong>；v1.0 的 <code>talking_points</code> 字段结构本身没错，<strong>错在 prompt 风格</strong>。v1.2 把字段名改回，只在 prompt 层加约束。</p>
+    </div>
+
+    <h4>6.4.4 三版文案对比（演化轨迹）</h4>
+    <table class="tbl">
+      <thead><tr><th>维度</th><th>v1.0（决断+话术）</th><th>v1.1（删话术过头）</th><th><strong>v1.2（中道）</strong></th></tr></thead>
+      <tbody>
+        <tr><td>切入</td><td>❌ "建议先关心身体和情绪，<strong>再</strong>问最近作息"</td><td>⚠️ "可能值得关注：作息节奏、学业适配度"</td><td>✅ <strong>"可以从身体状态和最近作息切入；学业适配度可以聊"</strong></td></tr>
+        <tr><td>避免</td><td>❌ "<strong>不建议</strong>直接问家庭经济"</td><td>⚠️ "此次接触建议避免：家庭经济相关话题"</td><td>✅ <strong>"家庭经济相关话题；本次见面感情话题"</strong></td></tr>
+        <tr><td>资源</td><td>❌ "<strong>该生需要</strong>学业导师介入"</td><td>⚠️ "可联系：学业导师 / 学习帮扶小组"</td><td>✅ <strong>"学业导师 / 学习帮扶小组（链接）"</strong></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <div class="callout-title">v1.2 的"中道"原则</div>
+      <ul>
+        <li>✅ 保留<strong>具体抓手</strong>——辅导员要"作息""学业适配度"这些可对话的词</li>
+        <li>✅ 删<strong>决断性词</strong>——"建议先"、"应当"、"该生需要"、"必须"</li>
+        <li>✅ 删<strong>祈使句开头</strong>——不以动词开头</li>
+        <li>✅ 删<strong>预设步骤</strong>——不写"先…再…然后…"</li>
+      </ul>
+    </div>
+
+    <h4>6.4.5 Prompt 治理（v1.2 加强）</h4>
+    <ul>
+      <li>输出 <strong>禁止</strong> 包含决断性 / 诊断性词汇（黑名单见 8.4）</li>
+      <li>输出 <strong>禁止</strong> 使用祈使句开头（"建议…""应当…""请…""先…"）</li>
+      <li>输出 <strong>禁止</strong> 预设辅导员的下一步动作（"先 X 再 Y"）</li>
+      <li>输出 <strong>禁止</strong> 对学生下判断（"该生""疑似"）</li>
+      <li>输出经过 <code>sanitize</code> 节点后处理：命中黑名单词汇直接抹除</li>
+      <li>Prompt 改动必须重跑 eval set（20 条样本，王教授级合规专家评分）</li>
+      <li><strong>新增 few-shot examples</strong>：把 6.4.4 表里的 ✅ / ❌ 三组作为 prompt 的 few-shot，锁住风格不漂移</li>
+    </ul>
+
+    <h4>6.4.6 任务卡 UI</h4>
+    <ul>
+      <li>AI 区<strong>默认展开</strong>但<strong>可一键折叠</strong>（折叠状态记住，跨任务跨日生效）</li>
+      <li>辅导员个人偏好：可在设置里默认全部折叠</li>
+      <li>AI 区右上角永远显示："AI 建议仅供参考，决策请以学生实际情况为准"</li>
+      <li>详情页提供"<strong>重新分析</strong>"按钮（应对 13:00 之后的新事件，rate-limit 每任务 5 分钟一次）</li>
+    </ul>
+
+    <h3>6.5 通知扇出（分层）</h3>
+    <table class="tbl">
+      <thead><tr><th>严重度</th><th>渠道</th><th>时机</th></tr></thead>
+      <tbody>
+        <tr><td><span class="sev sev-critical">紧急</span></td><td>站内 + 看板大屏，<strong>不外发</strong></td><td>即时</td></tr>
+        <tr><td><span class="sev sev-high">高</span></td><td>企微即时推送 + 站内</td><td>即时</td></tr>
+        <tr><td><span class="sev sev-medium">关注</span></td><td>企微 <strong>日聚合</strong>（每日 09:00）+ 站内</td><td>每日</td></tr>
+        <tr><td><span class="sev sev-low">提醒</span></td><td>仅站内</td><td>即时</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <div class="callout-title">为什么紧急不外发企微</div>
+      <p>critical 一旦自动外发会引起学校层面的"消息瀑布"，必须人工值守过一手再决定升级路径。</p>
+    </div>
+
+    <div class="callout note">
+      <div class="callout-title">通知文案铁律</div>
+      <p>不含学生姓名、不含规则名、不含敏感判断词。</p>
+      <p><span class="risk-l">✓ 推荐</span>：您有 1 项紧急关怀任务，请尽快登录查看。</p>
+      <p><span class="risk-h">✗ 禁止</span>：学生张三疑似存在心理风险，请立即处理。</p>
+    </div>
+
+    <h3>6.6 反馈与噪声治理</h3>
+    <p><strong>接单后的去向（4 选 1，必选）</strong></p>
+    <table class="tbl">
+      <thead><tr><th>动作</th><th>后续</th></tr></thead>
+      <tbody>
+        <tr><td>已完成</td><td>录入纪要 / 录音转写，任务关闭</td></tr>
+        <tr><td>改期</td><td>选时长（1–7 天），次数+1，≥2 次自动升级</td></tr>
+        <tr><td>拒绝</td><td><strong>必选</strong>原因（规则不适用 / 学生情况特殊 / 已私下处理 / 已转介他人 / 其他）</td></tr>
+        <tr><td>转介</td><td>选择对接部门，附说明</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>反馈喂回规则调优：</strong></p>
+    <ul>
+      <li>某规则 30 天"规则不适用"占比 &gt; 20% → 推送规则管理员</li>
+      <li>某规则 30 天"已私下处理"占比 &gt; 30% → 提示阈值可能过紧</li>
+      <li>某规则 30 天无人接单 → 标记"待审视"</li>
+    </ul>
+
+    <h3>6.7 审计与申诉</h3>
+    <div class="ascii">2026-05-13 09:02  系统创建    规则: 连续缺课关怀
+2026-05-13 09:15  辅导员 X    打开
+2026-05-13 09:16  AI 助手     生成解释
+2026-05-13 11:30  辅导员 X    接单
+2026-05-13 14:20  辅导员 X    录入纪要
+2026-05-13 14:20  系统        任务关闭（已完成）</div>
+
+    <table class="tbl">
+      <thead><tr><th>角色</th><th>可看范围</th></tr></thead>
+      <tbody>
+        <tr><td>辅导员</td><td>自己名下任务的全部时间线</td></tr>
+        <tr><td>院系领导</td><td>本院所有任务时间线</td></tr>
+        <tr><td>学校管理者</td><td>全校</td></tr>
+        <tr><td>学生本人</td><td>P2 通过申诉接口查询关于自己的关怀次数（不展示规则细节、不展示判断词）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>6.8 规则启停 + 全局偏移（v1.1 简化）</h3>
+    <div class="callout warn">
+      <div class="callout-title">v1.1 收口</div>
+      <p>版本管理 / shadow / canary / 干跑预览 / 回滚 这些治理功能<strong>整体移到 P2</strong>。P1 学校侧只保留两件事——启停和全局偏移。</p>
+    </div>
+
+    <h4>学校能做的两件事</h4>
+    <table class="tbl">
+      <thead><tr><th>操作</th><th>入口</th><th>是否需要审批</th></tr></thead>
+      <tbody>
+        <tr><td>单条规则启 / 停</td><td>规则总览页 toggle</td><td>否，即时生效</td></tr>
+        <tr><td>全局严重度偏移（-1 / 0 / +1 档）</td><td>规则总览页顶部</td><td>否，即时生效</td></tr>
+      </tbody>
+    </table>
+
+    <h4>学校看得到但不能改的</h4>
+    <ul>
+      <li>规则名称、阈值、SLA、冷却、scope、严重度（默认值）</li>
+      <li>规则的 30 天效果报表（read-only）</li>
+      <li>当前规则集版本号 + 下次预计更新日期</li>
+    </ul>
+
+    <h4>产品方内部流程（不进学校的产品界面）</h4>
+    <ul>
+      <li>规则源文件在 <code>xg-platform/alert/rules/builtin/</code> 内部代码库</li>
+      <li>改阈值 = 提 PR + 内部 shadow 跑 + 灰度 release</li>
+      <li>季度发版，学校通过版本升级获得规则更新</li>
+    </ul>
+
+    <div class="callout note">
+      <p>版本/shadow/canary 这套治理表面看起来灵活，实际是"治理债务"——学校半年后没人会用、没人会维护，反而成为噪音源。<strong>P1 把治理责任收回产品方</strong>，让学校享受"零调优开箱即用"。</p>
+    </div>
+  </section>
+
+  <!-- ────────────────────────────────── 7. 业务规则 -->
+  <section id="sec-7">
+    <h2>七、业务规则（P1 内置）</h2>
+
+    <h3>7.1 风险事件目录（P1：4 大类）</h3>
+    <div class="callout note">
+      <p><strong>为什么先做 4 类</strong>：学业、行为、生活、勤工助学。这 4 类的共同特征是：<strong>数据已经在系统里、无合规雷区、信号可解释</strong>。心理关怀因合规边界放 P2。</p>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>大类</th><th>涵盖事件</th></tr></thead>
+      <tbody>
+        <tr><td><strong>学业</strong></td><td>缺课、迟到、挂科、阶段成绩下降</td></tr>
+        <tr><td><strong>行为</strong></td><td>晚归、夜不归宿、宿舍查寝异常、违纪</td></tr>
+        <tr><td><strong>生活</strong></td><td>请假超期、长期未谈话跟进</td></tr>
+        <tr style="background:#fff7e6"><td><strong>勤工助学</strong> <span class="tag" style="background:#fde68a;color:#92400e">新增</span></td><td>被辞退、岗位旷工、连续申请被拒、工时纠纷</td></tr>
+      </tbody>
+    </table>
+    <div class="callout tip">
+      <div class="callout-title">勤工助学为何独立成类</div>
+      <p>它同时提供两种独立信号：<strong>经济维度的早期信号</strong>（频繁申请被拒，比"欠费"早）和<strong>履职维度的独立信号</strong>（岗位旷工 / 被辞退 / 与雇主冲突，请假和考勤抓不到）。低成本、高 ROI 的扩展。</p>
+    </div>
+    <p><strong>P2 增量</strong>：心理关怀线索（路由心理中心，不进辅导员视图）、一卡通消费异常、群体基线对比。</p>
+
+    <h3>7.2 内置规则（P1 上线 12 条）</h3>
+    <table class="tbl">
+      <thead><tr><th>ID</th><th>名称</th><th>条件</th><th>严重度</th><th>SLA</th><th>冷却</th><th>类别</th></tr></thead>
+      <tbody>
+        <tr><td>R001</td><td>连续缺课</td><td>近 5 天缺课 ≥ 3 次</td><td><span class="sev sev-critical">紧急</span></td><td>24h</td><td>7d</td><td>学业</td></tr>
+        <tr><td>R002</td><td>挂科叠加</td><td>本学期挂科 ≥ 3 门</td><td><span class="sev sev-medium">关注</span></td><td>7d</td><td>30d</td><td>学业</td></tr>
+        <tr><td>R003</td><td>阶段成绩下降</td><td>最近 2 次阶段成绩连续下降 ≥ 15%</td><td><span class="sev sev-medium">关注</span></td><td>7d</td><td>30d</td><td>学业</td></tr>
+        <tr><td>R004</td><td>晚归异常</td><td>近 14 天晚归 ≥ 3 次</td><td><span class="sev sev-low">提醒</span></td><td>7d</td><td>7d</td><td>行为</td></tr>
+        <tr><td>R005</td><td>夜不归宿</td><td>近 14 天夜不归宿 ≥ 2 次</td><td><span class="sev sev-critical">紧急</span></td><td>24h</td><td>7d</td><td>行为</td></tr>
+        <tr><td>R006</td><td>重复违纪</td><td>近 30 天违纪 ≥ 2 次</td><td><span class="sev sev-critical">紧急</span></td><td>24h</td><td>14d</td><td>行为</td></tr>
+        <tr><td>R007</td><td>请假超期</td><td>请假到期 48h 未销假</td><td><span class="sev sev-medium">关注</span></td><td>48h</td><td>3d</td><td>生活</td></tr>
+        <tr><td>R008</td><td>长期无跟进</td><td>近 60 天无谈话 + 历史 ≥ 1 条关怀</td><td><span class="sev sev-low">提醒</span></td><td>14d</td><td>30d</td><td>生活</td></tr>
+        <tr style="background:#fff7e6"><td><strong>R011a</strong></td><td><strong>勤工履职异常（纪律）</strong></td><td>近 30 天 <code>workstudy_offboarded</code> 且 <code>dismissal_category='discipline'</code>，或 <code>workstudy_no_show ≥ 2</code></td><td><span class="sev sev-critical">紧急</span></td><td>24h</td><td>14d</td><td><strong>勤工</strong></td></tr>
+        <tr style="background:#fff7e6"><td><strong>R011b</strong></td><td><strong>勤工履职异常（表现）</strong></td><td>近 30 天 <code>workstudy_offboarded</code> 且 <code>dismissal_category ∈ {performance, other}</code></td><td><span class="sev sev-medium">关注</span></td><td>7d</td><td>30d</td><td><strong>勤工</strong></td></tr>
+        <tr style="background:#fff7e6"><td><strong>R012</strong></td><td><strong>隐性经济压力</strong></td><td>近 30 天 <code>workstudy_apply_rejected ≥ 3</code> 且无成功上岗</td><td><span class="sev sev-medium">关注</span></td><td>7d</td><td>30d</td><td><strong>勤工</strong></td></tr>
+        <tr><td>R009</td><td>多模块异常（组合）</td><td>30 天内命中 ≥ 3 类异常事件</td><td><span class="sev sev-critical">紧急</span></td><td>24h</td><td>14d</td><td>跨类</td></tr>
+        <tr><td>R010</td><td>趋势下滑（组合）</td><td>学业成绩下滑 + 课堂出勤 &lt; 70%</td><td><span class="sev sev-medium">关注</span></td><td>7d</td><td>30d</td><td>跨类</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout note">
+      <div class="callout-title">R011 / R012 的设计说明</div>
+      <ul>
+        <li><strong>R011a 勤工履职异常（纪律）</strong>：违纪类离岗或上岗后旷工。等同于"学生在岗位上消失了 / 出问题了"。处置建议：与雇主核实情况、与学生面谈、必要时联动资助办了解经济变化。</li>
+        <li><strong>R011b 勤工履职异常（表现）</strong>：能力 / 表现不达标被辞，或雇主选了"其他"。比 R011a 弱，关注级即可。处置建议：与学生聊聊学习与生活节奏，是否需要学业帮扶或调岗推荐。</li>
+        <li><strong>R012 隐性经济压力</strong>：比"欠费"或"申请补助"更早的经济信号——学生还在主动找出路（申请），但持续不被接收。处置建议：建议联系资助办协办、推荐合适岗位、<strong>不要直接问家庭收入</strong>。</li>
+        <li><strong>R011 不是所有"被辞"都触发</strong>：<code>dismissal_category ∈ {position_dissolved, mismatch}</code> 不进规则池——前者学生无责，后者是双方匹配中性结果；雇主未填子分类（NULL）按 R011b 关注级保底。</li>
+        <li>三条规则均<strong>不喂家庭 / 财务字段给 AI</strong>（合规第 9.2 节数据矩阵）；AI 解释里仅出现"勤工岗位""申请记录"等中性词。</li>
+      </ul>
+    </div>
+
+    <h3>7.3 严重度与 SLA</h3>
+    <table class="tbl">
+      <thead><tr><th>标签</th><th>内部代号</th><th>SLA</th><th>通知方式</th></tr></thead>
+      <tbody>
+        <tr><td><span class="sev sev-critical">紧急</span></td><td>critical</td><td>24h</td><td>站内 + 看板</td></tr>
+        <tr><td><span class="sev sev-high">高</span></td><td>high</td><td>48h</td><td>企微即时</td></tr>
+        <tr><td><span class="sev sev-medium">关注</span></td><td>medium</td><td>7d</td><td>企微日聚合</td></tr>
+        <tr><td><span class="sev sev-low">提醒</span></td><td>low</td><td>14d</td><td>仅站内</td></tr>
+      </tbody>
+    </table>
+
+    <h3>7.4 通知策略</h3>
+    <ul>
+      <li>日聚合默认在 <strong>09:00</strong> 推送（学校工作时间开始）</li>
+      <li>节假日不推 medium 级日聚合</li>
+      <li>单辅导员当日推送 &gt; 5 项时自动合并为"待办摘要"</li>
+      <li>辅导员可设置个人 quiet hours（20:00–08:00 不接 high 推送，但 critical 仍发）</li>
+    </ul>
+
+    <h3>7.5 噪声治理</h3>
+    <table class="tbl">
+      <thead><tr><th>治理动作</th><th>触发条件</th></tr></thead>
+      <tbody>
+        <tr><td>推送规则上调阈值建议</td><td>规则 30 天误报率 &gt; 20%</td></tr>
+        <tr><td>推送规则下调严重度建议</td><td>规则 30 天"已私下处理"占比 &gt; 30%</td></tr>
+        <tr><td>标记规则待审视</td><td>规则 60 天无人接单</td></tr>
+        <tr><td>自动合并多任务</td><td>同一学生 7 天内新增 ≥ 3 个时合并展示</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ────────────────────────────────── 8. AI 边界 -->
+  <section id="sec-8">
+    <h2>八、AI 能力边界（产品级声明）</h2>
+
+    <h3>8.1 AI 能做的 4 件事</h3>
+    <table class="tbl">
+      <thead><tr><th>能力</th><th>触发时机</th><th>输出</th></tr></thead>
+      <tbody>
+        <tr><td>解释规则触发</td><td>任务卡打开时</td><td>why / talking_points / avoid_topics / resources</td></tr>
+        <tr><td>沟通提纲生成</td><td>接单后点"生成提纲"</td><td>开场 / 切入 / 收尾 3 段话术</td></tr>
+        <tr><td>谈话纪要整理</td><td>录音转写或文字粘贴后</td><td>结构化纪要：主诉 / 处置 / 后续</td></tr>
+        <tr><td>群体趋势摘要</td><td>院系领导周报</td><td>一段话本周关怀概况 + 3 条管理建议</td></tr>
+      </tbody>
+    </table>
+
+    <h3>8.2 AI 不做的 5 件事</h3>
+    <table class="tbl">
+      <thead><tr><th>不做</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>给学生打风险分</td><td>评分一旦泄露即合规事故</td></tr>
+        <tr><td>自主决策"是否联系家长 / 上报 / 转介"</td><td>责任不能落在 AI</td></tr>
+        <tr><td>心理诊断或情绪定性</td><td>涉及医师法</td></tr>
+        <tr><td>自动外发任何通知给学生本人或家长</td><td>高校学工通知必须人工把关</td></tr>
+        <tr><td>直接修改任务状态</td><td>AI 只读不写状态</td></tr>
+      </tbody>
+    </table>
+
+    <h3>8.3 降级原则</h3>
+    <ul>
+      <li>AI sidecar 故障 → 业务 <strong>全部正常运转</strong>，仅 AI 解释 / 提纲不可用</li>
+      <li>AI 输出未通过 sanitize → 显示"建议生成失败" + 原始触发证据</li>
+      <li>AI 调用超时 5s → 进入"重试一次"，再失败即降级</li>
+    </ul>
+
+    <h3>8.4 Prompt 治理 SOP</h3>
+    <table class="tbl">
+      <thead><tr><th>何时审查</th><th>由谁审查</th></tr></thead>
+      <tbody>
+        <tr><td>首次上线</td><td>学工业务专家 + 心理咨询师顾问 + 产品经理</td></tr>
+        <tr><td>Prompt 任何改动</td><td>同上</td></tr>
+        <tr><td>eval set 月度回归</td><td>产品经理 + 抽样辅导员</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Prompt 黑名单词</strong>（自动拦截）：建议联系家长、疑似、可能存在、心理风险、需要转介、应当上报、确定、肯定、显著。</p>
+  </section>
+
+  <!-- ────────────────────────────────── 9. 合规 -->
+  <section id="sec-9">
+    <h2>九、合规与伦理</h2>
+
+    <h3>9.1 不贴标签</h3>
+    <div class="dual">
+      <div class="dont">
+        <h4>绝对不允许</h4>
+        <ul>
+          <li>学生档案展示永久"高风险"标识</li>
+          <li>班级 / 学院维度的"风险学生排行榜"</li>
+          <li>把学生分为"重点关注 / 普通 / 优秀"等级</li>
+        </ul>
+      </div>
+      <div class="do">
+        <h4>允许的形态</h4>
+        <ul>
+          <li>学生档案展示"当前 N 项未关闭关怀"（数值，不是等级）</li>
+          <li>关闭后从学生档案消失，仅保留在审计后台</li>
+          <li>院系视图只看汇总，不看个体（超期任务除外）</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>9.2 数据最小化矩阵</h3>
+    <table class="tbl">
+      <thead><tr><th>数据</th><th>规则</th><th>AI</th><th>展示</th></tr></thead>
+      <tbody>
+        <tr><td>学籍 / 班级</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td>出勤 / 成绩</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td>违纪</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td>请假</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td>欠费</td><td>✓</td><td>✗</td><td>✓（仅辅导员）</td></tr>
+        <tr><td>资助申请</td><td>✓</td><td>✗</td><td>✓（仅辅导员）</td></tr>
+        <tr><td>一卡通消费</td><td>✓（P2）</td><td>✗</td><td>✗</td></tr>
+        <tr><td>心理咨询</td><td>✗</td><td>✗</td><td>✗（仅心理中心模块）</td></tr>
+        <tr><td>医疗</td><td>✗</td><td>✗</td><td>✗</td></tr>
+        <tr><td>家庭情况</td><td>✗</td><td>✗</td><td>✗（仅资助办独立模块）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>9.3 心理关怀的隔离设计</h3>
+    <div class="callout danger">
+      <p><strong>P1 阶段</strong>：完全不接入心理类数据，文本关键词识别不做。</p>
+      <p><strong>P2 阶段</strong>（需心理中心签署 SOP）：</p>
+      <ul>
+        <li>心理关键词命中的 alert <strong>直接路由到心理中心值班箱</strong>，不进辅导员视图</li>
+        <li>心理中心评估后，<strong>可决定</strong>是否反向告知辅导员"建议主动关心"</li>
+        <li>反向告知的措辞由心理中心人工填写，<strong>不由 AI 生成</strong></li>
+        <li>辅导员永远看不到"心理风险"字样，只看到"建议主动关心"</li>
+      </ul>
+    </div>
+
+    <h3>9.4 审计与学生只读查询（v1.1 修订）</h3>
+    <ul>
+      <li>每条任务的全生命周期写入 <code>task_audit</code>，永久保留</li>
+      <li><strong>v1.1 必改 #4</strong>：P1 必须为学生本人提供<strong>只读查询接口</strong></li>
+    </ul>
+
+    <h4>9.4.1 学生侧"我的关怀记录"（v1.2 修订）</h4>
+    <table class="tbl">
+      <thead><tr><th>项</th><th>设计</th></tr></thead>
+      <tbody>
+        <tr><td>入口</td><td>学生小程序"我的"→"个人信息保护"→"我的关怀记录"（默认深一级，不主推）</td></tr>
+        <tr><td><strong>展示</strong>（v1.2 收口）</td><td>① 当前未关闭关怀的<strong>类型摘要</strong>（学业 / 行为 / 生活）<br>② 全部关闭时显示"目前无主动关心记录"<br>③ 每条未关闭记录展示"老师建议近期联系"，<strong>无具体规则、无具体细节</strong></td></tr>
+        <tr><td><strong>不展示</strong></td><td>历史总次数、规则名称、严重度、AI 解释、辅导员姓名、判断词、被下钻信息</td></tr>
+        <tr><td>措辞示例</td><td>✅ "你当前有 1 项学业类的主动关心，老师可能近期联系你"<br>✅ "目前无主动关心记录"<br>❌ <s>"你近期 8 次受到老师主动关心，其中 3 次已完成沟通"</s>（v1.1 写法，v1.2 否决）</td></tr>
+        <tr><td>数据范围</td><td>仅自己；后端 scope 强制按 <code>student_id = current_user.id</code> 过滤</td></tr>
+      </tbody>
+    </table>
+
+    <h4>9.4.2 为什么 v1.2 改这套（评审王教授）</h4>
+    <p>v1.1 展示"近 6 个月 8 次 / 3 闭环" 看起来是合规知情，<strong>但数字本身是判断</strong>：</p>
+    <ul>
+      <li>8 次 vs 上次的 3 次 → 学生焦虑"是我做错什么了"</li>
+      <li>8 次 - 3 闭环 = 5 个老师在背后议论但没找我 → 学生愤怒</li>
+      <li>跟室友比"你 0 我 8" → 学生心理压力</li>
+    </ul>
+    <p><strong>v1.2 的解决方案</strong>：不展示历史数字 / 只展示当前未关闭 / 类型摘要 / 入口深一级。</p>
+
+    <h4>9.4.3 仍保留的合规边界</h4>
+    <ul>
+      <li>学生可知：自己当前是否被列入关心、属于哪类</li>
+      <li>学生不可知：具体规则、被关心了几次、谁在关心、AI 怎么分析的</li>
+      <li>完整申诉流程<strong>P2 再做</strong></li>
+    </ul>
+    <div class="callout note">
+      <p><strong>本节立场</strong>：教育部《高等学校学生个人信息保护管理办法》要求"学生有权知晓涉及其个人信息的处理情况"。<strong>知晓 ≠ 全量披露</strong>，给出"当前状态 + 类型"已满足知情权，无需展示评估细节。</p>
+    </div>
+
+    <h3>9.5 领导下钻个体（v1.2 修订：按角色分级）</h3>
+    <div class="callout warn">
+      <p>v1.2 修正 N=10 一刀切——按角色实际工作量分级。原一刀切对副书记不够（值班 5 + 家长来访 3 + 月度抽查 5 + 突发 5 ≈ 18）。</p>
+    </div>
+
+    <h4>9.5.1 角色 × 限额分级</h4>
+    <table class="tbl">
+      <thead><tr><th>角色</th><th>默认下钻额度</th><th>备注</th></tr></thead>
+      <tbody>
+        <tr><td><strong>辅导员</strong></td><td>—</td><td>本就管自己班学生档案，不属于"下钻"范畴</td></tr>
+        <tr><td><strong>院系学工领导</strong>（副书记 / 学工办主任）</td><td><strong>20 / 天</strong></td><td>覆盖值班 + 家长来访 + 月度抽查</td></tr>
+        <tr><td><strong>学校学工管理者</strong>（学工部副部长）</td><td><strong>50 / 天</strong></td><td>跨学院协调 + 突发事件研判</td></tr>
+        <tr><td><strong>校领导</strong>（学生工作分管校长 / 党委书记）</td><td><strong>不限</strong></td><td>全部留痕，不限频但接受全量审计</td></tr>
+      </tbody>
+    </table>
+
+    <h4>9.5.2 强制门槛（所有角色一致）</h4>
+    <ul>
+      <li>必填 ≥ 30 字的下钻理由</li>
+      <li>留痕到 <code>task_audit</code>（action=<code>drilled_down</code>，payload 含 reason + 学生 id）</li>
+      <li>任何角色单日触达额度 90% 时，工作台顶部弹出"今日下钻已达 X/Y"提示</li>
+    </ul>
+
+    <h4>9.5.3 超额与异常</h4>
+    <table class="tbl">
+      <thead><tr><th>情况</th><th>系统动作</th></tr></thead>
+      <tbody>
+        <tr><td>院副书记当日 &gt; 20 / 学校管理者 &gt; 50</td><td>拒绝并提示"本日额度已满，紧急情况可申请校领导授权"</td></tr>
+        <tr><td>任意角色单周下钻 &gt; 平均值 3 倍</td><td>系统标"异常"+ 周度审计高亮</td></tr>
+        <tr><td>30 天内同一学生被同一用户下钻 ≥ 5 次</td><td>系统标"高频"，触发学工部部长二次核实</td></tr>
+      </tbody>
+    </table>
+
+    <h4>9.5.4 周度审计（v1.2 修订：只推异常）</h4>
+    <p>每周一 09:00 推送给学工部部长（不再推全量，<strong>仅推异常</strong>）：</p>
+    <ul>
+      <li>上周触发"异常"标记的下钻用户名单</li>
+      <li>上周"高频"下钻的学生名单</li>
+      <li>全口径下钻次数 + 同比 / 环比变化（仅数字，不点名）</li>
+    </ul>
+    <div class="callout note">
+      <p><strong>v1.2 修正</strong>：v1.1 写"全部下钻日志周度推送"，<strong>部长每周收到几百条日志会被淹没</strong>——v1.2 改为只推异常。</p>
+    </div>
+
+    <h4>9.5.5 学生可见性</h4>
+    <p>学生只读查询接口里<strong>永远不展示</strong>"被下钻"信息，避免反向施压。</p>
+    <p><strong>配置</strong>：分级限额由产品方设定默认（20/50），学校可申请调整但需走产品方人工评估 + 学工部部长签字。</p>
+
+    <h3>9.6 数据保留与清理</h3>
+    <ul>
+      <li>已关闭任务保留 3 年（与学籍周期对齐）</li>
+      <li>审计日志保留 5 年</li>
+      <li>学生毕业 / 离校后，关怀数据自动归档到只读区，不再用于规则评估</li>
+    </ul>
+  </section>
+
+  <!-- ────────────────────────────────── 10. 数据模型 -->
+  <section id="sec-10">
+    <h2>十、数据模型</h2>
+
+    <div class="ascii">sys_user ──┐                              alert_rule
+           │                                 │
+student_profile ─┐                           │
+                 ↓                           ↓
+       student_event_log ─────────→  care_task ─────┬──→ care_task_audit
+                                       │           │
+                                       │           └──→ care_task_feedback
+                                       │
+                                       └──→ ai_brief (cached, 7d TTL)</div>
+
+    <h3>10.1 care_task（取代旧 student_alert）</h3>
+    <table class="tbl">
+      <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>id</td><td>bigint PK</td><td></td></tr>
+        <tr><td>tenant_id</td><td>varchar</td><td></td></tr>
+        <tr><td>student_id</td><td>bigint FK</td><td></td></tr>
+        <tr><td>rule_id</td><td>bigint FK</td><td>触发规则</td></tr>
+        <tr><td>rule_version</td><td>int</td><td>触发时的规则版本</td></tr>
+        <tr><td>severity</td><td>varchar</td><td>critical / high / medium / low</td></tr>
+        <tr><td>trigger_data</td><td>jsonb</td><td>触发证据快照</td></tr>
+        <tr><td>current_brief_id</td><td>bigint</td><td>指向最新一条 <code>task_ai_brief_history</code>（v1.2 修订：不直接存 brief）</td></tr>
+        <tr><td>status</td><td>varchar</td><td>pending / accepted / in_progress / resolved / rejected / transferred / overdue</td></tr>
+        <tr><td>assigned_to</td><td>bigint</td><td>自动指派辅导员</td></tr>
+        <tr><td>due_date</td><td>timestamptz</td><td>SLA 时限</td></tr>
+        <tr><td>accepted_at / accepted_by</td><td></td><td></td></tr>
+        <tr><td>reschedule_count</td><td>int</td><td></td></tr>
+        <tr><td>closed_at / closed_by / closed_reason</td><td></td><td></td></tr>
+        <tr><td>transferred_to</td><td>varchar</td><td>转介目标部门</td></tr>
+      </tbody>
+    </table>
+
+    <h3>10.2 care_task_audit</h3>
+    <table class="tbl">
+      <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>id</td><td>bigint PK</td><td></td></tr>
+        <tr><td>task_id</td><td>bigint FK</td><td></td></tr>
+        <tr><td>actor_id</td><td>bigint</td><td>操作人</td></tr>
+        <tr><td>action</td><td>varchar</td><td>created / viewed / accepted / rescheduled / resolved / rejected / transferred / explainer_invoked / notified</td></tr>
+        <tr><td>payload</td><td>jsonb</td><td>动作细节</td></tr>
+        <tr><td>occurred_at</td><td>timestamptz</td><td></td></tr>
+      </tbody>
+    </table>
+
+    <h3>10.3 care_task_feedback</h3>
+    <table class="tbl">
+      <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>task_id</td><td>bigint FK</td><td></td></tr>
+        <tr><td>feedback_type</td><td>varchar</td><td>false_positive / rejected_reason / improvement_suggestion</td></tr>
+        <tr><td>reason_code</td><td>varchar</td><td>枚举</td></tr>
+        <tr><td>reason_detail</td><td>text</td><td>选填</td></tr>
+      </tbody>
+    </table>
+
+    <h3>10.4 task_ai_brief_history（v1.2 新增 · append-only · 解决 brief 覆盖审计断链）</h3>
+    <table class="tbl">
+      <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>id</td><td>bigint PK</td><td></td></tr>
+        <tr><td>task_id</td><td>bigint FK</td><td></td></tr>
+        <tr><td>brief</td><td>jsonb</td><td>完整 AI 输出（why / talking_points / avoid_topics / campus_resources / follow_up_days）</td></tr>
+        <tr><td>generated_at</td><td>timestamptz</td><td>生成时间</td></tr>
+        <tr><td>generation_trigger</td><td>varchar</td><td><code>batch_06</code> / <code>batch_08</code> / <code>batch_13</code> / <code>lazy</code> / <code>manual_refresh</code></td></tr>
+        <tr><td>prompt_version</td><td>varchar</td><td>Prompt 版本号（便于回溯 schema 演进）</td></tr>
+        <tr><td>llm_model</td><td>varchar</td><td>用哪个模型生成的</td></tr>
+      </tbody>
+    </table>
+    <p><strong>索引</strong>：<code>(task_id, generated_at DESC)</code> 用于详情页"历史 brief"展示。</p>
+    <p><strong>回收策略</strong>：任务 <code>status=resolved</code> 后保留 1 年，之后归档；与任务一同删除。</p>
+    <div class="callout note">
+      <p><strong>为什么 append-only</strong>（评审老陈）：v1.1 写"24h TTL 覆盖"，导致辅导员说"昨天 AI 建议我聊 X" 今天找不到——审计断链。v1.2 改为每次新生成都 append，task 持当前指针；列表 API 取 current，详情页可查 history 任一版本。</p>
+    </div>
+
+    <h3>10.5 alert_rule + alert_rule_version</h3>
+    <p>规则主表 <code>alert_rule</code> 含 <code>status</code> (draft/shadow/canary/active/archived) 和 <code>canary_scope</code>；版本表 <code>alert_rule_version</code> 记录历史 DSL 用于回滚。</p>
+  </section>
+
+  <!-- ────────────────────────────────── 11. API -->
+  <section id="sec-11">
+    <h2>十一、API 设计（关键端点）</h2>
+
+    <h3>11.1 辅导员侧</h3>
+    <table class="tbl">
+      <thead><tr><th>Method</th><th>Path</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/care/tasks/today</code></td><td>今日关怀清单</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/care/tasks/{id}</code></td><td>任务详情</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/care/tasks/{id}/brief</code></td><td>取 AI 解释（懒加载）</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/care/tasks/{id}/accept</code></td><td>接单</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/care/tasks/{id}/reschedule</code></td><td>改期</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/care/tasks/{id}/reject</code></td><td>拒绝（须 reason_code）</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/care/tasks/{id}/transfer</code></td><td>转介</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/care/tasks/{id}/resolve</code></td><td>完成（附纪要）</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/care/tasks/{id}/audit</code></td><td>时间线</td></tr>
+      </tbody>
+    </table>
+
+    <h3>11.2 院系领导侧</h3>
+    <table class="tbl">
+      <thead><tr><th>Method</th><th>Path</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/care/dean/summary</code></td><td>本院本周汇总</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/care/dean/overdue</code></td><td>超期任务列表</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/care/dean/trends</code></td><td>规则触发趋势 + 系统建议</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/care/dean/urge/{taskId}</code></td><td>督办</td></tr>
+      </tbody>
+    </table>
+
+    <h3>11.3 规则运维侧（v1.1 简化）</h3>
+    <div class="callout warn">
+      <p>规则编辑 / 版本 / shadow / canary / 干跑 / 回滚 整体移 P2。P1 学校侧只需 4 个端点。</p>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>Method</th><th>Path</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/rules</code></td><td>列表 + 30 天效果（read-only）</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/rules/{id}/toggle</code></td><td>启 / 停（学校操作，即时生效）</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/rules/severity-offset</code></td><td>全局严重度偏移（-1 / 0 / +1）</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/rules/effect-report</code></td><td>规则效果报表（read-only）</td></tr>
+      </tbody>
+    </table>
+    <p><strong>已从 P1 移除（P2 再开放）</strong>：<code>/preview</code> · <code>/{id}/shadow</code> · <code>/{id}/canary</code> · <code>/{id}/activate</code> · <code>/{id}/archive</code> · <code>/{id}/versions</code> · <code>/{id}/rollback</code> · <code>/noise-report</code> · <code>POST /api/v1/rules</code></p>
+
+    <h3>11.4 学生侧（v1.1 新增，必改 #4）</h3>
+    <table class="tbl">
+      <thead><tr><th>Method</th><th>Path</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/care/me/summary</code></td><td>学生本人的关怀次数 + 闭环状态（近 6 个月）</td></tr>
+      </tbody>
+    </table>
+    <p>权限：强制 <code>student_id = current_user.id</code> 过滤；任何越权请求返 403。</p>
+
+    <h3>11.5 领导下钻（v1.1 新增，必改 #5）</h3>
+    <table class="tbl">
+      <thead><tr><th>Method</th><th>Path</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td><code>/api/v1/care/dean/drill-down/{studentId}</code></td><td>下钻个体档案，body 必填 <code>reason</code>（≥30 字）</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/care/dean/drill-down/log</code></td><td>本院 / 全校下钻日志（学工部部长可看）</td></tr>
+      </tbody>
+    </table>
+    <p>后端强制：① rate-limit 默认每用户每天 10 次 ② 写 <code>task_audit.action=drilled_down</code></p>
+
+    <h3>11.6 AI 助手</h3>
+    <table class="tbl">
+      <thead><tr><th>Method</th><th>Path</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td><code>/api/v1/ai/explain</code></td><td>解释任务</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/ai/talking-points</code></td><td>沟通提纲</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/ai/talk-summary</code></td><td>谈话纪要结构化</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ────────────────────────────────── 12. 交互 -->
+  <section id="sec-12">
+    <h2>十二、交互设计要点</h2>
+
+    <h3>12.1 任务卡（核心组件）</h3>
+    <p><strong>信息层级（从上到下）</strong></p>
+    <ol>
+      <li><strong>顶</strong>：学生姓名 + 班级 + 一句话摘要</li>
+      <li><strong>AI 助手区</strong>（卡片，高亮）：为什么 / 建议聊 / 不建议碰 / 可对接资源</li>
+      <li><strong>触发证据</strong>（默认折叠）：命中事件列表 + 历史关怀简述</li>
+      <li><strong>操作区</strong>（粘底）：接单 / 完成 / 改期 / 转介 / 拒绝 / 详情</li>
+    </ol>
+
+    <p><strong>视觉规范</strong></p>
+    <ul>
+      <li>不出现数字分（不展示 severity 数值，只展示 label）</li>
+      <li>严重度色：紧急 <code>#cf1322</code> / 高 <code>#fa8c16</code> / 关注 <code>#faad14</code> / 提醒 <code>#52c41a</code></li>
+      <li>AI 区域必须有"AI 助手 · 小夕"标识 + 一句免责声明</li>
+    </ul>
+
+    <h3>12.2 拒绝 / 改期 / 转介对话框</h3>
+    <ul>
+      <li><strong>拒绝</strong>：必选原因（5 选 1）+ 选填说明 → 写 <code>care_task_feedback</code></li>
+      <li><strong>改期</strong>：选 1 / 3 / 7 天，自动延 due_date，次数+1</li>
+      <li><strong>转介</strong>：选目标部门（资助办 / 心理中心 / 教务办 / 保卫处），必填说明</li>
+    </ul>
+
+    <h3>12.3 辅导员工作台首页</h3>
+    <div class="dual">
+      <div class="do">
+        <h4>信息密度</h4>
+        <ul>
+          <li>首屏 5 个任务卡</li>
+          <li>顶部一句话状态（"今日 5 项 · 紧急 1 · 关注 2"）</li>
+          <li>切换栏：今日 / 进行中 / 已完成 / 超期</li>
+        </ul>
+      </div>
+      <div class="dont">
+        <h4>避免设计</h4>
+        <ul>
+          <li>50 行 alert 列表表格</li>
+          <li>任何"风险评分"数字柱状图</li>
+          <li>学生头像 + 红绿灯标签</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>12.4 院系领导工作台</h3>
+    <div class="dual">
+      <div class="do">
+        <h4>首屏元素</h4>
+        <ul>
+          <li>一句话本周汇总</li>
+          <li>需要介入的事项（最多 3 条）</li>
+          <li>本周触发最多的规则 top 3</li>
+          <li>系统建议（最多 3 条）</li>
+        </ul>
+      </div>
+      <div class="dont">
+        <h4>不出现</h4>
+        <ul>
+          <li>个体学生的详细档案入口（除非超期跳转）</li>
+          <li>"学生风险榜"</li>
+          <li>"辅导员效能排行"</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────────────────────────────── 13. 验收 -->
+  <section id="sec-13">
+    <h2>十三、验收标准</h2>
+
+    <h3>13.1 P1 上线门槛（必须全过）</h3>
+    <table class="tbl">
+      <thead><tr><th>维度</th><th>标准</th></tr></thead>
+      <tbody>
+        <tr><td>功能完整</td><td>10 条内置规则全部跑通；任务全生命周期闭环</td></tr>
+        <tr><td>性能</td><td>每日全量扫描 &lt; 30 分钟；任务详情打开 &lt; 1 秒</td></tr>
+        <tr><td>AI 质量</td><td>100 条样本 eval，王教授评分 ≥ 4/5；prompt 黑名单 0 命中</td></tr>
+        <tr><td>通知</td><td>3 套通知模板上线，文案合规走查通过</td></tr>
+        <tr><td>审计</td><td>每条任务时间线完整；权限矩阵测试通过</td></tr>
+        <tr><td>合规</td><td>法务 / 学工业务专家书面同意</td></tr>
+        <tr><td>UAT</td><td>3–5 个辅导员试用 1 周，NPS ≥ 0</td></tr>
+        <tr><td>灰度</td><td>1 个学院灰度运行 1 周，无 P0 / P1 缺陷</td></tr>
+      </tbody>
+    </table>
+
+    <h3>13.2 上线后 90 天复盘指标</h3>
+
+    <h4>13.2.1 正指标（产品价值层）</h4>
+    <table class="tbl">
+      <thead><tr><th>指标</th><th>目标</th></tr></thead>
+      <tbody>
+        <tr><td>北极星（周完成 ≥ 5 次）</td><td>70% 辅导员达标</td></tr>
+        <tr><td>高严重度 24h 接单率</td><td>≥ 90%</td></tr>
+        <tr><td>任务平均闭环时长</td><td>≤ 5 天</td></tr>
+        <tr><td>单规则误报率</td><td>全部 ≤ 20%</td></tr>
+        <tr><td>辅导员 NPS</td><td>≥ 30</td></tr>
+      </tbody>
+    </table>
+
+    <h4>13.2.2 治理复盘副指标（v1.1 新增 · 评审老陈警告）</h4>
+    <div class="callout danger">
+      <p>评审中最大遗留风险是"治理表面无人维护，系统逐渐失效"。v1.1 已经把规则治理收回产品方，但<strong>必须在 90 天验证产品方是否真的在维护</strong>。</p>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>副指标</th><th>阈值</th><th>信号</th></tr></thead>
+      <tbody>
+        <tr><td><strong>产品方</strong> 季度规则调整次数</td><td>≥ 1 次</td><td>= 0 表示产品方没在跟进规则效果</td></tr>
+        <tr><td><strong>产品方</strong> Prompt eval 月度跑次数</td><td>≥ 1 次 / 月</td><td>= 0 表示 AI 输出质量无人把关</td></tr>
+        <tr><td><strong>产品方</strong> 噪声报表查看次数</td><td>≥ 1 次 / 月</td><td>= 0 表示反馈飞轮断裂</td></tr>
+        <tr><td><strong>学校</strong> 规则启停操作次数</td><td>≥ 1 次 / 学期</td><td>= 0 可能没人会用，也可能默认包够好——需访谈区分</td></tr>
+        <tr><td><strong>学校</strong> 全局严重度偏移使用率</td><td>任意</td><td>≥ 30% → 默认 severity 设定可能偏严</td></tr>
+        <tr><td><strong>学校</strong> 申请下钻 N 调整次数</td><td>任意</td><td>频繁申请上调说明默认 10 偏紧</td></tr>
+      </tbody>
+    </table>
+
+    <h4>13.2.3 治理失败信号 → 降级动作</h4>
+    <p>若 90 天复盘发现"产品方 3 项治理动作均为 0"，按以下顺序降级：</p>
+    <ol>
+      <li><strong>第一档</strong>：移除"全局严重度偏移"（学校不再有可动参数，但保留启停）</li>
+      <li><strong>第二档</strong>：把规则集冻结为 v1.0 永不更新，仅依赖业务事件流变化</li>
+      <li><strong>第三档</strong>：砍 AI brief，回归"看证据自行判断"的纯规则模式</li>
+    </ol>
+    <div class="callout note">
+      <p>这不是悲观，是<strong>给治理失败一条体面的退路</strong>。比"假装在维护但实际死掉"诚实得多。</p>
+    </div>
+  </section>
+
+  <!-- ────────────────────────────────── 14. 实施路径 -->
+  <section id="sec-14">
+    <h2>十四、实施路径</h2>
+
+    <h3>14.1 P1（8 周）—— 主线（v1.2 修订工期）</h3>
+    <div class="callout warn">
+      <p><strong>v1.2 工期再调整（评审林姐二轮）</strong>：6 周→ <strong>8 周</strong>。原因：① W3 三件事工作量被低估（学生小程序入口要 Taro 联调 + 文案合规走查）→ 拆为 W3 后端 + W4 学生端；② UAT 招辅导员从招募到观察期需 2-3 周 → 拆为 W6 招募 + W7 观察。</p>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>周</th><th>主题</th><th>关键产物</th></tr></thead>
+      <tbody>
+        <tr><td>W1</td><td>信息架构 + AI v1.2 风格</td><td>任务卡 UI + 折叠 + 免责声明；alert_explainer agent；prompt v1.2 风格"中性话术"（带 few-shot）；文案重命名</td></tr>
+        <tr><td>W2</td><td>批量预生成 + 闭环 + 通知</td><td>3 次批处理调度器（06/08/13）；<code>task_ai_brief_history</code> 表 + append-only；状态机扩展；通知扇出</td></tr>
+        <tr><td>W3</td><td><strong>后端</strong>：审计 + 反馈 + 下钻</td><td>审计时间线 API；反馈入口；领导下钻 rate-limit（角色分级 20/50）+ 留痕；事件流补勤工 4 事件</td></tr>
+        <tr><td>W4</td><td><strong>学生端</strong>：小程序"我的关怀记录"</td><td>Taro 联调；类型摘要展示（无数字）；权限收口；文案合规走查</td></tr>
+        <tr><td>W5</td><td>规则启停 + 效果报表 + 反馈回流</td><td>规则总览页（启停 + 全局偏移）；read-only 效果报表；匿名化反馈回流到产品方 warehouse</td></tr>
+        <tr><td>W6</td><td>UAT 招募 + 培训物料</td><td>联系学院；3-5 个真辅导员协调；视频 + cheatsheet；切回旧视图 toggle</td></tr>
+        <tr><td>W7</td><td>UAT 观察期</td><td>1 周观察；每日反馈访谈；prompt eval 回归</td></tr>
+        <tr><td>W8</td><td>合规走查 + 灰度上线</td><td>法务 / 王教授 / 心理中心签字（如涉及）；灰度 1 个学院；监控 + 上线</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <div class="callout-title">规则管理员明确为产品方</div>
+      <ul>
+        <li>产品方设"规则维护小组"（产品经理 + 学工业务专家 + 工程师，各 0.2 FTE）</li>
+        <li>规则源文件在产品方代码库 <code>xg-platform/alert/rules/builtin/</code></li>
+        <li>季度发版，跟产品大版本走</li>
+        <li><strong>反馈回流 warehouse 月度查看</strong>（v1.2 新增）—— 跨校误报率 / 拒绝原因 top3 / 失效规则识别</li>
+      </ul>
+    </div>
+
+    <h4>14.1.1 不再压缩工期的几个底线</h4>
+    <table class="tbl">
+      <thead><tr><th>项</th><th>不可压缩原因</th></tr></thead>
+      <tbody>
+        <tr><td>W1 prompt eval 一轮过不去</td><td>王教授评分 ≥ 4/5 是合规底线</td></tr>
+        <tr><td>W4 学生端小程序合规走查</td><td>文案直接面向学生，错一个词就是舆情</td></tr>
+        <tr><td>W6+W7 UAT 完整 2 周</td><td>招辅导员到他们真的用起来需要培训 + 信任建立</td></tr>
+        <tr><td>W8 灰度 1 周不出 P0/P1</td><td>不灰度直接全量 = 上线即翻车</td></tr>
+      </tbody>
+    </table>
+
+    <h3>14.2 P2（再 8 周）—— 进阶（v1.1 扩充）</h3>
+
+    <h4>14.2.1 P2 接住的 P1 移出项（治理类）</h4>
+    <table class="tbl">
+      <thead><tr><th>模块</th><th>来自</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><strong>规则编辑器（学校侧）</strong></td><td>6.2</td><td>让学校能自定义规则（仅限有运维能力的高校）</td></tr>
+        <tr><td><strong>规则 DSL 自然语言生成</strong></td><td>6.2</td><td>自然语言 → DSL 的 AI 助手</td></tr>
+        <tr><td><strong>规则版本管理 + 回滚</strong></td><td>6.8</td><td>学校侧可见版本历史 + 一键回滚</td></tr>
+        <tr><td><strong>Shadow / Canary</strong></td><td>6.8</td><td>学校可干跑新规则、灰度上线</td></tr>
+        <tr><td><strong>完整申诉流程</strong></td><td>9.4</td><td>撤销 / 维持 / 升级 + 院系协同</td></tr>
+        <tr><td><strong>噪声治理建议 API</strong></td><td>11.3</td><td><code>/api/v1/rules/noise-report</code></td></tr>
+        <tr><td><strong>规则创建 / 编辑端点</strong></td><td>11.3</td><td><code>POST /api/v1/rules</code> + <code>PATCH</code></td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger">
+      <p><strong>进入门槛</strong>：P2 开放给学校后，<strong>必须先经过产品方"运维能力评估"</strong>——只对有专职学工运维的高校开放，避免重蹈"无人维护"覆辙。</p>
+    </div>
+
+    <h4>14.2.2 P2 新增功能</h4>
+    <table class="tbl">
+      <thead><tr><th>模块</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>心理关怀线索（独立）</td><td>心理中心模块；关键词命中 → 心理中心值班箱</td></tr>
+        <tr><td>经济风险接入</td><td>欠费、补助突变事件源 + 2-3 条规则</td></tr>
+        <tr><td>群体基线对比</td><td>DSL 扩 peer_baseline</td></tr>
+        <tr><td>院系汇总报表</td><td>月报、学期报</td></tr>
+        <tr><td><code>workstudy_no_show</code> 调度器</td><td>扫工时月表派生事件（P1 PRD 标注的待补项）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>14.3 P3（更远）—— 智能化</h3>
+    <table class="tbl">
+      <thead><tr><th>模块</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>无监督异常检测</td><td>个人 / 群体行为骤变</td></tr>
+        <tr><td>文本线索深挖</td><td>留言 / 谈话情绪倾向（仅供心理中心）</td></tr>
+        <tr><td>规则效果自动调优</td><td>基于反馈自动建议阈值调整</td></tr>
+        <tr><td>历史案例回溯</td><td>学习过往案例的信号组合</td></tr>
+      </tbody>
+    </table>
+
+    <h3>14.4 不做事项（明确边界 · v1.1 扩充）</h3>
+    <table class="tbl">
+      <thead><tr><th>不做</th><th>原因</th></tr></thead>
+      <tbody>
+        <tr><td>全校学生风险评分总榜</td><td>合规红线</td></tr>
+        <tr><td>AI 自动外发学生 / 家长通知</td><td>合规红线</td></tr>
+        <tr><td>黑箱 ML 模型直接定性</td><td>不可解释</td></tr>
+        <tr><td>给学生贴永久标签</td><td>合规红线</td></tr>
+        <tr><td>把心理数据接进辅导员视图</td><td>合规红线</td></tr>
+        <tr style="background:#fff7e6"><td><strong>P1 学校侧规则编辑器</strong>（v1.1 新增）</td><td>治理表面太大，无人维护风险高；P2 仅对有运维能力的高校开放</td></tr>
+        <tr style="background:#fff7e6"><td><strong>P1 完整学生申诉流程</strong>（v1.1 新增）</td><td>工期；P1 用只读查询满足合规底线</td></tr>
+        <tr style="background:#fff7e6"><td><strong>AI 输出决断性 / 祈使句</strong>（v1.1 新增）</td><td>越具体越被规避，且影响辅导员判断主权</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ────────────────────────────────── 15. 风险 -->
+  <section id="sec-15">
+    <h2>十五、风险登记</h2>
+    <table class="tbl">
+      <thead><tr><th>严重度</th><th>风险</th><th>影响</th><th>缓解</th></tr></thead>
+      <tbody>
+        <tr><td><span class="risk-h">高</span></td><td>AI 建议被辅导员当真去做错决策</td><td>责任事故</td><td>sanitize 黑名单 + UI 免责声明 + Prompt 月度回归</td></tr>
+        <tr><td><span class="risk-h">高</span></td><td>通知文案泄露学生隐私引发舆情</td><td>学校声誉</td><td>文案不含学生姓名 / 规则名 / 判断词</td></tr>
+        <tr><td><span class="risk-h">高</span></td><td>"辅导员效能"被用作 KPI 考核</td><td>倒逼数据造假</td><td>产品层禁用"辅导员排行榜"</td></tr>
+        <tr><td><span class="risk-m">中</span></td><td>辅导员不接受新交互（嫌麻烦）</td><td>推广失败</td><td>UAT 早介入；保留"切回旧视图"toggle</td></tr>
+        <tr><td><span class="risk-m">中</span></td><td>AI 调用成本失控</td><td>财务压力</td><td>懒加载 + 7 天缓存 + 月度成本告警</td></tr>
+        <tr><td><span class="risk-m">中</span></td><td>规则冷启动期噪声大</td><td>用户流失</td><td>灰度先 1 学院；规则数控制 10 条</td></tr>
+        <tr><td><span class="risk-l">低</span></td><td>跨系统数据接入延期</td><td>P1 上线推迟</td><td>P1 仅依赖已就位数据源</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ────────────────────────────────── 16. 附录 -->
+  <section id="sec-16">
+    <h2>十六、附录</h2>
+
+    <h3>A. 术语表</h3>
+    <table class="tbl">
+      <thead><tr><th>术语</th><th>释义</th></tr></thead>
+      <tbody>
+        <tr><td>关怀任务</td><td>系统生成的、需辅导员主动跟进的工作项；本系统核心动词单位</td></tr>
+        <tr><td>触发证据</td><td>任务被生成时规则命中的具体事件列表 + 阈值</td></tr>
+        <tr><td>AI 助手 / 小夕</td><td>朝夕 AI 产品形象；负责解释和建议，不参与决策</td></tr>
+        <tr><td>严重度</td><td>系统对任务紧迫性的内部分级，影响通知方式和 SLA</td></tr>
+        <tr><td>闭环</td><td>任务从生成到关闭的完整路径，必须有终点状态和记录</td></tr>
+        <tr><td>灰度（canary）</td><td>规则上线时仅对特定学生群体生效的中间态</td></tr>
+        <tr><td>Shadow</td><td>规则启用但不出任务，仅记录"若上线会触发多少"</td></tr>
+      </tbody>
+    </table>
+
+    <h3>B. 通知模板（文案稿）</h3>
+    <div class="callout note">
+      <p><strong>alert_high_immediate</strong></p>
+      <p>主题：您有 1 项主动关怀任务（高级）<br>
+      正文：您好，{{counselor_name}}老师：您有 1 项需在 48 小时内跟进的主动关怀任务，请登录"主动关怀工作台"查看。</p>
+    </div>
+    <div class="callout note">
+      <p><strong>alert_daily_digest</strong></p>
+      <p>主题：今日主动关怀清单（{{n}} 项）<br>
+      正文：您好，{{counselor_name}}老师：您今日有 {{n}} 项主动关怀任务，建议在工作日内完成。详情请登录工作台。</p>
+    </div>
+    <div class="callout note">
+      <p><strong>alert_critical_dashboard</strong>（不外发，仅看板）</p>
+      <p>紧急关怀线索：{{n}} 项 / {{college_name}}<br>
+      处理中：{{handled}} 项；待人工值守研判：{{pending}} 项</p>
+    </div>
+
+    <h3>C. 拒绝原因枚举</h3>
+    <table class="tbl">
+      <thead><tr><th>code</th><th>文案</th></tr></thead>
+      <tbody>
+        <tr><td><code>rule_not_applicable</code></td><td>此规则不适用于该学生（如交换生、休学生）</td></tr>
+        <tr><td><code>student_special_case</code></td><td>学生情况特殊（已了解、暂无需跟进）</td></tr>
+        <tr><td><code>handled_offline</code></td><td>已私下处理</td></tr>
+        <tr><td><code>already_transferred</code></td><td>已交其他部门跟进</td></tr>
+        <tr><td><code>other</code></td><td>其他（填写说明）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>D. AI Prompt 黑名单词（自动拦截）</h3>
+    <p>建议联系家长 · 疑似 · 可能存在心理 · 需要转介心理 · 应当上报 · 确定 · 肯定有 · 显著存在 · 高度怀疑 · 危险倾向</p>
+
+    <h3>E. 名词改名映射（兼容旧版）</h3>
+    <table class="tbl">
+      <thead><tr><th>旧</th><th>新</th></tr></thead>
+      <tbody>
+        <tr><td>异常预警 / 学生预警</td><td>主动关怀</td></tr>
+        <tr><td>预警列表</td><td>关怀清单 / 关怀工作台</td></tr>
+        <tr><td>处理预警</td><td>接单 / 完成</td></tr>
+        <tr><td>标记误报</td><td>反馈：规则不适用</td></tr>
+        <tr><td>关注（acknowledged）</td><td>接单（accepted）</td></tr>
+      </tbody>
+    </table>
+
+    <div class="north-star" style="margin-top:3rem">
+      <div class="label">★ 文末一句话</div>
+      <p style="margin:0">这套系统不去回答"谁会出事"，它回答的是"今天你该找谁、说什么、怎么记"。它的价值不在算得多准，而在于让"主动关怀"这件事真的能每天发生、每次留痕、可被审视、可被改进。</p>
+    </div>
+  </section>
+
+  </main>
+
+</div>
+
+<footer class="bot">
+  PRD · 主动关怀工作台 v1.0 · 2026-05-15 · 设计稿（待评审）
+</footer>
+
+<script>
+// 简单的章节高亮（IntersectionObserver）
+(function(){
+  const links = document.querySelectorAll('aside.toc a');
+  const map = {};
+  links.forEach(a => map[a.getAttribute('href').slice(1)] = a);
+
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(a => a.classList.remove('active'));
+        const link = map[e.target.id];
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -65% 0px' });
+
+  document.querySelectorAll('main section').forEach(s => obs.observe(s));
+})();
+</script>
+
+</body>
+</html>

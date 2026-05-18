@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Slf4j
@@ -67,12 +68,18 @@ public class YearSettingService {
         return s;
     }
 
+    /** P0 单时区部署:北京时间;以后多时区上线再读租户配置。 */
+    private static final ZoneId TENANT_ZONE = ZoneId.of("Asia/Shanghai");
+
     /**
      * 当前时间是否落在窗口 [start, end] 内。start/end 均可为 null,任一边为 null
      * 视为"无下/上限"。两边都 null = 始终允许。
+     *
+     * <p>用 {@link #TENANT_ZONE} 而非 JVM 默认时区取 now: TIMESTAMPTZ 本身偏移可比,
+     * 但日期边界(如 "2026-06-30T23:59:59+08:00")在 UTC JVM 上会算错 8 小时。
      */
     public static boolean inWindow(OffsetDateTime start, OffsetDateTime end) {
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(TENANT_ZONE);
         if (start != null && now.isBefore(start)) return false;
         if (end != null && now.isAfter(end)) return false;
         return true;

@@ -7,6 +7,8 @@ import com.xg.common.mybatis.JsonbTypeHandler;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @TableName(value = "employer", autoResultMap = true)
@@ -35,6 +37,10 @@ public class Employer extends BaseEntity {
 
     @TableField("allow_self_arrange")
     private Boolean allowSelfArrange;
+
+    /** 月薪酬发放上限(元);NULL=不限。WorkStudySalaryService.submit 时累计校验。 */
+    @TableField("monthly_salary_cap")
+    private BigDecimal monthlySalaryCap;
 
     @TableField("remark")
     private String remark;

@@ -31,7 +31,10 @@ public class CreateUserRequest {
     @NotEmpty
     private List<String> roleCodes;
 
-    @NotBlank
+    /**
+     * 初始密码。可选 — 留空时服务端用 {@code SystemUserService.DEFAULT_PASSWORD} 兜底。
+     * P0 默认走兜底(管理员不再每次手填),后续接 SSO / 强制首登改密时再回收。
+     */
     @Size(min = 6, max = 64)
     private String password;
 }

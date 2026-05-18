@@ -1,0 +1,29 @@
+.page {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.metaCard {
+  margin-bottom: 16px;
+}
+
+.block {
+  margin-bottom: 16px;
+}
+
+.offset {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code {
+  font-size: 12px;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 32px 0;
+}

@@ -1,4 +1,5 @@
 import {
+  HeartOutlined,
   HomeOutlined,
   CalendarOutlined,
   SnippetsOutlined,
@@ -13,6 +14,10 @@ import {
   DeploymentUnitOutlined,
   FormOutlined,
   MessageOutlined,
+  SlidersOutlined,
+  DashboardOutlined,
+  WarningOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import { Tooltip } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -27,6 +32,11 @@ const navItems = [
   { key: '/checkin', icon: <EnvironmentOutlined />, label: '签到', permission: 'checkin:manage' },
   { key: '/notification', icon: <BellOutlined />, label: '我的通知', permission: null },
   { key: '/student', icon: <TeamOutlined />, label: '学生信息库', permission: 'student:view' },
+  { key: '/care', icon: <HeartOutlined />, label: '关怀工作台', permission: null },
+  { key: '/care/rules', icon: <SlidersOutlined />, label: '关怀规则运维', permission: 'alert:rule:manage' },
+  { key: '/care/dashboard', icon: <DashboardOutlined />, label: '关怀汇总看板', permission: null },
+  { key: '/care/escalation', icon: <WarningOutlined />, label: '需要介入', permission: null },
+  { key: '/care/drill', icon: <SearchOutlined />, label: '学生下钻', permission: null },
   { key: '/work-log', icon: <EditOutlined />, label: '工作日志', permission: 'worklog:manage' },
   { key: '/violation', icon: <ExclamationCircleOutlined />, label: '违纪处分', permission: 'discipline:manage' },
   { key: '/alerts', icon: <AlertOutlined />, label: '异常预警', permission: 'student:view' },
@@ -44,11 +54,16 @@ const bottomItems = [
 // 学生信息、通知任务等）一律屏蔽，避免误入。
 const EMPLOYER_ALLOWED_KEYS = new Set(['/work-study']);
 
+// 院系/学校管理视图：仅 care 管理角色可见，与后端 CareAdminAccess 对齐
+// （dean / school_admin / 学工部部长 / 超管；college_admin 权限相同但不是
+// care 管理角色，故必须按角色而非权限码闸控）。
+const CARE_ADMIN_KEYS = new Set(['/care/dashboard', '/care/escalation', '/care/drill']);
+
 // 角色级菜单黑名单：即便权限码允许，这些项也按产品需求隐藏。改这里就够了，
 // 不用动 sys_role_permission（学生还需要 student:view 看自己档案，把权限
 // 删了反而会破坏其它页面）。
 const HIDDEN_KEYS_BY_ROLE: Record<string, ReadonlySet<string>> = {
-  student: new Set(['/notification', '/student', '/alerts']),
+  student: new Set(['/notification', '/student', '/alerts', '/care']),
   counselor: new Set([
     '/collection',
     '/checkin',
@@ -57,19 +72,24 @@ const HIDDEN_KEYS_BY_ROLE: Record<string, ReadonlySet<string>> = {
     '/alerts',
     '/counselor-talks',
   ]),
+  // dean 走 W5 的 /care/dashboard 概览，不进辅导员工作台（W1 §1.3）
   dean: new Set([
     '/collection',
     '/checkin',
     '/notification',
     '/violation',
     '/alerts',
+    '/care',
   ]),
 };
 
 export default function NavRail() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasPermission, isEmployer, isStudent, isCounselor, isDean } = useAuth();
+  const { hasPermission, hasRole, isEmployer, isStudent, isCounselor, isDean, isAdmin } =
+    useAuth();
+  const isCareManager =
+    isDean || isAdmin || hasRole('student_affairs_director') || hasRole('super_admin');
   const logout = useAuthStore((s) => s.logout);
 
   // Compose a single hidden-set for the current viewer. A user with multiple
@@ -88,6 +108,7 @@ export default function NavRail() {
 
   const visibleNavItems = navItems.filter((item) => {
     if (isEmployer) return EMPLOYER_ALLOWED_KEYS.has(item.key);
+    if (CARE_ADMIN_KEYS.has(item.key)) return isCareManager;
     if (hiddenByRole.has(item.key)) return false;
     return item.permission === null || hasPermission(item.permission);
   });

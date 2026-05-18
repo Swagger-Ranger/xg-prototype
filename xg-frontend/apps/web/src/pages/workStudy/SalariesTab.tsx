@@ -6,6 +6,7 @@ import {
   InputNumber,
   Modal,
   Select,
+  Steps,
   Table,
   Tag,
   message,
@@ -22,6 +23,7 @@ import {
   type WorkStudySalary,
 } from '@/api/workStudy';
 import { useAuth } from '@/hooks/useAuth';
+import InstanceTimeline from '@/components/workflow/InstanceTimeline';
 
 const { TextArea } = Input;
 const PAGE_SIZE = 20;
@@ -47,7 +49,7 @@ const UNIT_LABEL: Record<string, string> = {
 
 export default function SalariesTab() {
   const qc = useQueryClient();
-  const { hasRole } = useAuth();
+  const { hasRole, isStudent } = useAuth();
   const canReview = hasRole('aid_center_officer') || hasRole('student_affairs_officer') || hasRole('school_admin');
 
   const [page, setPage] = useState(1);
@@ -59,8 +61,15 @@ export default function SalariesTab() {
   const [decideForm] = Form.useForm<{ note?: string }>();
 
   const query = useQuery({
-    queryKey: ['salaries', page, statusFilter],
-    queryFn: () => listSalaries({ page, size: PAGE_SIZE, status: statusFilter }),
+    queryKey: ['salaries', page, statusFilter, isStudent],
+    queryFn: () =>
+      listSalaries({
+        page,
+        size: PAGE_SIZE,
+        status: statusFilter,
+        // 学生视角：让后端 join 岗位摘要，否则只看到岗位 ID
+        include: isStudent ? 'position' : undefined,
+      }),
   });
 
   const submitMut = useMutation({
@@ -103,6 +112,73 @@ export default function SalariesTab() {
       decideMut.mutate({ id: decideRow.id, action: decideAction, note: v.note });
     });
   };
+
+  // 学生视角进度条：申报中(pending) → 已确认(confirmed) → 到账(paid)
+  // rejected 是叉号终态；draft 几乎不出现（一启动工作流就 pending）
+  const studentColumns: ColumnsType<WorkStudySalary> = [
+    { title: '月份', dataIndex: 'month', width: 90 },
+    {
+      title: '岗位',
+      key: 'position',
+      width: 200,
+      render: (_, r) => {
+        const ps = r.position_summary;
+        if (!ps) return <span style={{ color: 'var(--fg-4)' }}>#{r.position_id}</span>;
+        return (
+          <div>
+            <div style={{ fontWeight: 500 }}>{ps.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>{ps.department_name || '—'}</div>
+          </div>
+        );
+      },
+    },
+    {
+      title: '工作量',
+      key: 'units',
+      width: 110,
+      render: (_, r) =>
+        r.units && r.unit_type
+          ? `${Number(r.units).toFixed(1)} ${UNIT_LABEL[r.unit_type] ?? r.unit_type}`
+          : r.hours
+          ? `${Number(r.hours).toFixed(1)} 时`
+          : '—',
+    },
+    {
+      title: '金额',
+      dataIndex: 'amount',
+      width: 110,
+      render: (v: string) => <strong>¥{Number(v).toFixed(2)}</strong>,
+    },
+    {
+      title: '进度',
+      key: 'progress',
+      width: 260,
+      render: (_, r) => {
+        if (r.status === 'rejected') {
+          return <Tag color="error">已驳回（用人单位需重新申报）</Tag>;
+        }
+        // current step: pending=0, confirmed=1, paid=2
+        const current = r.status === 'pending' ? 0 : r.status === 'confirmed' ? 1 : r.status === 'paid' ? 2 : 0;
+        return (
+          <Steps
+            size="small"
+            current={current}
+            items={[
+              { title: '审核中', description: r.status === 'pending' ? '资助中心' : undefined },
+              { title: '已确认', description: r.confirmed_at ? dayjs(r.confirmed_at).format('MM-DD') : undefined },
+              { title: '到账', description: r.paid_at ? dayjs(r.paid_at).format('MM-DD') : '约 1-2 周' },
+            ]}
+          />
+        );
+      },
+    },
+    {
+      title: '申报于',
+      dataIndex: 'created_at',
+      width: 130,
+      render: (v: string) => dayjs(v).format('MM-DD HH:mm'),
+    },
+  ];
 
   const columns: ColumnsType<WorkStudySalary> = [
     { title: '学生 ID', dataIndex: 'student_id', width: 100 },
@@ -214,14 +290,22 @@ export default function SalariesTab() {
           }}
         />
         <div style={{ flex: 1 }} />
-        <Button type="primary" onClick={() => { setSubmitOpen(true); submitForm.resetFields(); }}>
-          用工单位申报薪资
-        </Button>
+        {!isStudent && (
+          <Button type="primary" onClick={() => { setSubmitOpen(true); submitForm.resetFields(); }}>
+            用工单位申报薪资
+          </Button>
+        )}
       </div>
+
+      {isStudent && (
+        <div style={{ padding: '8px 12px', marginBottom: 12, background: 'var(--bg-2)', borderRadius: 4, fontSize: 13, color: 'var(--fg-3)' }}>
+          薪资由用人单位月底申报 → 资助中心审核 → 通常 1-2 周内到账校园卡。点击行可展开查看审批进度。如未到账请咨询资助中心。
+        </div>
+      )}
 
       <Table<WorkStudySalary>
         rowKey="id"
-        columns={columns}
+        columns={isStudent ? studentColumns : columns}
         dataSource={query.data?.data ?? []}
         loading={query.isFetching}
         pagination={{
@@ -234,6 +318,41 @@ export default function SalariesTab() {
           size: 'small',
         }}
         size="middle"
+        expandable={
+          isStudent
+            ? {
+                expandedRowRender: (r) => (
+                  <div style={{ padding: '8px 16px' }}>
+                    {r.workflow_instance_id ? (
+                      <>
+                        <div style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 8 }}>审批轨迹：</div>
+                        <InstanceTimeline instanceId={r.workflow_instance_id} />
+                      </>
+                    ) : (
+                      <span style={{ color: 'var(--fg-4)' }}>该薪资记录无审批流（自动结算或历史导入）</span>
+                    )}
+                    {r.report_note && (
+                      <div style={{ marginTop: 12, fontSize: 13 }}>
+                        <span style={{ color: 'var(--fg-3)' }}>用人单位备注：</span>
+                        {r.report_note}
+                      </div>
+                    )}
+                    {r.status === 'confirmed' && !r.paid_at && (
+                      <div style={{ marginTop: 12, padding: 8, background: 'var(--bg-3)', borderRadius: 4, fontSize: 13 }}>
+                        当前状态：资助中心已确认金额，等待财务发放。通常审核通过后 1-2 周内到账校园卡，
+                        若超期未到请联系资助中心核对。
+                      </div>
+                    )}
+                    {r.status === 'rejected' && (
+                      <div style={{ marginTop: 12, padding: 8, background: 'rgba(255,77,79,0.08)', borderRadius: 4, fontSize: 13 }}>
+                        该笔薪资被驳回（一般因金额 / 工时核对不上）。请联系用人单位重新申报。
+                      </div>
+                    )}
+                  </div>
+                ),
+              }
+            : undefined
+        }
       />
 
       <Modal

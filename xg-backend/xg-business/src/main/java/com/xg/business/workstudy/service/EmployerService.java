@@ -109,15 +109,24 @@ public class EmployerService {
 
     /**
      * 列出当前 user 作为 leader 或 operator 的 active 用人单位。常见是 1 家，理论上可多家。
+     *
+     * <p>过滤下推到 PG:
+     * <ul>
+     *   <li>leader_user_id = userId — 直接命中</li>
+     *   <li>operator_user_ids JSONB 历史上既有 number 数组也有 string 数组,两种都用 @> 容纳</li>
+     * </ul>
+     * 早期实现是全表 SELECT * 再 Java 内存 filter,租户单位数上百时每次 listSalaries /
+     * listApplications 都全表扫,改 SQL 下推后是普通索引 / GIN 命中,无 N 行 jsonb 反序列化。
      */
     public List<Employer> listMine(Long userId) {
         if (userId == null) return List.of();
-        List<Employer> all = employerMapper.selectList(new LambdaQueryWrapper<Employer>()
-                .eq(Employer::getStatus, "active"));
-        return all.stream()
-                .filter(e -> userId.equals(e.getLeaderUserId())
-                        || parseOperatorIds(e.getOperatorUserIds()).contains(userId))
-                .toList();
+        LambdaQueryWrapper<Employer> wrapper = new LambdaQueryWrapper<Employer>()
+                .eq(Employer::getStatus, "active")
+                .and(w -> w
+                        .eq(Employer::getLeaderUserId, userId)
+                        .or().apply("operator_user_ids::jsonb @> to_jsonb({0}::bigint)", userId)
+                        .or().apply("operator_user_ids::jsonb @> to_jsonb({0}::text)", userId.toString()));
+        return employerMapper.selectList(wrapper);
     }
 
     /**

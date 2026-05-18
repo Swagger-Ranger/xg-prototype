@@ -18,7 +18,7 @@ export const ROLE_NAMES: Record<string, string> = {
   student_affairs_director: '学工部部长',
   school_admin: '校级管理员',
   super_admin: '超级管理员',
-  aid_center_officer: '资助中心',
+  aid_center_officer: '资助中心人员',
   employer: '用工单位',
   student: '学生',
 };

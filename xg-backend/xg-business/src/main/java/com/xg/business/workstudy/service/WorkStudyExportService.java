@@ -70,23 +70,55 @@ public class WorkStudyExportService {
             "resigned_by_student", "主动离岗");
 
     public byte[] exportApplicationsCurrentView(ApplicationQueryRequest query) {
+        return exportApplicationsCurrentView(query, null);
+    }
+
+    /**
+     * @param restrictPositionIds 非 null = 强制把结果限定在这批岗位 id 范围内(employer 越权防护);
+     *                            null = 不附加 position 限制(admin / officer 跨单位汇总场景)。
+     */
+    public byte[] exportApplicationsCurrentView(ApplicationQueryRequest query, List<Long> restrictPositionIds) {
+        if (restrictPositionIds != null && restrictPositionIds.isEmpty()) {
+            // 有 employer 归属但没有任何岗位 -> 空导出,避免空 IN 退化成全表
+            return buildExcel("勤工助学申请", null, defaultColumns(), List.of());
+        }
+        // 调用方传了 positionId 但不在白名单 -> 视为越权,返回空表
+        if (restrictPositionIds != null && query.getPositionId() != null
+                && !restrictPositionIds.contains(query.getPositionId())) {
+            return buildExcel("勤工助学申请", null, defaultColumns(), List.of());
+        }
+
         LambdaQueryWrapper<WorkStudyApplication> wrapper = new LambdaQueryWrapper<WorkStudyApplication>()
                 .eq(query.getPositionId() != null, WorkStudyApplication::getPositionId, query.getPositionId())
                 .eq(query.getStudentId() != null, WorkStudyApplication::getStudentId, query.getStudentId())
                 .eq(query.getStatus() != null, WorkStudyApplication::getStatus, query.getStatus())
+                .eq(query.getEngagementStatus() != null, WorkStudyApplication::getEngagementStatus, query.getEngagementStatus())
                 .orderByDesc(WorkStudyApplication::getCreatedAt)
                 .last("LIMIT " + MAX_ROWS);
+        if (restrictPositionIds != null && query.getPositionId() == null) {
+            wrapper.in(WorkStudyApplication::getPositionId, restrictPositionIds);
+        }
         List<WorkStudyApplication> apps = applicationMapper.selectList(wrapper);
         attachPositionTitles(apps);
 
-        List<String> columns = List.of(
+        return buildExcel("勤工助学申请", null, defaultColumns(), apps);
+    }
+
+    private static List<String> defaultColumns() {
+        return List.of(
                 "id", "student_name", "position_title", "status",
                 "engagement_status", "decided_at", "engaged_at",
                 "offboarded_at", "offboard_reason", "created_at");
-        return buildExcel("勤工助学申请", null, columns, apps);
     }
 
     public byte[] exportByDsl(WorkStudyReportDsl dsl) {
+        return exportByDsl(dsl, null);
+    }
+
+    /**
+     * @param restrictPositionIds 非 null = 强制限定在这批岗位 id 范围内(同上)。
+     */
+    public byte[] exportByDsl(WorkStudyReportDsl dsl, List<Long> restrictPositionIds) {
         if (dsl == null || dsl.getEntity() == null) {
             throw new BizException("EXPORT_INVALID_DSL", "DSL 缺少 entity");
         }
@@ -103,13 +135,29 @@ public class WorkStudyExportService {
             throw new BizException("EXPORT_EMPTY_COLUMNS", "无合法列");
         }
 
+        String title = dsl.getTitle() == null || dsl.getTitle().isBlank()
+                ? "勤工助学报表" : dsl.getTitle();
+
+        if (restrictPositionIds != null && restrictPositionIds.isEmpty()) {
+            return buildExcel(title, dsl.getSummary(), safeColumns, List.of());
+        }
+        Object filterPosId = dsl.getFilters() == null ? null : dsl.getFilters().get("position_id");
+        if (restrictPositionIds != null && filterPosId != null) {
+            Long pid = toLong(filterPosId);
+            if (pid != null && !restrictPositionIds.contains(pid)) {
+                // 越权 positionId,直接空表
+                return buildExcel(title, dsl.getSummary(), safeColumns, List.of());
+            }
+        }
+
         LambdaQueryWrapper<WorkStudyApplication> wrapper = buildWrapperFromFilters(dsl.getFilters());
+        if (restrictPositionIds != null && filterPosId == null) {
+            wrapper.in(WorkStudyApplication::getPositionId, restrictPositionIds);
+        }
         wrapper.orderByDesc(WorkStudyApplication::getCreatedAt).last("LIMIT " + MAX_ROWS);
         List<WorkStudyApplication> apps = applicationMapper.selectList(wrapper);
         attachPositionTitles(apps);
 
-        String title = dsl.getTitle() == null || dsl.getTitle().isBlank()
-                ? "勤工助学报表" : dsl.getTitle();
         return buildExcel(title, dsl.getSummary(), safeColumns, apps);
     }
 

@@ -34,7 +34,8 @@ export interface CreateUserData {
   phone?: string;
   email?: string;
   role_codes: string[];
-  password: string;
+  /** 留空 = 服务端用 xg@123456 兜底(P0 默认走兜底,后续接 SSO 时移除此字段)。 */
+  password?: string;
 }
 
 export interface UpdateUserData {

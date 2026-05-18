@@ -1,5 +1,6 @@
 package com.xg.business.workstudy.dto;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -7,6 +8,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Getter
@@ -33,6 +35,10 @@ public class EmployerCreateRequest {
     private String email;
 
     private Boolean allowSelfArrange;
+
+    /** 月薪酬发放上限(元);null=不限。 */
+    @DecimalMin(value = "0.00", message = "上限不能为负")
+    private BigDecimal monthlySalaryCap;
 
     @Size(max = 2000)
     private String remark;

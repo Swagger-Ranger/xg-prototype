@@ -13,6 +13,7 @@ export const ROLE_LABELS: Record<RoleCode, string> = {
   school_admin: '校级管理员',
   super_admin: '超级管理员',
   employer: '用工单位',
+  aid_center_officer: '资助中心人员',
 };
 
 /** Roles that are considered "staff" (non-student) */
@@ -28,6 +29,7 @@ export const STAFF_ROLES: RoleCode[] = [
   'school_admin',
   'super_admin',
   'employer',
+  'aid_center_officer',
 ];
 
 export function isStaffRole(role: RoleCode): boolean {

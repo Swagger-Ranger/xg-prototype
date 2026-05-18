@@ -106,7 +106,12 @@ public class SystemUserService {
         user.setPhone(req.getPhone());
         user.setEmail(req.getEmail());
         user.setStatus("active");
-        user.setPasswordHash(BCrypt.hashpw(req.getPassword()));
+        // password 缺省走 DEFAULT_PASSWORD — 管理员新建用户时不必每次手填。
+        // 后续接 SSO / 强制首登改密时,这里改回强制 + 触发改密标记即可。
+        String plain = (req.getPassword() == null || req.getPassword().isBlank())
+                ? DEFAULT_PASSWORD
+                : req.getPassword();
+        user.setPasswordHash(BCrypt.hashpw(plain));
         sysUserMapper.insert(user);
 
         bindRoles(user.getId(), roles);

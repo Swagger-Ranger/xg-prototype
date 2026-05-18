@@ -157,6 +157,23 @@ export default function ProfilePage() {
           </View>
         )}
 
+        {/* 知情权兜底（PRD §13.3）：仅学生、低调入口，不主推不弹窗 */}
+        {isStudent && (
+          <View
+            className={`${styles.row} tap-min`}
+            onClick={() => Taro.navigateTo({ url: '/pages/careMe/index' })}
+          >
+            <View className={`${styles.rowIcon} ${styles.tone_accent}`}>
+              <Icon name="file-text" color="currentColor" size={28} />
+            </View>
+            <View className={styles.rowText}>
+              <Text className={styles.rowTitle}>个人信息保护</Text>
+              <Text className={styles.rowHint}>我的关怀记录</Text>
+            </View>
+            <Icon name="chevron-right" color="var(--fg-4)" size={24} />
+          </View>
+        )}
+
         {canSwitch && (
           <View className={`${styles.row} tap-min`} onClick={handleSwitchRole}>
             <View className={`${styles.rowIcon} ${styles.tone_accent}`}>

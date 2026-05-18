@@ -31,6 +31,10 @@ public class StudentEventLog {
     @TableField("event_source")
     private String eventSource;
 
+    /** 来源业务记录 ID（如 leave_request.id / work_study_application.id），用于事件 → 单据回溯 */
+    @TableField("source_id")
+    private Long sourceId;
+
     @TableField(value = "event_data", typeHandler = JsonbMapTypeHandler.class)
     private Map<String, Object> eventData;
 

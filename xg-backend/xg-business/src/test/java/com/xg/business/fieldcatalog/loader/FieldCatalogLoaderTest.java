@@ -1,6 +1,5 @@
 package com.xg.business.fieldcatalog.loader;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.business.fieldcatalog.model.FieldCatalog;
 import com.xg.business.fieldcatalog.model.FieldCatalog.FieldDef;
 import org.junit.jupiter.api.Test;
@@ -17,10 +16,8 @@ class FieldCatalogLoaderTest {
 
     @Test
     void loadsStudentCatalog() {
-        // findAndRegisterModules 把 jackson-module-parameter-names 拉进来,record 才能反序列化。
-        // 生产里 @Autowired 的是 Spring Boot 自动配置的 ObjectMapper,已默认带这个 module。
-        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-        FieldCatalogLoader loader = new FieldCatalogLoader(mapper);
+        // FieldCatalogLoader 重构后自带内部 YAML_MAPPER(已 findAndRegisterModules),不再注入 ObjectMapper。
+        FieldCatalogLoader loader = new FieldCatalogLoader();
         loader.load();   // 同包,直接调 package-private 方法
 
         Map<String, FieldCatalog> all = loader.getAll();

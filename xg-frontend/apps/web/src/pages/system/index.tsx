@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Table, Tag, Select, Button, Input, Modal, Form, Tabs, Switch } from 'antd';
 import { message } from '@/utils/antdApp';
@@ -8,6 +8,7 @@ import type { RoleCode } from '@xg1/shared';
 import { ROLE_LABELS as SHARED_ROLE_LABELS } from '@xg1/shared';
 import type { SystemUser, UserQueryParams, CreateUserData, UpdateUserData } from '@/api/system';
 import { getUsers, createUser, updateUser, resetPassword, toggleUserStatus } from '@/api/system';
+import { listRoles } from '@/api/rolePermission';
 import styles from './index.module.css';
 import { describeApiError } from '@/utils/api-error';
 import AiMetricsPanel from './AiMetricsPanel';
@@ -15,10 +16,11 @@ import KnowledgePanel from './KnowledgePanel';
 import RolePermissionPanel from './RolePermissionPanel';
 import SettingsPanel from './settings/SettingsPanel';
 import NotificationCenterPanel from './notification/NotificationCenterPanel';
+import TeamsPage from './teams/TeamsPage';
 
-// 单一数据源：从 @xg1/shared 拉 RoleCode + ROLE_LABELS。super_admin 不在
-// 普通管理员可见的列表里（系统级运维，走 platform-admin 后台维护）。
-const ASSIGNABLE_ROLES: RoleCode[] = [
+// 内置可分配角色 —— 作为 listRoles 加载前的兜底,以及当后端拉取失败时不至于页面崩。
+// super_admin 不在普通管理员可见的列表里(系统级运维,走 platform-admin 后台维护)。
+const BUILTIN_ASSIGNABLE_ROLES: RoleCode[] = [
   'student',
   'counselor',
   'class_master',
@@ -31,26 +33,14 @@ const ASSIGNABLE_ROLES: RoleCode[] = [
   'employer',
 ];
 
-const ROLE_LABELS: Record<string, string> = SHARED_ROLE_LABELS;
-
 const STATUS_LABELS: Record<string, string> = { active: '正常', disabled: '禁用' };
 const STATUS_COLORS: Record<string, string> = { active: 'var(--ok)', disabled: 'var(--danger)' };
-
-const ROLE_OPTIONS = [
-  { label: '全部角色', value: '' },
-  ...ASSIGNABLE_ROLES.map((r) => ({ label: SHARED_ROLE_LABELS[r], value: r })),
-];
 
 const STATUS_OPTIONS = [
   { label: '全部状态', value: '' },
   { label: '正常', value: 'active' },
   { label: '禁用', value: 'disabled' },
 ];
-
-const ROLE_SELECT_OPTIONS = ASSIGNABLE_ROLES.map((r) => ({
-  label: SHARED_ROLE_LABELS[r],
-  value: r,
-}));
 
 const PAGE_SIZE = 20;
 
@@ -78,6 +68,50 @@ export default function SystemManagement() {
     roleCode: filterRole || undefined,
     includeStudents: includeStudents || undefined,
   };
+
+  // 拉所有 sys_role 行(内置角色 + 自定义角色 + 团队)作为下拉单一数据源。
+  // 用户视角不区分"角色"和"团队"— 都是"给这个人贴个标签",所以两类都列出来,team 只是
+  // 多个视觉前缀提示。已归档的 team 不能再分配(过滤掉)。
+  const rolesQ = useQuery({
+    queryKey: ['admin.roles', 'all-assignable'],
+    queryFn: () => listRoles(),
+    staleTime: 60 * 1000,
+  });
+
+  const assignableRoles = useMemo(
+    () =>
+      (rolesQ.data ?? []).filter(
+        (r) => r.code !== 'super_admin' && !r.archived_at,
+      ),
+    [rolesQ.data],
+  );
+
+  // code → 中文名 映射(用于表格"角色"列渲染)。listRoles 优先,SHARED_ROLE_LABELS 兜底。
+  const roleLabelMap = useMemo(() => {
+    const m: Record<string, string> = { ...SHARED_ROLE_LABELS };
+    for (const r of assignableRoles) m[r.code] = r.name;
+    return m;
+  }, [assignableRoles]);
+
+  // 选项 label:team 加「团队 · 」前缀方便辨识,选项 value 始终是 code。
+  // listRoles 还没回来时用内置兜底,避免空 select。
+  const roleSelectOptions = useMemo(() => {
+    if (assignableRoles.length > 0) {
+      return assignableRoles.map((r) => ({
+        label: r.kind === 'team' ? `团队 · ${r.name}` : r.name,
+        value: r.code,
+      }));
+    }
+    return BUILTIN_ASSIGNABLE_ROLES.map((r) => ({
+      label: SHARED_ROLE_LABELS[r],
+      value: r as string,
+    }));
+  }, [assignableRoles]);
+
+  const roleFilterOptions = useMemo(
+    () => [{ label: '全部角色', value: '' }, ...roleSelectOptions],
+    [roleSelectOptions],
+  );
 
   const { data, isFetching } = useQuery({
     queryKey: ['systemUsers', queryParams],
@@ -186,7 +220,7 @@ export default function SystemManagement() {
       render: (codes: string[]) => (
         <div className={styles.roleTags}>
           {codes.map((code) => (
-            <Tag key={code}>{ROLE_LABELS[code] ?? code}</Tag>
+            <Tag key={code}>{roleLabelMap[code] ?? '自定义角色'}</Tag>
           ))}
         </div>
       ),
@@ -278,7 +312,7 @@ export default function SystemManagement() {
           style={{ width: 130 }}
           value={filterRole}
           onChange={(v) => { setFilterRole(v); setPage(1); }}
-          options={ROLE_OPTIONS}
+          options={roleFilterOptions}
         />
         <Select
           style={{ width: 120 }}
@@ -365,16 +399,22 @@ export default function SystemManagement() {
             <Select
               mode="multiple"
               placeholder="请选择角色"
-              options={ROLE_SELECT_OPTIONS}
+              options={roleSelectOptions}
             />
           </Form.Item>
-          <Form.Item
-            name="password"
-            label="初始密码"
-            rules={[{ required: true, message: '请输入初始密码' }]}
+          <div
+            style={{
+              background: 'var(--bg-3)',
+              borderRadius: 'var(--r)',
+              padding: '8px 12px',
+              fontSize: 13,
+              color: 'var(--fg-2)',
+              marginBottom: 12,
+            }}
           >
-            <Input.Password placeholder="请输入初始密码" />
-          </Form.Item>
+            初始密码统一为 <strong>xg@123456</strong>,请通知用户首次登录后及时修改。
+            后续将对接 SSO 单点登录。
+          </div>
         </Form>
       </Modal>
 
@@ -421,7 +461,7 @@ export default function SystemManagement() {
             <Select
               mode="multiple"
               placeholder="请选择角色"
-              options={ROLE_SELECT_OPTIONS}
+              options={roleSelectOptions}
             />
           </Form.Item>
         </Form>
@@ -457,6 +497,7 @@ function SystemTabs({ userManagement }: { userManagement: React.ReactNode }) {
       items={[
         { key: 'users', label: '用户管理', children: userManagement },
         { key: 'roles', label: '角色权限', children: <RolePermissionPanel /> },
+        { key: 'teams', label: '团队管理', children: <TeamsPage /> },
         { key: 'settings', label: '基础设置', children: <SettingsPanel /> },
         { key: 'notif', label: '通知管理', children: <NotificationCenterPanel /> },
         { key: 'ai', label: 'AI 表现', children: <AiMetricsPanel /> },

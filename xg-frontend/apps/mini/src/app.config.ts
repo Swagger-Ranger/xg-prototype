@@ -16,6 +16,7 @@ export default defineAppConfig({
     'pages/workStudyDetail/index',
     'pages/myWorkStudy/index',
     'pages/myProfile/index',
+    'pages/careMe/index',
     'pages/notifications/index',
   ],
   // 同声传译插件 + 录音权限：等 mp 后台开通插件、并把开发者微信号加进去后再启用。

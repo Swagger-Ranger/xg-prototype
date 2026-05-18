@@ -23,6 +23,14 @@ public class BatchOffboardRequest {
     @Size(max = 32)
     private String reason;
 
+    /**
+     * 仅 reason=terminated_by_employer 时生效：
+     * performance / discipline / position_dissolved / mismatch / other.
+     * 影响 R011 勤工履职异常 规则触发逻辑。
+     */
+    @Size(max = 32)
+    private String dismissalCategory;
+
     @Size(max = 2000)
     private String note;
 }

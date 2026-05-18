@@ -1,0 +1,23 @@
+.page {
+  padding: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.notice {
+  margin: 12px 0 16px;
+}
+
+.block {
+  margin-bottom: 16px;
+}
+
+.sidInput {
+  display: block;
+  width: 240px;
+  margin-top: 6px;
+}
+
+.auditTitle {
+  margin-top: 16px;
+}

@@ -117,19 +117,19 @@ export default function StepResult({ session, onRestart, onClose }: Props) {
       {session.scenario === 'student' && (
         <div className={styles.nextHint}>
           <BulbOutlined style={{ color: '#1677ff' }} />
-          <span>这批学生还没有辅导员，要先把教师导进来，再批量配辅导员吗？</span>
+          <span>这批学生还没绑教职工。要先把教师导进来，再批量赋角色吗？</span>
         </div>
       )}
       {session.scenario === 'teacher' && (
         <div className={styles.nextHint}>
           <BulbOutlined style={{ color: '#1677ff' }} />
-          <span>教师已建好。要给其中一部分人加"辅导员"角色 + 配班吗？走"辅导员角色赋予"场景再导一次。</span>
+          <span>教师已建好。要给其中一部分人加角色（辅导员 / 教学秘书 / 党委秘书等）+ 配从属单位吗？走"教职工角色赋予"场景再导一次。</span>
         </div>
       )}
       {session.scenario === 'counselor' && (
         <div className={styles.nextHint}>
           <BulbOutlined style={{ color: '#1677ff' }} />
-          <span>角色绑好了。具体辅导员管哪几个班级，在「系统管理 → 组织派班」配。</span>
+          <span>角色绑好了。如果导的是辅导员，还要在「系统管理 → 组织派班」配他管哪几个班。</span>
         </div>
       )}
 

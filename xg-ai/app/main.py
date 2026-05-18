@@ -6,8 +6,7 @@ import os
 from logging.handlers import RotatingFileHandler
 
 from app.config import settings
-from app.api import health, chat, insight, task_recommendation, agent, tools, kb, polish, asr, workflow_config, notification_config, leave_policy, ai_observer
-
+from app.api import health, chat, insight, task_recommendation, agent, tools, kb, polish, asr, workflow_config, notification_config, leave_policy, ai_observer, role_config, workstudy
 
 class _NoErrorFilter(logging.Filter):
     """让 application.log 不收 ERROR 级别（与 Java 端 logback 行为一致）。"""
@@ -125,3 +124,5 @@ app.include_router(workflow_config.router, prefix="/api/v1")
 app.include_router(notification_config.router, prefix="/api/v1")
 app.include_router(leave_policy.router, prefix="/api/v1")
 app.include_router(ai_observer.router, prefix="/api/v1")
+app.include_router(role_config.router, prefix="/api/v1")
+app.include_router(workstudy.router, prefix="/api/v1")

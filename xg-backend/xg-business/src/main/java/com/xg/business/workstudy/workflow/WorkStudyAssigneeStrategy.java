@@ -6,6 +6,9 @@ import com.xg.business.workstudy.mapper.WorkStudyPositionMapper;
 import com.xg.business.workstudy.model.Employer;
 import com.xg.business.workstudy.model.WorkStudyApplication;
 import com.xg.business.workstudy.model.WorkStudyPosition;
+import com.xg.business.workstudy.service.WorkStudyErrorCode;
+import com.xg.platform.workflow.assignee.AssigneeDescriptor;
+import com.xg.platform.workflow.assignee.AssigneeDescriptorProvider;
 import com.xg.platform.workflow.engine.AssigneeStrategy;
 import com.xg.platform.workflow.model.WorkflowInstance;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +34,7 @@ import java.util.List;
 @Component
 @Order(50)
 @RequiredArgsConstructor
-public class WorkStudyAssigneeStrategy implements AssigneeStrategy {
+public class WorkStudyAssigneeStrategy implements AssigneeStrategy, AssigneeDescriptorProvider {
 
     private final WorkStudyPositionMapper positionMapper;
     private final WorkStudyApplicationMapper applicationMapper;
@@ -53,7 +56,8 @@ public class WorkStudyAssigneeStrategy implements AssigneeStrategy {
         }
 
         if ("employer_leader".equals(role)) {
-            // bizType expected: workstudy_position → bizId = position.id
+            // bizType 不匹配是流程定义配错,不能伪装成"无人可派"返回空 —— 直接报错。
+            requireBizType(instance, "workstudy_position", role, scope);
             WorkStudyPosition pos = positionMapper.selectById(bizId);
             if (pos == null || pos.getEmployerId() == null) {
                 log.warn("employer_leader resolve failed: position {} or its employer_id is null", bizId);
@@ -68,7 +72,7 @@ public class WorkStudyAssigneeStrategy implements AssigneeStrategy {
         }
 
         // position_owner
-        // bizType expected: workstudy_application → bizId = application.id
+        requireBizType(instance, "workstudy_application", role, scope);
         WorkStudyApplication app = applicationMapper.selectById(bizId);
         if (app == null) {
             log.warn("position_owner resolve failed: application {} not found", bizId);
@@ -80,5 +84,33 @@ public class WorkStudyAssigneeStrategy implements AssigneeStrategy {
             return List.of();
         }
         return List.of(pos.getOwnerUserId());
+    }
+
+    /**
+     * bizType 与受理人策略不匹配是流程<b>定义层面的配置错误</b>,必须 fail-fast,不能返回空假装无人可派。
+     *
+     * <p>故意 always-on,不像 empty-assignee / publish 那样挂灰度 flag:这不是"运行时碰运气"
+     * 的灰度对象,而是确定性配错;WorkflowAssigneeDryRunService 会在发布前预检同一约束,
+     * 且方案 §5.9.1 审计确认存量定义零违例(employer_leader 仅配 workstudy_position、
+     * position_owner 仅配 workstudy_application),故无需灰度过渡。
+     */
+    private void requireBizType(WorkflowInstance instance, String expected, String role, String scope) {
+        if (!expected.equals(instance.getBizType())) {
+            log.warn("WorkStudyAssigneeStrategy: bizType mismatch role={} scope={} expected={} actual={} instance={}",
+                    role, scope, expected, instance.getBizType(), instance.getId());
+            throw WorkStudyErrorCode.ASSIGNEE_BIZTYPE_MISMATCH.exception();
+        }
+    }
+
+    /** 虚拟角色:登记到 catalog 才能过 validator(不进 sys_role);bizTypes 锁死适用流程。 */
+    @Override
+    public List<AssigneeDescriptor> descriptors() {
+        return List.of(
+                new AssigneeDescriptor("employer_leader", "same_employer",
+                        java.util.Set.of("workstudy_position"),
+                        "用人单位负责人", true, "workstudy"),
+                new AssigneeDescriptor("position_owner", "same_position",
+                        java.util.Set.of("workstudy_application"),
+                        "岗位负责人", true, "workstudy"));
     }
 }

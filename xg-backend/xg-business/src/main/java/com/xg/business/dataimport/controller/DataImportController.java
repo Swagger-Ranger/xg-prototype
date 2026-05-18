@@ -1,5 +1,6 @@
 package com.xg.business.dataimport.controller;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.xg.business.dataimport.dto.SessionView;
 import com.xg.business.dataimport.service.DataImportService;
 import com.xg.common.base.R;
@@ -12,10 +13,17 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Set;
 
+/**
+ * 数据导入是高权限操作 (写 sys_user / sys_user_role / org_unit),
+ * 类级统一鉴权 system:user:manage (school_admin / super_admin 已有),
+ * 避免任一端点漏掉。复用 user:manage 而非新增 import:manage:
+ * 导入本质就是批量创建用户,语义匹配。
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/data-import")
 @RequiredArgsConstructor
+@SaCheckPermission("system:user:manage")
 public class DataImportController {
 
     private static final Set<String> SCENARIOS = Set.of("student", "teacher", "counselor");

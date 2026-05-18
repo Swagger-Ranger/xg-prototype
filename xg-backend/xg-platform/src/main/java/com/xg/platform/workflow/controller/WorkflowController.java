@@ -8,7 +8,10 @@ import com.xg.common.base.R;
 import com.xg.common.exception.BizException;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.xg.platform.insight.client.AiSidecarClient;
+import com.xg.platform.workflow.assignee.AssigneeCatalog;
+import com.xg.platform.workflow.assignee.AssigneeDescriptor;
 import com.xg.platform.workflow.engine.BatchApproveResult;
+import com.xg.platform.workflow.engine.WorkflowAssigneeDryRunService;
 import com.xg.platform.workflow.engine.WorkflowEngine;
 import com.xg.platform.workflow.form.FormSchema;
 import com.xg.platform.workflow.form.FormSchemaDiff;
@@ -31,6 +34,7 @@ import com.xg.platform.auth.CurrentUser;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.yaml.snakeyaml.DumperOptions;
@@ -39,7 +43,6 @@ import org.yaml.snakeyaml.Yaml;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,6 +61,13 @@ public class WorkflowController {
     private final InstanceTimelineService timelineService;
     private final SysRoleMapper sysRoleMapper;
     private final AiSidecarClient aiSidecarClient;
+    private final WorkflowAssigneeDryRunService assigneeDryRunService;
+    private final AssigneeCatalog assigneeCatalog;
+
+    /** publish 灰度(RBAC 落地方案 §5.9.4 step4 / §11):false=只 warn(默认,
+     *  dry-run 确认存量干净前);true=hard fail。create/update 始终 hard fail。 */
+    @Value("${xg.rbac.workflow.publish-assignee-hard-fail:false}")
+    private boolean publishAssigneeHardFail;
 
     private static final String DEFINITION_ADMIN_ROLE = "school_admin";
 
@@ -82,6 +92,16 @@ public class WorkflowController {
             out.add(v);
         }
         return R.ok(out);
+    }
+
+    /**
+     * 工作流可用受理人目录:静态(内置+虚拟)+ 动态(scope=global 的 sys_role),
+     * 带中文 label 和适用 bizType。给 YAML 编辑器 / AI 用,不暴露裸 role code。
+     * {@code /role-codes} 保留兼容不动。
+     */
+    @GetMapping("/assignee-catalog")
+    public R<List<AssigneeDescriptor>> listAssigneeCatalog() {
+        return R.ok(assigneeCatalog.listAll());
     }
 
     // ---------------------- NL-driven definition author (admin only) ----------------------
@@ -171,7 +191,7 @@ public class WorkflowController {
         Long userId = CurrentUser.id();
         requireDefinitionAdmin(userId);
         Map<String, Object> parsed = parseYaml(req.getConfigYaml());
-        validateAssigneeRoles(parsed);
+        validateAssigneeRoles(parsed, req.getBizType(), true);
         WorkflowDefinition def = new WorkflowDefinition();
         def.setCode(req.getCode());
         def.setName(req.getName());
@@ -200,7 +220,8 @@ public class WorkflowController {
             throw new BizException("NOT_FOUND", "工作流定义不存在");
         }
         Map<String, Object> parsed = parseYaml(req.getConfigYaml());
-        validateAssigneeRoles(parsed);
+        String effBizType = req.getBizType() != null ? req.getBizType() : base.getBizType();
+        validateAssigneeRoles(parsed, effBizType, true);
 
         Integer maxVersion = definitionMapper.selectList(
                         new LambdaQueryWrapper<WorkflowDefinition>()
@@ -241,6 +262,9 @@ public class WorkflowController {
         if ("published".equals(target.getStatus())) {
             return R.ok(target);
         }
+
+        // publish 必须再校验一次:历史 draft 可能在旧规则下创建(RBAC 落地方案 §5.4)。
+        validateAssigneeRoles(target.getConfigJson(), target.getBizType(), publishAssigneeHardFail);
 
         WorkflowDefinition prior = findPriorPublished(target);
         if (prior != null) {
@@ -457,6 +481,17 @@ public class WorkflowController {
         return R.ok(PageResult.of(page));
     }
 
+    /**
+     * 只读 dry-run:列出所有定义 + 运行中实例里无法解析的 assignee 组合
+     * (NO_STRATEGY / BIZTYPE_MISMATCH)。Sprint 2 接 AssigneeCatalog hard fail
+     * 前的存量摸底,不改任何数据。仅工作流定义管理员可调。
+     */
+    @GetMapping("/definitions/assignee-dry-run")
+    public R<List<WorkflowAssigneeDryRunService.UnknownAssigneeRef>> assigneeDryRun() {
+        requireDefinitionAdmin(CurrentUser.id());
+        return R.ok(assigneeDryRunService.scan());
+    }
+
     @GetMapping("/definitions/{id}")
     public R<WorkflowDefinition> getDefinition(@PathVariable Long id) {
         WorkflowDefinition def = definitionMapper.selectById(id);
@@ -590,41 +625,43 @@ public class WorkflowController {
      * resolve assignees later. Empty / missing role nodes are not validated here
      * (those are caught by the assignee strategy at runtime).
      */
+    /**
+     * 校验每个审批节点的 (role, scope) 在该 bizType 下能否被 {@link AssigneeCatalog} 解析。
+     * 取代旧的"只查 sys_role.code":虚拟角色(employer_leader 等)合法放行,
+     * 拼错 / 越 bizType 被挡。{@code hardFail=true}(create/update)直接抛错;
+     * {@code false}(publish 灰度)只 warn,避免突然卡住管理员发布历史 draft。
+     */
     @SuppressWarnings("unchecked")
-    private void validateAssigneeRoles(Map<String, Object> parsed) {
+    private void validateAssigneeRoles(Map<String, Object> parsed, String bizType, boolean hardFail) {
         Object nodesObj = parsed.get("nodes");
         if (!(nodesObj instanceof List<?> nodes)) return;
 
-        Set<String> referenced = new LinkedHashSet<>();
+        List<String> unknown = new ArrayList<>();
         for (Object n : nodes) {
             if (!(n instanceof Map<?, ?> node)) continue;
-            // publicity nodes are system-driven; they have no assignee.role.
+            // publicity 节点系统驱动,没有 assignee.role
             Object type = node.get("type");
             if (type != null && "publicity".equalsIgnoreCase(type.toString())) continue;
             Object assignee = node.get("assignee");
             if (!(assignee instanceof Map<?, ?> a)) continue;
-            Object role = a.get("role");
-            if (role == null) continue;
-            String r = role.toString().trim();
-            if (!r.isEmpty()) referenced.add(r);
+            Object roleObj = a.get("role");
+            if (roleObj == null) continue;
+            String role = roleObj.toString().trim();
+            if (role.isEmpty()) continue;
+            Object scopeObj = a.get("scope");
+            String scope = scopeObj == null ? null : scopeObj.toString().trim();
+            if (!assigneeCatalog.supports(role, scope, bizType)) {
+                unknown.add(role + "|" + scope + " (bizType=" + bizType + ")");
+            }
         }
-        if (referenced.isEmpty()) return;
+        if (unknown.isEmpty()) return;
 
-        List<SysRole> known = sysRoleMapper.selectList(
-                new LambdaQueryWrapper<SysRole>().select(SysRole::getCode));
-        Set<String> knownCodes = new HashSet<>();
-        for (SysRole r : known) knownCodes.add(r.getCode());
-
-        List<String> unknown = new ArrayList<>();
-        for (String r : referenced) {
-            if (!knownCodes.contains(r)) unknown.add(r);
+        String msg = "工作流引用了无法解析的受理人 " + unknown
+                + ";可用受理人见 GET /api/v1/workflows/assignee-catalog";
+        if (hardFail) {
+            throw new BizException("WORKFLOW_UNKNOWN_ASSIGNEE", msg);
         }
-        if (!unknown.isEmpty()) {
-            throw new BizException(
-                    "WORKFLOW_UNKNOWN_ROLE",
-                    "YAML 引用了系统中不存在的角色 " + unknown
-                            + "；可用角色: " + new ArrayList<>(knownCodes));
-        }
+        log.warn("[publish-assignee 灰度] {}", msg);
     }
 
     @SuppressWarnings("unchecked")

@@ -42,7 +42,15 @@ When your changes create orphans:
 
 The test: Every changed line should trace directly to the user's request.
 
-## 4. Goal-Driven Execution
+## 4. 代码优雅 + 必要注释
+
+**保持代码的优雅并且有必要加上核心逻辑和类的注释。**
+
+- 命名 / 结构 / 抽象层次自洽，能让下一个读代码的人一眼看懂意图。
+- 公共类、复杂方法、非显然的算法、特殊业务约束**必须**有简短注释解释「为什么这么写」。
+- 不写「这是 setter」「i++」之类的废话注释；只写从代码本身读不出来的信息。
+
+## 5. Goal-Driven Execution
 
 **Define success criteria. Loop until verified.**
 
@@ -62,7 +70,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ---
 
-## 5. P0 技术栈
+## 6. P0 技术栈
 
 本项目为**高校学生工作服务系统**，AI 原生学生工作服务平台。P0 阶段技术栈如下：
 
@@ -119,6 +127,27 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 | 总体设计 | `总体设计-v2.md` | 架构、分阶段策略、商业模式 |
 | P0 功能设计 | `P0-功能设计-v2.md` | 详细功能设计（5000+行），含数据模型、API、工作流、AI Tool |
 | 需求评审报告 | `P0-需求评审报告.md` | 三方评审意见汇总 |
+
+---
+
+## 7. 项目开发约定(详见 `项目开发约定.md`)
+
+本节是**入口指引**,具体内容在仓库根目录 `项目开发约定.md`。该文件登记"这件事**只能**这么做"的硬约束,
+随项目演进追加。修改业务相关代码前先读它,**不要重新发明已经定下来的做法**。
+
+当前覆盖的约束面:
+
+1. **AI 助手能改的业务配置清单** — 哪些配置面已接通"自然语言修改",新业务怎么接进同一套机制
+2. **通知发送铁律** — 必须走 `NotificationOrchestrator` + `notification_template` seed,不允许业务侧绕开
+3. **角色 / 团队 / 权限模型** — `sys_role.kind` 区分 role vs team,虚拟角色不进 sys_role
+4. **初始密码与登录** — 统一 `xg@123456` 兜底,P1 接 SSO
+5. **数据导入 vs UI 创建的边界** — 哪些走导入、哪些走 UI(防止脏数据入口)
+6. **错误提示统一** — `describeApiError(e, fallback)` 透传 `BizException.message`
+7. **品牌与文案** — 朝夕 / 小夕,UI 全中文不暴露 role_code
+8. **工作流引擎约束** — DSL / 表达式 / assignee 解析规则
+
+**新增约束的判断标准**:绕开它会留下脏数据 / 失去横向能力 / 让用户看到英文 code。
+满足任一条就该写进去。
 
 ---
 

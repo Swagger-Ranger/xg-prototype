@@ -1,15 +1,18 @@
 package com.xg.platform.workflow.executor;
 
+import com.xg.common.exception.BizException;
 import com.xg.platform.workflow.engine.AssigneeResolver;
 import com.xg.platform.workflow.engine.ExecutionResult;
 import com.xg.platform.workflow.engine.NodeExecutor;
 import com.xg.platform.workflow.engine.NodeType;
 import com.xg.platform.workflow.event.TaskAssignedEvent;
+import com.xg.platform.workflow.event.WorkflowAssigneeMissingEvent;
 import com.xg.platform.workflow.mapper.TaskInstanceMapper;
 import com.xg.platform.workflow.model.TaskInstance;
 import com.xg.platform.workflow.model.WorkflowInstance;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +28,11 @@ public class ApprovalExecutor implements NodeExecutor {
     private final TaskInstanceMapper taskMapper;
     private final AssigneeResolver assigneeResolver;
     private final ApplicationEventPublisher eventPublisher;
+
+    /** 灰度第二步(RBAC 落地方案 §5.9.4 step5 / §11):false=保持 S1-4 告警+suspend
+     *  (默认,确认存量定义无异常前);true=空 assignee 直接抛错让发起业务事务回滚。 */
+    @Value("${xg.rbac.workflow.empty-assignee-fail-fast:false}")
+    private boolean emptyAssigneeFailFast;
 
     @Override
     public NodeType getType() {
@@ -43,7 +51,20 @@ public class ApprovalExecutor implements NodeExecutor {
 
         if (assigneeIds.isEmpty()) {
             log.warn("No assignees found for node {} in workflow instance {}", nodeId, instance.getId());
-            // TODO: send notification to school_admin about missing assignee
+            // 灰度第一步:不 fail-fast,但把"静默挂住"升级成事件,让监听方告警/运维可定位
+            // (RBAC 落地方案 §5.5)。Sprint 2 确认存量无误后改抛 WORKFLOW_ASSIGNEE_NOT_FOUND。
+            try {
+                eventPublisher.publishEvent(
+                        new WorkflowAssigneeMissingEvent(instance, nodeId, nodeName, role, scope));
+            } catch (Exception e) {
+                log.warn("publish WorkflowAssigneeMissingEvent failed for instance {} node {}: {}",
+                        instance.getId(), nodeId, e.getMessage());
+            }
+            if (emptyAssigneeFailFast) {
+                // 灰度第二步:不再静默 suspend,抛错让发起业务事务回滚,杜绝"无任务 running 实例"
+                throw new BizException("WORKFLOW_ASSIGNEE_NOT_FOUND",
+                        "审批节点未解析到受理人：" + role + "/" + scope);
+            }
         }
 
         OffsetDateTime dueAt = null;

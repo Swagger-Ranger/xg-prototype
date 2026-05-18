@@ -16,4 +16,6 @@ dependencies {
     api 'com.github.jsqlparser:jsqlparser:4.9'
     // QueryGuard 5 分钟结果缓存
     api 'com.github.ben-manes.caffeine:caffeine'
+    // A4 通用 Excel 导出 — 已在 root build.gradle 锁定 poiVersion
+    api 'org.apache.poi:poi-ooxml'
 }

@@ -28,7 +28,7 @@ public interface OrgAssignmentMapper {
               LEFT JOIN sys_user u ON u.id = o.leader_id
                                   AND u.status = 'active'
                                   AND u.deleted_at IS NULL
-             WHERE o.type IN ('college', 'class')
+             WHERE o.type IN ('college', 'class', 'admin_dept')
                AND o.status = 'active'
                AND o.deleted_at IS NULL
              ORDER BY o.sort_order NULLS LAST, o.id
@@ -129,6 +129,81 @@ public interface OrgAssignmentMapper {
             """)
     long countByCounselorAndOrg(@Param("counselorId") Long counselorId,
                                 @Param("orgId") Long orgId);
+
+    // ===== 新建组织节点(新增院系按钮用) =====
+
+    /** 写 org_unit。code 允许 null。type / parentId 合法性由 service 校验。 */
+    @Insert("""
+            INSERT INTO org_unit (id, tenant_id, parent_id, name, code, type, sort_order, status)
+            VALUES (#{id}, #{tenantId}, #{parentId}, #{name}, #{code}, #{type}, #{sortOrder}, 'active')
+            """)
+    int insertOrgUnit(@Param("id") Long id,
+                      @Param("tenantId") String tenantId,
+                      @Param("parentId") Long parentId,
+                      @Param("name") String name,
+                      @Param("code") String code,
+                      @Param("type") String type,
+                      @Param("sortOrder") Integer sortOrder);
+
+    /**
+     * 维护 org_closure:新节点对自身 depth=0 + 继承父链。
+     * parentId 非空时用,内部会走 SELECT FROM org_closure 取祖先链。
+     */
+    @Insert("""
+            INSERT INTO org_closure (ancestor_id, descendant_id, depth)
+            SELECT ancestor_id, #{newId}, depth + 1
+              FROM org_closure
+             WHERE descendant_id = #{parentId}
+            UNION ALL
+            SELECT #{newId}, #{newId}, 0
+            ON CONFLICT DO NOTHING
+            """)
+    int insertOrgClosure(@Param("newId") Long newId,
+                         @Param("parentId") Long parentId);
+
+    /** parentId 为 null 时(顶层 college)只写 self-link,避免父查 SELECT 空集导致 UNION 失败。 */
+    @Insert("""
+            INSERT INTO org_closure (ancestor_id, descendant_id, depth)
+            VALUES (#{newId}, #{newId}, 0)
+            ON CONFLICT DO NOTHING
+            """)
+    int insertOrgClosureSelf(@Param("newId") Long newId);
+
+    /**
+     * 检查同 parent 下同名重复。parentId 为 null 时只看顶层。
+     *
+     * <p>显式 tenant_id 过滤,defense-in-depth — 不依赖 MyBatis-Plus 多租户插件对裸
+     * `@Select` 的拦截覆盖,防止跨租户重名误判 / 跨租户 leak。
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(*)
+              FROM org_unit
+             WHERE name = #{name}
+               AND tenant_id = #{tenantId}
+               AND deleted_at IS NULL
+               AND status = 'active'
+            <choose>
+                <when test="parentId == null">AND parent_id IS NULL</when>
+                <otherwise>AND parent_id = #{parentId}</otherwise>
+            </choose>
+            </script>
+            """)
+    long countByNameAndParent(@Param("name") String name,
+                              @Param("parentId") Long parentId,
+                              @Param("tenantId") String tenantId);
+
+    /**
+     * 查 org_unit 是否存在 + type(parentId 校验时用)。
+     * 显式 tenant_id 过滤同上,防跨租户 parentId 越权。
+     */
+    @Select("""
+            SELECT type FROM org_unit
+             WHERE id = #{id}
+               AND tenant_id = #{tenantId}
+               AND deleted_at IS NULL
+            """)
+    String findOrgType(@Param("id") Long id, @Param("tenantId") String tenantId);
 
     /**
      * 列出"缺班主任"的班级。collegeId=null 时返回全校；非 null 时只返回 parent_id=collegeId 的班。

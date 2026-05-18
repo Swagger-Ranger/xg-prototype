@@ -6,6 +6,8 @@ import com.xg.business.dataimport.model.DataImportSession;
 import com.xg.business.dataimport.parse.ExcelGridParser;
 import com.xg.common.exception.BizException;
 import com.xg.common.tenant.TenantContext;
+import com.xg.platform.notification.recipient.RecipientContext;
+import com.xg.platform.notification.service.NotificationOrchestrator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +27,11 @@ public class DataImportService {
 
     private static final int SAMPLE_SIZE = 5;
 
+    private static final Map<String, String> SCENARIO_LABELS = Map.of(
+            "student", "学生信息",
+            "teacher", "教师基础信息",
+            "counselor", "辅导员角色赋予");
+
     private final DataImportSessionMapper sessionMapper;
     private final ExcelGridParser parser;
     private final ColumnMappingService columnMappingService;
@@ -32,6 +40,8 @@ public class DataImportService {
     private final StudentImportExecutor studentExecutor;
     private final TeacherImportExecutor teacherExecutor;
     private final CounselorImportExecutor counselorExecutor;
+    private final NotificationOrchestrator notificationOrchestrator;
+    private final DataImportStatusUpdater statusUpdater;
 
     @Transactional
     public SessionView createAndParse(String scenario, String intentText, Long importerId, MultipartFile file) {
@@ -152,9 +162,13 @@ public class DataImportService {
         }
         String scenario = session.getScenario();
 
-        session.setStrategy(Map.of("on_conflict", "skip".equalsIgnoreCase(strategy) ? "skip" : "update"));
+        // executing 状态走独立事务立即落盘,否则外层 @Transactional 要等长跑 executor
+        // 完成才 commit,UI 轮询永远看到旧状态。session 对象内字段也同步更新,
+        // 后续成功路径的 updateById 还能复用同一对象。
+        Map<String, Object> strategyMap = Map.of("on_conflict", "skip".equalsIgnoreCase(strategy) ? "skip" : "update");
+        session.setStrategy(strategyMap);
         session.setStatus("executing");
-        sessionMapper.updateById(session);
+        statusUpdater.markExecuting(id, strategyMap);
 
         @SuppressWarnings("unchecked")
         List<List<String>> rows = (List<List<String>>) session.getParsedPayload().get("rows");
@@ -187,13 +201,49 @@ public class DataImportService {
             session.setStatus("executed");
         } catch (RuntimeException e) {
             log.error("import execute failed sessionId={}", id, e);
-            session.setStatus("failed");
-            session.setErrorMessage(e.getMessage() == null ? "执行失败" : e.getMessage());
-            sessionMapper.updateById(session);
+            // status + 失败通知挪到独立 REQUIRES_NEW 事务,避免本方法外层 @Transactional
+            // 因 throw e 回滚把"失败状态 + 通知"一起吞掉。
+            statusUpdater.markFailedAndNotify(id, operatorId, e.getMessage());
             throw e;
         }
         sessionMapper.updateById(session);
+        notifyImportCompleted(session, operatorId, summary);
         return toView(session);
+    }
+
+    /**
+     * 导入成功后通知操作人 — 必须经 NotificationOrchestrator(通知铁律)。
+     * 模板 DATA_IMPORT_COMPLETED 由 V118 seed,管理员可在通知中心改文案 / 渠道 / 静默。
+     * 通知失败不影响主流程,只记日志。
+     */
+    private void notifyImportCompleted(DataImportSession session, Long operatorId, Map<String, Object> summary) {
+        try {
+            int created = intOf(summary, "created");
+            int updated = intOf(summary, "updated");
+            int skipped = intOf(summary, "skipped");
+            int failed = intOf(summary, "failed");
+            Map<String, Object> vars = new HashMap<>();
+            vars.put("scenario_label", SCENARIO_LABELS.getOrDefault(session.getScenario(), session.getScenario()));
+            vars.put("file_name", session.getFileName() == null ? "(未命名)" : session.getFileName());
+            vars.put("created", created);
+            vars.put("updated", updated);
+            vars.put("skipped", skipped);
+            vars.put("failed", failed);
+            vars.put("failed_clause", failed > 0 ? "请到导入记录查看失败明细。" : "");
+            notificationOrchestrator.send(
+                    "DATA_IMPORT_COMPLETED",
+                    "data_import_session",
+                    session.getId(),
+                    RecipientContext.applicant(operatorId),
+                    vars);
+        } catch (Exception ex) {
+            log.warn("notify import completed failed sessionId={}: {}", session.getId(), ex.getMessage());
+        }
+    }
+
+    private static int intOf(Map<String, Object> summary, String key) {
+        Object v = summary == null ? null : summary.get(key);
+        return v instanceof Number n ? n.intValue() : 0;
     }
 
     /**

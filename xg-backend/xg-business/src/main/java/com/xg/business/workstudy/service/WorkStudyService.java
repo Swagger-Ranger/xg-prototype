@@ -31,10 +31,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
+import com.xg.platform.event.StudentEventPublisher;
+import com.xg.platform.event.StudentEventType;
 import com.xg.platform.notification.recipient.RecipientContext;
 import com.xg.platform.notification.service.NotificationOrchestrator;
-import com.xg.platform.notification.service.NotificationService;
-import com.xg.platform.notification.service.SendNotificationRequest;
 import com.xg.platform.system.mapper.SysUserMapper;
 import com.xg.platform.system.model.SysUser;
 import com.xg.platform.workflow.engine.WorkflowEngine;
@@ -70,9 +70,9 @@ public class WorkStudyService {
     private final StudentProfileMapper studentProfileMapper;
     private final FormDataValidator formDataValidator;
     private final ObjectMapper objectMapper;
-    private final NotificationService notificationService;
     private final NotificationOrchestrator notificationOrchestrator;
     private final EmployerService employerService;
+    private final StudentEventPublisher studentEventPublisher;
 
     /** Defaults when a year_setting row is missing for the position's academic_year. */
     private static final int DEFAULT_MAX_FIXED = 1;
@@ -483,22 +483,32 @@ public class WorkStudyService {
      */
     public PageResult<WorkStudyApplication> listApplicationsScopedToEmployers(
             ApplicationQueryRequest query, Long employerUserId) {
-        List<Employer> mine = employerService.listMine(employerUserId);
-        if (mine.isEmpty()) return emptyApplicationPage(query);
-
-        List<Long> myEmployerIds = mine.stream().map(Employer::getId).toList();
-        List<Long> allowedPositionIds = positionMapper.selectList(
-                new LambdaQueryWrapper<WorkStudyPosition>()
-                        .in(WorkStudyPosition::getEmployerId, myEmployerIds)
-                        .select(WorkStudyPosition::getId))
-                .stream().map(WorkStudyPosition::getId).toList();
-        if (allowedPositionIds.isEmpty()) return emptyApplicationPage(query);
-
+        List<Long> allowedPositionIds = resolveEmployerPositionScope(employerUserId);
+        if (allowedPositionIds == null || allowedPositionIds.isEmpty()) {
+            return emptyApplicationPage(query);
+        }
         // 调用方若指定了 positionId,必须在允许集里;否则视为越权,返回空。
         if (query.getPositionId() != null && !allowedPositionIds.contains(query.getPositionId())) {
             return emptyApplicationPage(query);
         }
         return listApplicationsInternal(query, allowedPositionIds);
+    }
+
+    /**
+     * 解析当前 employer 用户能看到的岗位 id 集合。导出 / 列表共用,确保 PII 不跨单位泄漏。
+     *
+     * <p>返回 null = 该用户没有任何 employer 归属(应由 controller 决定是否当 forbidden 处理);
+     * 返回 emptyList = 有 employer 归属但旗下还没岗位,导出 / 列表都应得到空集。
+     */
+    public List<Long> resolveEmployerPositionScope(Long employerUserId) {
+        List<Employer> mine = employerService.listMine(employerUserId);
+        if (mine == null || mine.isEmpty()) return null;
+        List<Long> myEmployerIds = mine.stream().map(Employer::getId).toList();
+        return positionMapper.selectList(
+                        new LambdaQueryWrapper<WorkStudyPosition>()
+                                .in(WorkStudyPosition::getEmployerId, myEmployerIds)
+                                .select(WorkStudyPosition::getId))
+                .stream().map(WorkStudyPosition::getId).toList();
     }
 
     private PageResult<WorkStudyApplication> listApplicationsInternal(
@@ -575,6 +585,22 @@ public class WorkStudyService {
         app.setDecidedBy(deciderId);
         app.setDecidedAt(OffsetDateTime.now());
         applicationMapper.updateById(app);
+
+        // R012 隐性经济压力：单次没信号，30 天内累计 ≥ 3 次被拒才进规则池。
+        // 这里把单次事件入流，让 alert 引擎自己做累计 — 业务侧不做"加权"判断。
+        if ("reject".equals(action)) {
+            WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
+            Map<String, Object> data = new HashMap<>();
+            data.put("application_id", app.getId());
+            data.put("position_id", app.getPositionId());
+            data.put("position_title", pos == null ? null : pos.getTitle());
+            data.put("decision_note", req.getDecisionNote());
+            studentEventPublisher.publish(
+                    app.getStudentId(),
+                    StudentEventType.WORKSTUDY_APPLY_REJECTED,
+                    "workstudy",
+                    data);
+        }
     }
 
     // ==========================================================================
@@ -589,6 +615,9 @@ public class WorkStudyService {
         boolean isAdmin = operatorRoles != null && operatorRoles.stream()
                 .anyMatch(r -> "school_admin".equals(r) || "student_affairs_officer".equals(r));
         String resolvedReason = "completed".equals(req.getReason()) ? "completed" : "terminated_by_employer";
+        String resolvedCategory = "terminated_by_employer".equals(resolvedReason)
+                ? req.getDismissalCategory()
+                : null;
 
         for (Long applicationId : req.getApplicationIds()) {
             try {
@@ -602,7 +631,9 @@ public class WorkStudyService {
                     result.addFailure(applicationId, "POSITION_NOT_FOUND", "岗位不存在");
                     continue;
                 }
-                if (!isAdmin && !operatorId.equals(pos.getOwnerUserId())) {
+                // 改用 isUserOperatorOrLeader 替代 ownerUserId 单点:跟单条 assertCanOperatePosition 一致,
+                // 同 employer 下任一 operator / leader 都能批量代办,不再因 ownerUserId 单点失败。
+                if (!isAdmin && !isEmployerInsider(pos, operatorId)) {
                     result.setSkipped(result.getSkipped() + 1);
                     continue;
                 }
@@ -610,7 +641,7 @@ public class WorkStudyService {
                     result.setSkipped(result.getSkipped() + 1);
                     continue;
                 }
-                doOffboard(app, pos, resolvedReason, req.getNote(), operatorId);
+                doOffboard(app, pos, resolvedReason, resolvedCategory, req.getNote(), operatorId);
                 notifyOffboardToStudent(app, pos, resolvedReason);
                 result.setSucceeded(result.getSucceeded() + 1);
             } catch (Exception e) {
@@ -622,9 +653,24 @@ public class WorkStudyService {
     }
 
     /**
-     * 批量给选中申请的学生发 ad-hoc 站内信。直接走 NotificationService（不走 Orchestrator）：
-     * Orchestrator 的 (source_type, source_id, template_code) 去重设计与"同一对象多次广播"
-     * 语义冲突，绕开后避免假性 dedup。
+     * 判断 operator 是否本岗位所属 employer 的内部人(leader 或 operator)。
+     * 批量动作的细粒度授权统一收口在这里,跟 {@code assertCanOperatePosition} 的判定保持一致,
+     * 避免"单条能办但批量办不了"的诡异现象。
+     */
+    private boolean isEmployerInsider(WorkStudyPosition pos, Long operatorId) {
+        if (pos == null || operatorId == null) return false;
+        if (operatorId.equals(pos.getOwnerUserId())) return true;
+        Long employerId = pos.getEmployerId();
+        if (employerId == null) return false;
+        return employerService.isUserOperatorOrLeader(employerId, operatorId);
+    }
+
+    /**
+     * 批量给选中申请的学生发 ad-hoc 站内信。
+     *
+     * <p>走 {@link NotificationOrchestrator#sendAdhoc} —— 跟通知铁律保持一致:
+     * 所有业务通知必须经 Orchestrator 出口。Ad-hoc 广播跳过 template / 双轨去重,
+     * 但仍由 Orchestrator 统一记账,业务侧不直接调 NotificationService。
      */
     public BatchActionResult batchNotify(BatchNotifyRequest req, Long operatorId, List<String> operatorRoles) {
         BatchActionResult result = new BatchActionResult();
@@ -643,19 +689,19 @@ public class WorkStudyService {
                     continue;
                 }
                 WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
-                if (!isAdmin && (pos == null || !operatorId.equals(pos.getOwnerUserId()))) {
+                if (!isAdmin && !isEmployerInsider(pos, operatorId)) {
                     result.setSkipped(result.getSkipped() + 1);
                     continue;
                 }
-                SendNotificationRequest sendReq = new SendNotificationRequest();
-                sendReq.setSourceType("workstudy_application");
-                sendReq.setSourceId(app.getId());
-                sendReq.setRecipientUserIds(List.of(app.getStudentId()));
-                sendReq.setChannels(List.of("in_app"));
-                sendReq.setTitle(req.getTitle());
-                sendReq.setContent(req.getBody());
-                sendReq.setLevel("normal");
-                notificationService.send(sendReq);
+                notificationOrchestrator.sendAdhoc(
+                        "workstudy_application",
+                        app.getId(),
+                        List.of(app.getStudentId()),
+                        List.of("in_app"),
+                        req.getTitle(),
+                        req.getBody(),
+                        "normal",
+                        operatorId);
                 result.setSucceeded(result.getSucceeded() + 1);
             } catch (Exception e) {
                 log.warn("batchNotify failed application_id={}: {}", applicationId, e.getMessage());
@@ -718,7 +764,8 @@ public class WorkStudyService {
         WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
         if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
         String resolved = "completed".equals(req.getReason()) ? "completed" : "terminated_by_employer";
-        doOffboard(app, pos, resolved, req.getNote(), operatorId);
+        String category = "terminated_by_employer".equals(resolved) ? req.getDismissalCategory() : null;
+        doOffboard(app, pos, resolved, category, req.getNote(), operatorId);
         notifyOffboardToStudent(app, pos, resolved);
     }
 
@@ -731,18 +778,20 @@ public class WorkStudyService {
         }
         WorkStudyPosition pos = positionMapper.selectById(app.getPositionId());
         if (pos == null) throw WorkStudyErrorCode.POSITION_NOT_FOUND.exception();
-        doOffboard(app, pos, "resigned_by_student", req.getNote(), studentId);
+        doOffboard(app, pos, "resigned_by_student", null, req.getNote(), studentId);
         notifyOffboardToEmployer(app, pos);
     }
 
     private void doOffboard(WorkStudyApplication app, WorkStudyPosition pos,
-                            String reason, String note, Long operatorId) {
+                            String reason, String dismissalCategory,
+                            String note, Long operatorId) {
         if (!"on_duty".equals(app.getEngagementStatus())) {
             throw WorkStudyErrorCode.APPLICATION_NOT_ON_DUTY.exception();
         }
         app.setEngagementStatus("offboarded");
         app.setOffboardedAt(OffsetDateTime.now());
         app.setOffboardReason(reason);
+        app.setDismissalCategory(dismissalCategory);
         app.setOffboardNote(note);
         app.setOffboardOperatorId(operatorId);
         applicationMapper.updateById(app);
@@ -754,6 +803,46 @@ public class WorkStudyService {
             pos.setHiredCount(pos.getHiredCount() - 1);
             positionMapper.updateById(pos);
         }
+
+        publishOffboardEvent(app, pos, reason, dismissalCategory, note);
+    }
+
+    /**
+     * 写主动关怀事件流。severity 按 reason + dismissal_category 联合判定，
+     * 决定本事件是否进入 R011 紧急通道。完成/匹配不佳/学生主动离职给低分，
+     * 避免误报关怀；纪律类拉到 紧急 级。失败由 publisher 内部吞掉，不影响离岗。
+     */
+    private void publishOffboardEvent(WorkStudyApplication app, WorkStudyPosition pos,
+                                      String reason, String dismissalCategory, String note) {
+        int severity = resolveOffboardSeverity(reason, dismissalCategory);
+        Map<String, Object> data = new HashMap<>();
+        data.put("application_id", app.getId());
+        data.put("position_id", pos.getId());
+        data.put("position_title", pos.getTitle());
+        data.put("employer_id", pos.getEmployerId());
+        data.put("reason", reason);
+        data.put("dismissal_category", dismissalCategory);
+        // 离岗 note 是雇主/学生自由文本，AI 不消费、规则不消费，仅供辅导员阅读。
+        data.put("note", note);
+        studentEventPublisher.publish(
+                app.getStudentId(),
+                StudentEventType.WORKSTUDY_OFFBOARDED,
+                "workstudy",
+                data,
+                OffsetDateTime.now(),
+                severity);
+    }
+
+    private static int resolveOffboardSeverity(String reason, String category) {
+        if ("completed".equals(reason)) return 0;
+        if ("resigned_by_student".equals(reason)) return 2;
+        // reason == terminated_by_employer
+        if ("discipline".equals(category)) return 7;       // 强行为信号
+        if ("performance".equals(category)) return 5;      // 中等
+        if ("other".equals(category)) return 5;            // 中等（备注必填，留给规则后置判断）
+        if ("position_dissolved".equals(category)) return 2; // 学生无责
+        if ("mismatch".equals(category)) return 2;         // 双方匹配，中性
+        return 5;                                          // 未填子分类时按中等保底
     }
 
     /** Authority check used by the controller for employer-side offboard. */
@@ -911,6 +1000,18 @@ public class WorkStudyService {
         t.setStatus("disputed");
         t.setDisputeNote(req.getNote());
         timesheetMapper.updateById(t);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("timesheet_id", t.getId());
+        data.put("position_id", t.getPositionId());
+        data.put("month", t.getMonth());
+        data.put("hours_reported", t.getHoursReported());
+        data.put("dispute_note", req.getNote());
+        studentEventPublisher.publish(
+                t.getStudentId(),
+                StudentEventType.WORKSTUDY_TIMESHEET_DISPUTED,
+                "workstudy",
+                data);
     }
 
     @Transactional

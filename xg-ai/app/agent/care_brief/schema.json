@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Care brief output (PRD §11.3)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["why", "talking_points", "avoid_topics", "campus_resources", "follow_up_days"],
+  "properties": {
+    "why": {
+      "type": "string",
+      "minLength": 1,
+      "description": "为什么触发此关怀，只陈述事实，不诊断不命令"
+    },
+    "talking_points": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "maxItems": 6,
+      "description": "中性沟通话题"
+    },
+    "avoid_topics": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "maxItems": 6,
+      "description": "本次不宜触碰的话题"
+    },
+    "campus_resources": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "maxItems": 6,
+      "description": "可对接的校内资源"
+    },
+    "follow_up_days": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 30,
+      "description": "建议下次跟进的间隔天数"
+    }
+  }
+}

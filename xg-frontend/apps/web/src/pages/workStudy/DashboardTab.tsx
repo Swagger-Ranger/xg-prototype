@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { RobotOutlined, BulbOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import ReactECharts from 'echarts-for-react';
+import dayjs from 'dayjs';
 import {
   listApplications,
   listPositions,
@@ -24,23 +25,34 @@ const POSITION_STATUS_COLOR: Record<string, string> = {
   open: '#059669',
   closed: '#64748b',
 };
+// 'draft' 是 INSERT 与工作流启动之间的几毫秒过渡态，正常流不会有这种行 —— 从图表里去掉。
 const SALARY_STATUS_LABEL: Record<string, string> = {
-  draft: '草稿', pending: '审批中', confirmed: '已确认', rejected: '已驳回', paid: '已支付',
+  pending: '审批中', confirmed: '已确认', rejected: '已驳回', paid: '已支付',
 };
 
 type AccentTone = 'indigo' | 'cyan' | 'ok' | 'warn' | 'danger' | 'muted';
 
-export default function DashboardTab() {
+/** 学生卡片点击后跳转到对应 tab；status / engagement 让上层去过滤申请列表。 */
+export type DashboardJumpTarget =
+  | { tab: 'positions'; status?: undefined; engagement?: undefined }
+  | { tab: 'applications'; status?: string; engagement?: 'on_duty' }
+  | { tab: 'salaries'; status?: string; engagement?: undefined };
+
+interface DashboardTabProps {
+  onJump?: (target: DashboardJumpTarget) => void;
+}
+
+export default function DashboardTab({ onJump }: DashboardTabProps = {}) {
   const { isStudent, user } = useAuth();
-  if (isStudent) return <StudentDashboard userId={user?.id ? String(user.id) : '0'} />;
-  return <StaffDashboard />;
+  if (isStudent) return <StudentDashboard userId={user?.id ? String(user.id) : '0'} onJump={onJump} />;
+  return <StaffDashboard onJump={onJump} />;
 }
 
 // ============================================================
 // Student dashboard — 4 stat cards + AI tip
 // ============================================================
 
-function StudentDashboard({ userId }: { userId: string }) {
+function StudentDashboard({ userId, onJump }: { userId: string; onJump?: (t: DashboardJumpTarget) => void }) {
   const seedInput = useAIActionStore((s) => s.seedInput);
   const eligibleQ = useQuery({
     queryKey: ['ws-dashboard-student-positions'],
@@ -50,6 +62,12 @@ function StudentDashboard({ userId }: { userId: string }) {
     queryKey: ['ws-dashboard-student-apps', userId],
     queryFn: () => listApplications({ page: 1, size: 100, student_id: userId }),
   });
+  // 学生薪资聚合：本月待审 + 累计已确认（confirmed + paid）。
+  // 后端 listSalaries 学生角色会自动 scope studentId（B.1），无需前端传。
+  const mySalariesQ = useQuery({
+    queryKey: ['ws-dashboard-student-salaries', userId],
+    queryFn: () => listSalaries({ page: 1, size: 100 }),
+  });
 
   const apps = myAppsQ.data?.data ?? [];
   const counts = useMemo(() => {
@@ -57,31 +75,65 @@ function StudentDashboard({ userId }: { userId: string }) {
     apps.forEach((a) => { c[a.status] = (c[a.status] ?? 0) + 1; });
     return c;
   }, [apps]);
+  const salaryTotals = useMemo(() => {
+    const rows = mySalariesQ.data?.data ?? [];
+    const thisMonth = dayjs().format('YYYY-MM');
+    let pendingThisMonth = 0;
+    let confirmedAll = 0;
+    for (const s of rows) {
+      const amount = Number(s.amount ?? 0);
+      if (s.status === 'pending' && s.month === thisMonth) pendingThisMonth += amount;
+      if (s.status === 'confirmed' || s.status === 'paid') confirmedAll += amount;
+    }
+    return { pendingThisMonth, confirmedAll };
+  }, [mySalariesQ.data]);
 
   return (
     <div className={styles.page}>
       <div className={styles.sectionLabel}>
-        <span>OVERVIEW</span>
+        <span>我的进度</span>
         <div className={styles.sectionLine} />
       </div>
 
       <div className={styles.statGrid}>
         <StatCard tone="indigo" label="可申请岗位"
           value={eligibleQ.data?.total} loading={eligibleQ.isFetching}
-          suffix="个" hint="已按你的资格条件预筛" />
+          suffix="个" hint="已按你的资格条件预筛"
+          onClick={() => onJump?.({ tab: 'positions' })} />
         <StatCard tone="cyan" label="审批中"
           value={counts.pending} loading={myAppsQ.isFetching}
-          suffix="份" hint="耐心等待结果" />
+          suffix="份" hint="耐心等待结果"
+          onClick={() => onJump?.({ tab: 'applications', status: 'pending' })} />
         <StatCard tone="ok" label="已录用"
           value={counts.hired} loading={myAppsQ.isFetching}
-          suffix="份" hint={counts.hired > 0 ? '记得按时上岗' : '继续投递'} />
+          suffix="份" hint={counts.hired > 0 ? '记得按时上岗' : '继续投递'}
+          onClick={() => onJump?.({ tab: 'applications', status: 'hired' })} />
         <StatCard tone="muted" label="未通过"
           value={counts.rejected} loading={myAppsQ.isFetching}
-          suffix="份" hint={counts.rejected > 0 ? '换个偏好再试' : '保持节奏'} />
+          suffix="份" hint={counts.rejected > 0 ? '换个偏好再试' : '保持节奏'}
+          onClick={() => onJump?.({ tab: 'applications', status: 'rejected' })} />
       </div>
 
       <div className={styles.sectionLabel}>
-        <span>HOW TO USE</span>
+        <span>我的薪资</span>
+        <div className={styles.sectionLine} />
+      </div>
+
+      <div className={styles.statGrid}>
+        <StatCard tone="warn" label="本月待审"
+          value={`¥${salaryTotals.pendingThisMonth.toFixed(2)}`}
+          loading={mySalariesQ.isFetching}
+          hint={salaryTotals.pendingThisMonth > 0 ? '资助中心审核中' : '本月暂无申报'}
+          onClick={() => onJump?.({ tab: 'salaries', status: 'pending' })} />
+        <StatCard tone="ok" label="累计已确认"
+          value={`¥${salaryTotals.confirmedAll.toFixed(2)}`}
+          loading={mySalariesQ.isFetching}
+          hint="已确认金额（含已到账），通常 1-2 周内打卡"
+          onClick={() => onJump?.({ tab: 'salaries', status: 'confirmed' })} />
+      </div>
+
+      <div className={styles.sectionLabel}>
+        <span>使用提示</span>
         <div className={styles.sectionLine} />
         <button
           className={styles.sectionAction}
@@ -108,15 +160,16 @@ function StudentDashboard({ userId }: { userId: string }) {
 // Staff dashboard — KPI + 4 charts
 // ============================================================
 
-function StaffDashboard() {
+function StaffDashboard({ onJump }: { onJump?: (t: DashboardJumpTarget) => void }) {
   const seedInput = useAIActionStore((s) => s.seedInput);
   const openQ = useQuery({
     queryKey: ['ws-dashboard-staff-open'],
     queryFn: () => listPositions({ page: 1, size: 1, status: 'open' }),
   });
-  const closedQ = useQuery({
-    queryKey: ['ws-dashboard-staff-closed'],
-    queryFn: () => listPositions({ page: 1, size: 1, status: 'closed' }),
+  // 「在岗学生」替代「已关闭岗位」—— 后者是历史数没法操作，前者是当下管理重点。
+  const onDutyQ = useQuery({
+    queryKey: ['ws-dashboard-staff-on-duty'],
+    queryFn: () => listApplications({ page: 1, size: 1, status: 'hired', engagementStatus: 'on_duty' }),
   });
   const pendingAppsQ = useQuery({
     queryKey: ['ws-dashboard-staff-pending-apps'],
@@ -143,12 +196,12 @@ function StaffDashboard() {
   const pendingApps = Number(pendingAppsQ.data?.total ?? 0);
   const pendingSal  = Number(pendingSalariesQ.data?.total ?? 0);
   const open        = Number(openQ.data?.total ?? 0);
-  const closed      = Number(closedQ.data?.total ?? 0);
+  const onDuty      = Number(onDutyQ.data?.total ?? 0);
 
   return (
     <div className={styles.page}>
       <div className={styles.sectionLabel}>
-        <span>KPI · TODAY</span>
+        <span>今日概览</span>
         <div className={styles.sectionLine} />
         <button
           className={styles.sectionAction}
@@ -163,19 +216,24 @@ function StaffDashboard() {
       <div className={styles.statGrid}>
         <StatCard tone="ok" label="在招岗位" value={open}
           loading={openQ.isFetching} suffix="个"
-          hint={open === 0 ? '当前无在招岗位' : '查看 / 关闭可在岗位 tab'} />
-        <StatCard tone="muted" label="已关闭岗位" value={closed}
-          loading={closedQ.isFetching} suffix="个" />
+          hint={open === 0 ? '当前无在招岗位' : '点击查看岗位列表'}
+          onClick={() => onJump?.({ tab: 'positions' })} />
+        <StatCard tone="cyan" label="在岗学生" value={onDuty}
+          loading={onDutyQ.isFetching} suffix="人"
+          hint={onDuty === 0 ? '当前无在岗' : '点击看在岗名单'}
+          onClick={() => onJump?.({ tab: 'applications', engagement: 'on_duty' })} />
         <StatCard tone="indigo" label="待审批申请" value={pendingApps}
           loading={pendingAppsQ.isFetching} suffix="条"
-          hint={pendingApps >= 5 ? '建议批量过' : '正常节奏'} />
+          hint={pendingApps >= 5 ? '建议批量过' : '点击进入审批'}
+          onClick={() => onJump?.({ tab: 'applications', status: 'pending' })} />
         <StatCard tone="warn" label="待审批薪资" value={pendingSal}
           loading={pendingSalariesQ.isFetching} suffix="条"
-          hint={pendingSal > 0 ? '先扫异常再批' : '已清空'} />
+          hint={pendingSal > 0 ? '先扫异常再批' : '已清空'}
+          onClick={() => onJump?.({ tab: 'salaries', status: 'pending' })} />
       </div>
 
       <div className={styles.sectionLabel}>
-        <span>CHARTS</span>
+        <span>统计图表</span>
         <div className={styles.sectionLine} />
       </div>
 
@@ -195,7 +253,7 @@ function StaffDashboard() {
       </div>
 
       <div className={styles.sectionLabel}>
-        <span>AI · 常用询问</span>
+        <span>AI 常用询问</span>
         <div className={styles.sectionLine} />
       </div>
 
@@ -206,8 +264,8 @@ function StaffDashboard() {
         <div className={styles.chipsLabel}>点 chip 把问题直接送进 AI 面板：</div>
         <div className={styles.chips}>
           <Chip text="这个月薪资有没有异常？" />
-          <Chip text="给岗位 #X 的候选人做对比卡（X 替换为岗位 ID）" />
           <Chip text="按上一学年模板建议新岗位" />
+          <Chip text="今天勤工助学这边怎么样？" />
         </div>
       </div>
     </div>
@@ -219,7 +277,7 @@ function StaffDashboard() {
 // ============================================================
 
 function StatCard({
-  tone, label, value, loading, suffix, hint,
+  tone, label, value, loading, suffix, hint, onClick,
 }: {
   tone: AccentTone;
   label: string;
@@ -227,17 +285,37 @@ function StatCard({
   loading?: boolean;
   suffix?: string;
   hint?: string;
+  /** 学生总览的 4 张卡可点击跳转；不传 onClick 的（员工总览）仍保持纯展示。 */
+  onClick?: () => void;
 }) {
-  const n = Number(value ?? 0);
+  // 数字类传 number 走 Number()；金额/已格式化字符串原样渲染（保留 ¥ 等前缀）
+  const display = typeof value === 'string' ? value : Number(value ?? 0);
+  const clickable = !!onClick;
   return (
-    <div className={`${styles.statCard} ${styles[tone] || ''}`}>
+    <div
+      className={`${styles.statCard} ${styles[tone] || ''}`}
+      onClick={onClick}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+      style={clickable ? { cursor: 'pointer' } : undefined}
+    >
       <div className={styles.statLabel}>{label}</div>
       <div className={styles.statValueRow}>
         {loading ? (
           <span className={styles.skeleton} />
         ) : (
           <>
-            <span className={styles.statValue}>{n}</span>
+            <span className={styles.statValue}>{display}</span>
             {suffix && <span className={styles.statSuffix}>{suffix}</span>}
           </>
         )}
@@ -323,10 +401,10 @@ function SalaryByStatusBar({ salaries }: { salaries: WorkStudySalary[] }) {
     byKey[m][s.status] = (byKey[m][s.status] ?? 0) + a;
   });
   const months = Object.keys(byKey).sort();
-  const statuses: Array<keyof typeof SALARY_STATUS_LABEL> = ['confirmed', 'paid', 'pending', 'rejected', 'draft'];
+  const statuses: Array<keyof typeof SALARY_STATUS_LABEL> = ['confirmed', 'paid', 'pending', 'rejected'];
   const colors: Record<string, string> = {
     confirmed: '#059669', paid: '#0891b2',
-    pending: '#6366f1', rejected: '#dc2626', draft: '#cbd5e1',
+    pending: '#6366f1', rejected: '#dc2626',
   };
   const series = statuses.map((s) => ({
     name: SALARY_STATUS_LABEL[s],

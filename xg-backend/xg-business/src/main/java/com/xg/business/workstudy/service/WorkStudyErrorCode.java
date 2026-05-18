@@ -34,7 +34,12 @@ public enum WorkStudyErrorCode implements ErrorCode {
     SALARY_NOT_FOUND("SALARY_NOT_FOUND", "薪资记录不存在"),
     SALARY_NOT_PENDING("SALARY_NOT_PENDING", "薪资记录已处理或不在审批中"),
     SALARY_INVALID_POSITION_RATE("SALARY_INVALID_POSITION_RATE", "岗位未配置薪资单位或单价，无法申报"),
-    APPLICATION_NOT_HIRED_FOR_SALARY("APPLICATION_NOT_HIRED_FOR_SALARY", "学生未在该岗位录用，不能申报薪资");
+    APPLICATION_NOT_HIRED_FOR_SALARY("APPLICATION_NOT_HIRED_FOR_SALARY", "学生未在该岗位录用，不能申报薪资"),
+    SALARY_CAP_EXCEEDED("SALARY_CAP_EXCEEDED", "本月该用工单位累计申报金额已超过设定上限"),
+    OUT_OF_POSITION_WINDOW("OUT_OF_POSITION_WINDOW", "当前不在岗位设定时段,无法创建/修改岗位"),
+    OUT_OF_APPLICATION_WINDOW("OUT_OF_APPLICATION_WINDOW", "当前不在学生上岗申请时段,无法提交申请"),
+    OUT_OF_SALARY_WINDOW("OUT_OF_SALARY_WINDOW", "当前不在薪酬申报时段,无法提交薪酬"),
+    ASSIGNEE_BIZTYPE_MISMATCH("ASSIGNEE_BIZTYPE_MISMATCH", "工作流节点受理人策略与流程 bizType 不匹配");
 
     private final String code;
     private final String message;

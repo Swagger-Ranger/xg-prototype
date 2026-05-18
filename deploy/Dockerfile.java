@@ -12,6 +12,7 @@ RUN gradle :xg-app:bootJar --no-daemon -x test
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=builder /app/xg-app/build/libs/*.jar app.jar
 

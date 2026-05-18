@@ -10,7 +10,10 @@ import com.xg.platform.system.model.SysUser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -27,8 +30,9 @@ import java.util.Map;
  * 2) 建 college/major/class 的 name→id 索引（含既有 + 新建）
  * 3) 逐行写 sys_user + student_profile，按 strategy 处理学号冲突
  *
- * 整个执行在一个事务内；任一行 DB 异常会回滚全部。校验阶段已挡掉常见数据问题，
- * 这里出错通常是基础设施层问题，整体失败比"部分成功半截烂数据"更可控。
+ * <p>事务策略同 {@link TeacherImportExecutor}:本方法不再 @Transactional 包整批,
+ * 改为外层 DataImportService.execute 是 @Transactional + 本类逐行 SAVEPOINT。
+ * 防止 PG 单行失败把整事务标记 aborted,导致后续行 + session 状态全写不进去。
  */
 @Slf4j
 @Service
@@ -38,12 +42,12 @@ public class StudentImportExecutor {
     private final DataImportWriteMapper writeMapper;
     private final SysUserMapper sysUserMapper;
     private final StudentProfileMapper studentProfileMapper;
+    private final PlatformTransactionManager txManager;
 
     /** 缓存 student 角色 id，避免逐行查库。 */
     private Long studentRoleIdCache;
 
     /** strategy 字符串："skip" | "update"，默认 update。 */
-    @Transactional
     public Map<String, Object> execute(String tenantId,
                                         Long operatorId,
                                         Map<String, Object> columnMapping,
@@ -67,9 +71,13 @@ public class StudentImportExecutor {
         int created = 0, updated = 0, skipped = 0, failed = 0;
         List<Map<String, Object>> failures = new ArrayList<>();
 
+        DefaultTransactionDefinition nested = new DefaultTransactionDefinition();
+        nested.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
+
         for (int r = 0; r < rows.size(); r++) {
             List<String> row = rows.get(r);
             int rowNum = r + 1;
+            TransactionStatus sp = txManager.getTransaction(nested);
             try {
                 String studentNo = cell(row, ti.get("student_no"));
                 String realName = cell(row, ti.get("real_name"));
@@ -85,6 +93,7 @@ public class StudentImportExecutor {
 
                 Long classId = orgs.classIdFor(college, major, className);
                 if (studentNo.isEmpty() || realName.isEmpty() || classId == null) {
+                    txManager.rollback(sp);
                     failed++;
                     failures.add(failure(rowNum,
                             classId == null
@@ -96,6 +105,7 @@ public class StudentImportExecutor {
                 Map<String, Object> existing = writeMapper.findStudentByNo(studentNo);
                 if (existing != null && !existing.isEmpty()) {
                     if ("skip".equals(onConflict)) {
+                        txManager.rollback(sp);
                         skipped++;
                         continue;
                     }
@@ -107,6 +117,7 @@ public class StudentImportExecutor {
                     writeMapper.patchStudentProfile(profileId,
                             nullIfBlank(grade), nullIfBlank(college), nullIfBlank(major),
                             nullIfBlank(className), classId, operatorId);
+                    txManager.commit(sp);
                     updated++;
                 } else {
                     SysUser user = new SysUser();
@@ -135,10 +146,12 @@ public class StudentImportExecutor {
                     if (studentRoleIdCache != null) {
                         writeMapper.insertUserRole(user.getId(), studentRoleIdCache, null);
                     }
+                    txManager.commit(sp);
                     created++;
                 }
             } catch (Exception e) {
                 log.warn("student import row {} failed", rowNum, e);
+                try { txManager.rollback(sp); } catch (Exception ignore) { /* 释放 savepoint */ }
                 failed++;
                 failures.add(failure(rowNum, e.getMessage() == null ? "未知错误" : e.getMessage()));
             }

@@ -1,14 +1,19 @@
 package com.xg.business.dataimport.service;
 
+import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.xg.business.dataimport.mapper.DataImportWriteMapper;
 import com.xg.common.exception.BizException;
 import com.xg.platform.system.mapper.SysUserMapper;
 import com.xg.platform.system.model.SysUser;
+import com.xg.platform.system.service.SystemUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,7 +30,12 @@ import java.util.Map;
  *       PK 撞了走 DO UPDATE 改 org_id（教师调岗的情况）</li>
  * </ul>
  *
- * 整批一个事务，任一行 DB 异常回滚全部。
+ * <p><b>事务策略</b>:本方法不再用 @Transactional 包整批,
+ * 改成"外层 DataImportService.execute 是 @Transactional + 本类逐行 SAVEPOINT"。
+ * 原因:PostgreSQL 在单事务里任意语句失败 → 整事务标记 aborted,后续 SQL 全报
+ * "current transaction is aborted",连最后写 session 状态都会失败,导致
+ * "summary 里说 N 个失败,session 状态也写不进去"的灾难性失真。
+ * 每行 PROPAGATION_NESTED 起一个 savepoint:行失败仅回滚本行,外层 txn 继续。
  */
 @Slf4j
 @Service
@@ -34,8 +44,8 @@ public class TeacherImportExecutor {
 
     private final DataImportWriteMapper writeMapper;
     private final SysUserMapper sysUserMapper;
+    private final PlatformTransactionManager txManager;
 
-    @Transactional
     public Map<String, Object> execute(String tenantId,
                                         Long operatorId,
                                         Map<String, Object> columnMapping,
@@ -50,17 +60,24 @@ public class TeacherImportExecutor {
                     "系统未配置 'teacher' 角色 (sys_role.code='teacher')，请先在角色管理建好");
         }
 
+        // 默认密码 hash 一次复用:BCrypt cost=10 单次 ~100ms,2000 行 loop 内重算会跑 200+s
+        // 占连接 / 触发 txn 超时;且导入兜底密码无差异化必要,统一 hash 反而更利于 rotate。
+        final String defaultPwdHash = BCrypt.hashpw(SystemUserService.DEFAULT_PASSWORD);
+
         // 边导边攒 org name → id 索引（同 Excel 内多行同单位只查一次库 / 建一次）
         Map<String, Long> orgIdByName = new HashMap<>();
-        int orgsCreated = 0;
 
-        int created = 0, updated = 0, skipped = 0, failed = 0;
+        int created = 0, updated = 0, skipped = 0, failed = 0, orgsCreated = 0;
         List<Map<String, Object>> failures = new ArrayList<>();
         List<String> createdOrgNames = new ArrayList<>();
+
+        DefaultTransactionDefinition nested = new DefaultTransactionDefinition();
+        nested.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
 
         for (int r = 0; r < rows.size(); r++) {
             List<String> row = rows.get(r);
             int rowNum = r + 1;
+            TransactionStatus sp = txManager.getTransaction(nested);
             try {
                 String username = cell(row, ti.get("username"));
                 String realName = cell(row, ti.get("real_name"));
@@ -70,6 +87,7 @@ public class TeacherImportExecutor {
                 String orgName = cell(row, ti.get("org_name"));
 
                 if (username.isEmpty() || realName.isEmpty()) {
+                    txManager.rollback(sp);
                     failed++;
                     failures.add(failure(rowNum, "工号或姓名为空"));
                     continue;
@@ -102,6 +120,8 @@ public class TeacherImportExecutor {
                 Long existingUserId = writeMapper.findUserIdByUsername(username);
                 if (existingUserId != null) {
                     if ("skip".equals(onConflict)) {
+                        // skip 不算异常,本行不写,但 savepoint 已开,需要 rollback 释放
+                        txManager.rollback(sp);
                         skipped++;
                         continue;
                     }
@@ -110,6 +130,7 @@ public class TeacherImportExecutor {
                             nullIfBlank(realName), nullIfBlank(gender), operatorId);
                     // teacher 角色：可能是补绑 (之前没绑), 也可能是改 org_id (调岗)
                     writeMapper.insertUserRole(existingUserId, teacherRoleId, orgId);
+                    txManager.commit(sp);
                     updated++;
                 } else {
                     SysUser user = new SysUser();
@@ -119,17 +140,23 @@ public class TeacherImportExecutor {
                     user.setPhone(blankToNull(phone));
                     user.setEmail(blankToNull(email));
                     user.setStatus("active");
+                    // 批量导入默认走 DEFAULT_PASSWORD,否则导进来的教师 password_hash=NULL
+                    // 直接无法登录(后续接 SSO 时这里改成走 SSO 标记,无密码)。
+                    user.setPasswordHash(defaultPwdHash);
                     sysUserMapper.insert(user);
 
                     writeMapper.insertUserRole(user.getId(), teacherRoleId, orgId);
+                    txManager.commit(sp);
                     created++;
                 }
             } catch (Exception e) {
                 log.warn("teacher import row {} failed", rowNum, e);
+                try { txManager.rollback(sp); } catch (Exception ignore) { /* 释放 savepoint */ }
                 failed++;
                 failures.add(failure(rowNum, e.getMessage() == null ? "未知错误" : e.getMessage()));
             }
         }
+
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("created", created);

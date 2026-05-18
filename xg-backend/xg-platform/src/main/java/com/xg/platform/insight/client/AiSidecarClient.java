@@ -30,6 +30,9 @@ public class AiSidecarClient {
     private final RestTemplate authorRestTemplate;
     private final ObjectMapper objectMapper;
     private final String baseUrl;
+    /** 跟 sidecar settings.internal_token 对齐;Java→sidecar 所有调用都带这个 header,
+     *  sidecar 端拒绝缺失或不匹配的请求(deps.verify_internal_token)。 */
+    private final String internalToken;
 
     private static final java.util.Set<String> AUTHOR_AGENTS = java.util.Set.of(
             "workflow_author", "alert_rule_author");
@@ -37,11 +40,23 @@ public class AiSidecarClient {
     public AiSidecarClient(ObjectMapper objectMapper,
                            @Value("${ai.sidecar.base-url:http://localhost:8000}") String baseUrl,
                            @Value("${ai.sidecar.timeout:15000}") int timeoutMs,
-                           @Value("${ai.sidecar.author-timeout:180000}") int authorTimeoutMs) {
+                           @Value("${ai.sidecar.author-timeout:180000}") int authorTimeoutMs,
+                           @Value("${ai.sidecar.internal-token:dev-internal-token}") String internalToken) {
         this.objectMapper = objectMapper;
         this.baseUrl = baseUrl;
         this.restTemplate = buildTemplate(timeoutMs);
         this.authorRestTemplate = buildTemplate(authorTimeoutMs);
+        this.internalToken = internalToken;
+    }
+
+    /** 给所有 Java→sidecar 调用统一加 Content-Type + X-Internal-Token。 */
+    private HttpHeaders internalHeaders() {
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        if (internalToken != null && !internalToken.isBlank()) {
+            h.set("X-Internal-Token", internalToken);
+        }
+        return h;
     }
 
     private static RestTemplate buildTemplate(int readTimeoutMs) {
@@ -64,8 +79,7 @@ public class AiSidecarClient {
                 "tenant_id", tenantId == null ? "default" : tenantId,
                 "metrics", metrics == null ? Map.of() : metrics
         );
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = internalHeaders();
         try {
             org.springframework.http.HttpEntity<Map<String, Object>> req = new org.springframework.http.HttpEntity<>(body, headers);
             Map<String, Object> resp = restTemplate.postForObject(url, req, Map.class);
@@ -105,8 +119,7 @@ public class AiSidecarClient {
         body.put("context", context == null ? Map.of() : context);
         body.put("params", params == null ? Map.of() : params);
         if (traceId != null) body.put("trace_id", traceId);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = internalHeaders();
         RestTemplate client = AUTHOR_AGENTS.contains(agent) ? authorRestTemplate : restTemplate;
         try {
             org.springframework.http.HttpEntity<Map<String, Object>> req = new org.springframework.http.HttpEntity<>(body, headers);
@@ -141,8 +154,7 @@ public class AiSidecarClient {
         java.util.LinkedHashMap<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("draft", draft == null ? "" : draft);
         if (context != null && !context.isBlank()) body.put("context", context);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = internalHeaders();
         try {
             org.springframework.http.HttpEntity<Map<String, Object>> req =
                     new org.springframework.http.HttpEntity<>(body, headers);
@@ -164,13 +176,51 @@ public class AiSidecarClient {
     }
 
     /**
+     * 让 sidecar 为每个推荐岗位写一段 1-2 句的友好理由。
+     * Sidecar 失败时返回 null（调用方降级为不展示理由文本）。
+     *
+     * @param student   学生 brief：{name, aid_level, grade, college, preference}
+     * @param positions 每条 position brief：{position_id, title, salary_*, signals, score}
+     * @return position_id → 理由文本；失败 / 缺项时为 null 或缺 key
+     */
+    public Map<Long, String> writeRecommendationReasons(
+            Map<String, Object> student, List<Map<String, Object>> positions) {
+        String url = baseUrl + "/api/v1/workstudy/write-recommendation-reasons";
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("student", student == null ? Map.of() : student);
+        body.put("positions", positions == null ? List.of() : positions);
+        HttpHeaders headers = internalHeaders();
+        try {
+            org.springframework.http.HttpEntity<Map<String, Object>> req =
+                    new org.springframework.http.HttpEntity<>(body, headers);
+            // 走 authorRestTemplate(180s) 而非默认 15s:LLM 多岗位逐条出理由 + JSON 解析常超 15s,
+            // 用短超时会频繁触发降级,反而看不到 AI 理由。
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resp = authorRestTemplate.postForObject(url, req, Map.class);
+            if (resp == null) return null;
+            Object reasons = resp.get("reasons");
+            if (!(reasons instanceof Map<?, ?> map)) return null;
+            Map<Long, String> out = new java.util.HashMap<>();
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                Long id;
+                try { id = Long.parseLong(e.getKey().toString()); }
+                catch (NumberFormatException nfe) { continue; }
+                if (e.getValue() instanceof String s) out.put(id, s);
+            }
+            return out;
+        } catch (Exception e) {
+            log.warn("ai sidecar write-recommendation-reasons failed", e);
+            return null;
+        }
+    }
+
+    /**
      * Per-task AI recommendation. Expects caller to pre-pack the enriched context
      * into {@code context}; the sidecar echoes a stable dict back.
      */
     public Map<String, Object> taskRecommendation(Map<String, Object> context) {
         String url = baseUrl + "/api/v1/task-recommendation";
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = internalHeaders();
         try {
             org.springframework.http.HttpEntity<Map<String, Object>> req =
                     new org.springframework.http.HttpEntity<>(context, headers);

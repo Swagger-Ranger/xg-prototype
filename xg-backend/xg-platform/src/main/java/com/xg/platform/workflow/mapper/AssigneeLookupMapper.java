@@ -50,6 +50,45 @@ public interface AssigneeLookupMapper {
     List<Long> findCounselorsOfStudent(@Param("studentUserId") Long studentUserId);
 
     /**
+     * 单责任辅导员 —— care_task 是单 owner 模型，不能像 workflow 那样多人并发领任务。
+     * 复用 {@link #findCounselorsOfStudent} 的双轨语义（书院班优先，回退学院班），
+     * 但在选中轨道内按 (is_primary DESC, counselor_id ASC) 收敛到唯一一人。
+     * 无匹配返回 null。
+     */
+    @Select("""
+            WITH r AS (
+                SELECT com.counselor_id, com.is_primary
+                  FROM student_org_membership sm
+                  JOIN org_unit ou ON ou.id = sm.org_unit_id
+                                  AND ou.track = 'residential'
+                                  AND ou.type = 'dorm_block'
+                                  AND ou.deleted_at IS NULL
+                  JOIN counselor_org_mapping com ON com.org_id = sm.org_unit_id
+                  JOIN sys_user u ON u.id = com.counselor_id
+                                  AND u.status = 'active' AND u.deleted_at IS NULL
+                 WHERE sm.student_user_id = #{studentUserId}
+            ),
+            a AS (
+                SELECT com.counselor_id, com.is_primary
+                  FROM student_profile sp
+                  JOIN org_closure oc ON oc.descendant_id = sp.class_id
+                  JOIN counselor_org_mapping com ON com.org_id = oc.ancestor_id
+                  JOIN sys_user u ON u.id = com.counselor_id
+                                  AND u.status = 'active' AND u.deleted_at IS NULL
+                 WHERE sp.user_id = #{studentUserId}
+                   AND sp.deleted_at IS NULL
+            )
+            SELECT counselor_id FROM (
+                SELECT counselor_id, is_primary FROM r
+                UNION ALL
+                SELECT counselor_id, is_primary FROM a WHERE NOT EXISTS (SELECT 1 FROM r)
+            ) t
+            ORDER BY is_primary DESC NULLS LAST, counselor_id ASC
+            LIMIT 1
+            """)
+    Long findPrimaryCounselorOfStudent(@Param("studentUserId") Long studentUserId);
+
+    /**
      * Dean(s) of the college that owns the student's class.
      * student_profile → class → org_closure → root org (college) → sys_user_role(role_id=4, org_id=college).
      */

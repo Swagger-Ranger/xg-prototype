@@ -39,4 +39,5 @@ export type RoleCode =
   | 'student_affairs_director'
   | 'school_admin'
   | 'super_admin'
-  | 'employer';
+  | 'employer'
+  | 'aid_center_officer';
