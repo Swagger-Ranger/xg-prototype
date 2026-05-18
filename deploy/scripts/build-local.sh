@@ -61,16 +61,48 @@ log "SERVICES  = ${SERVICES}"
 mkdir -p "${IMG_DIR}"
 
 # ─── buildx 准备 (一次性，幂等) ───
+# 策略:
+#   1) 优先复用 Docker Desktop 自带的 desktop-linux builder —— 它本身就支持
+#      linux/amd64 / arm64 多平台,无需再拉 moby/buildkit 镜像,避开 docker.io 网络问题。
+#   2) 仅当 desktop-linux 不可用时,才创建独立的 xg-builder (docker-container 驱动),
+#      并通过 DaoCloud 镜像源拉 buildkit,避免直连 registry-1.docker.io。
+BUILDKIT_MIRROR_IMAGE="${BUILDKIT_MIRROR_IMAGE:-docker.m.daocloud.io/moby/buildkit:buildx-stable-1}"
+
 ensure_buildx() {
     if ! docker buildx version >/dev/null 2>&1; then
         err "docker buildx 未安装，Mac Docker Desktop 默认带，请升级 Docker"
         exit 1
     fi
-    if ! docker buildx inspect xg-builder >/dev/null 2>&1; then
-        log "首次创建 buildx builder: xg-builder"
-        docker buildx create --name xg-builder --use >/dev/null
-    else
+
+    # 优先用 desktop-linux: 已 running、已支持多平台,零拉取成本。
+    # 注意: 不能用 `grep -q`,因为 set -o pipefail 下 grep 提前退出会让上游 docker
+    # buildx inspect 收到 SIGPIPE,导致 pipeline 误判为失败。改成读完所有输入再丢弃。
+    local desktop_info
+    if desktop_info=$(docker buildx inspect desktop-linux 2>/dev/null) \
+       && echo "${desktop_info}" | grep -E "Status:[[:space:]]+running" >/dev/null \
+       && echo "${desktop_info}" | grep "linux/amd64" >/dev/null; then
+        docker buildx use desktop-linux >/dev/null
+        log "复用 Docker Desktop 内置 builder: desktop-linux (无需拉取 buildkit 镜像)"
+        return
+    fi
+
+    # 回退: 创建独立的 xg-builder,buildkit 镜像走 DaoCloud
+    if docker buildx inspect xg-builder >/dev/null 2>&1; then
         docker buildx use xg-builder >/dev/null
+        log "复用已有 builder: xg-builder"
+        return
+    fi
+
+    log "创建 buildx builder: xg-builder (buildkit 镜像源 = ${BUILDKIT_MIRROR_IMAGE})"
+    if ! docker buildx create \
+            --name xg-builder \
+            --driver docker-container \
+            --driver-opt "image=${BUILDKIT_MIRROR_IMAGE}" \
+            --use >/dev/null; then
+        err "创建 xg-builder 失败。可能原因:"
+        err "  - ${BUILDKIT_MIRROR_IMAGE} 拉取失败 → 换镜像源: BUILDKIT_MIRROR_IMAGE=xxx ./deploy/scripts/build-local.sh"
+        err "  - Docker Desktop 未运行或 daemon.json 的 registry-mirrors 已失效"
+        exit 1
     fi
 }
 
@@ -138,8 +170,10 @@ cat "${DIST_DIR}/MANIFEST.txt"
 
 echo ""
 log "构建完成。下一步:"
-echo "  1. 把 deploy/.env 的 IMAGE_TAG 改为: ${IMAGE_TAG}"
-echo "  2. ./deploy/scripts/sync-to-cloud.sh   # 同步到云主机"
-echo "  3. (云上) ./deploy/scripts/update.sh   # 加载并启动"
+echo "  1. ./deploy/scripts/sync-to-cloud.sh   # 同步到云主机"
+echo "  2. (云上) ./deploy/scripts/update.sh   # 加载并启动"
+echo ""
+echo "  注: IMAGE_TAG (${IMAGE_TAG}) 会由 load-and-up.sh 自动写入云上 .env,无需手工编辑。"
+echo "  如需本地用 docker compose 直接启动,本地 .env 仍需手动加 IMAGE_TAG=${IMAGE_TAG}。"
 
 

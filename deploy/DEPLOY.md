@@ -74,6 +74,13 @@ CLOUD_PATH=/opt/xg-prototype
 # CLOUD_PORT=22
 # CLOUD_SSH_KEY=~/.ssh/id_rsa
 EOF
+
+ssh-copy-id -p <PORT> <USER>@<CLOUD_HOST>
+#   端口默认 22 可省略 -p
+ssh-copy-id  root@149.71.241.152
+#验证免密 + 把连接信息写进 deploy/.env.deploy
+ssh <USER>@<CLOUD_HOST> 'echo ok'
+ssh root@149.71.241.152 'echo ok'
 ```
 
 ### 三、首次部署
