@@ -154,6 +154,10 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin123}
       AI_SIDECAR_URL: http://xg-python:8000
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-change-me-in-production}
+      # 危机通道开关。提交默认 false（生产/仓库安全态，D1/D2/D3 未拍板）；
+      # dev/demo 经 gitignored deploy/.env 置 true。Spring relaxed binding:
+      # XG_CRISIS_ENABLED → xg.crisis.enabled。
+      XG_CRISIS_ENABLED: ${XG_CRISIS_ENABLED:-false}
       SUPERADMIN_INITIAL_PASSWORD: ${SUPERADMIN_INITIAL_PASSWORD:-changeme-strong-password-123}
       # 日志配置：输出到文件（Spring Boot 格式）
       LOGGING_FILE_NAME: /app/logs/application.log
@@ -201,6 +205,13 @@ services:
       REDIS_URL: redis://:${REDIS_PASS:-redis123}@redis:6379/1
       JAVA_BASE_URL: http://xg-java:8080
       INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-change-me-in-production}
+      # 危机通道开关 + 词表受控注入。提交默认 false / 空（空管子，守 D2）；
+      # dev/demo 经 gitignored deploy/.env 注入。生产词表是 D2 定稿，不走这里。
+      CRISIS_ENABLED: ${CRISIS_ENABLED:-false}
+      CRISIS_WORDLIST_SAFETY: ${CRISIS_WORDLIST_SAFETY:-}
+      CRISIS_WORDLIST_BASIC: ${CRISIS_WORDLIST_BASIC:-}
+      CRISIS_WORDLIST_EXCLUDE_IDIOM: ${CRISIS_WORDLIST_EXCLUDE_IDIOM:-}
+      CRISIS_WORDLIST_EXCLUDE_PERSON: ${CRISIS_WORDLIST_EXCLUDE_PERSON:-}
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://zenmux.ai/api/v1}

@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     # 前不激活；关闭时 chat 前置钩子永远 no-op（设计 §7/§9, PRD §9.5）。
     crisis_enabled: bool = False
 
+    # L2 词表受控配置注入（设计 §3：心理中心经受控路径维护，工程不自拟）。
+    # 逗号分隔；**提交默认全空** → detector 永不命中（空管子）。dev/demo 经
+    # gitignored deploy/.env 注入；生产词表仍是 D2 心理中心定稿，不走这里硬编码。
+    crisis_wordlist_safety: str = ""
+    crisis_wordlist_basic: str = ""
+    crisis_wordlist_exclude_idiom: str = ""
+    crisis_wordlist_exclude_person: str = ""
+
     # LLM providers
     qwen_api_key: str = ""
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
