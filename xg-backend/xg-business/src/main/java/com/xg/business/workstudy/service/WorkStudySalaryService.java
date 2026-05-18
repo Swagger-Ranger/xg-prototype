@@ -15,6 +15,8 @@ import com.xg.business.workstudy.model.WorkStudyApplication;
 import com.xg.business.workstudy.model.WorkStudyPosition;
 import com.xg.business.workstudy.model.WorkStudySalary;
 import com.xg.business.workstudy.model.WorkStudyYearSetting;
+import com.xg.business.workstudy.security.WorkStudyManagedScope;
+import com.xg.business.student.mapper.StudentProfileMapper;
 import com.xg.common.base.PageResult;
 import com.xg.common.exception.BizException;
 import com.xg.platform.notification.recipient.RecipientContext;
@@ -60,6 +62,7 @@ public class WorkStudySalaryService {
     private final TaskInstanceMapper taskInstanceMapper;
     private final NotificationOrchestrator notificationOrchestrator;
     private final EmployerService employerService;
+    private final StudentProfileMapper studentProfileMapper;
 
     /**
      * 用工单位申报某学生在某月的薪资。月内可多次申报（不同 month 多条；同月再次申报视作新行）。
@@ -253,6 +256,17 @@ public class WorkStudySalaryService {
                     myPositions.stream().map(WorkStudyPosition::getId).toList());
         }
 
+        // 辅导员 / 班主任 / 院长(无任何运营/管理角色)只「了解」自己管辖范围内学生的薪资,
+        // 与上面 employer 收口同构;管辖集为空 → 直接返回空页,绝不下钻全校。详见 WorkStudyManagedScope。
+        if (WorkStudyManagedScope.isManagedScopeViewer(currentUserRoles)) {
+            java.util.List<Long> managed = resolveManagedStudentScope(currentUserId);
+            if (managed.isEmpty()
+                    || (q.getStudentId() != null && !managed.contains(q.getStudentId()))) {
+                return PageResult.of(page);
+            }
+            wrapper.in(WorkStudySalary::getStudentId, managed);
+        }
+
         wrapper.orderByDesc(WorkStudySalary::getCreatedAt);
         Page<WorkStudySalary> pageResult = salaryMapper.selectPage(page, wrapper);
 
@@ -260,6 +274,18 @@ public class WorkStudySalaryService {
             attachPositionSummaries(pageResult.getRecords());
         }
         return PageResult.of(pageResult);
+    }
+
+    /**
+     * 当前用户管辖学生 user_id 并集（辅导员双轨 / 院长本院 / 班主任本班），
+     * 与 WorkStudyService.resolveManagedStudentScope / LeaveService.classLeaves 同口径。
+     */
+    private java.util.List<Long> resolveManagedStudentScope(Long userId) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        ids.addAll(studentProfileMapper.findStudentUserIdsByCounselor(userId));
+        ids.addAll(studentProfileMapper.findStudentUserIdsByDean(userId));
+        ids.addAll(studentProfileMapper.findStudentUserIdsByClassMaster(userId));
+        return java.util.List.copyOf(ids);
     }
 
     private void attachPositionSummaries(List<WorkStudySalary> rows) {

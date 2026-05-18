@@ -57,6 +57,7 @@ import {
 } from '@/api/workStudy';
 import type { NlToReportResp, WorkStudyReportDsl } from '@/api/workStudy';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsWorkStudyScopedViewer } from './scope';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import DynamicFormFields from '@/components/form/DynamicFormFields';
 import InstanceTimeline from '@/components/workflow/InstanceTimeline';
@@ -184,9 +185,16 @@ const STUDENT_STEPS: StepDef<Tab>[] = [
   { value: 'salaries',     n: 5, title: '我的薪资', hint: '审核中 / 已确认 / 到账' },
 ];
 
+// 辅导员 / 班主任 / 院长 只「了解」管辖范围内学生的在岗勤工：只给总览一个 tab，
+// 不参与任何审批/运营。其余 tab 一律不暴露（深链 ?tab= 也会被 baseSteps 守住）。
+const SCOPED_VIEWER_STEPS: StepDef<Tab>[] = [
+  { value: 'dashboard', n: 1, title: '总览', hint: '我管辖范围 · 在岗勤工了解' },
+];
+
 export default function WorkStudyManagement() {
   const queryClient = useQueryClient();
   const { isStudent, isEmployer, isAdmin, hasPermission, user } = useAuth();
+  const isScopedViewer = useIsWorkStudyScopedViewer();
   // 多 persona 页：isStudent/isEmployer 决定步骤集 / 数据 scope（视角层），
   // 实际动作按钮按权限码 gate（能力层）。校院级 college_admin 只有 umbrella
   // workstudy:manage 而无 granular 码，新逻辑下不会再误显「发布/关闭/处理」按钮。
@@ -201,28 +209,30 @@ export default function WorkStudyManagement() {
   const pendingPositionsQ = useQuery({
     queryKey: ['ws-step-badge-positions'],
     queryFn: () => listPositions({ page: 1, size: 1, status: 'pending_approval' }),
-    enabled: !isStudent && !isEmployer,
+    enabled: !isStudent && !isEmployer && !isScopedViewer,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
   const pendingAppsQ = useQuery({
     queryKey: ['ws-step-badge-apps'],
     queryFn: () => listApplications({ page: 1, size: 1, status: 'pending' }),
-    enabled: !isStudent,
+    enabled: !isStudent && !isScopedViewer,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
   const pendingSalariesQ = useQuery({
     queryKey: ['ws-step-badge-salaries'],
     queryFn: () => listSalaries({ page: 1, size: 1, status: 'pending' }),
-    enabled: !isStudent && !isEmployer,
+    enabled: !isStudent && !isEmployer && !isScopedViewer,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
 
   // school_admin 视角:把"业务配置"插到"用人单位"之后(步骤 3 位置),让规则在
   // 跑业务前就配好,后面的岗位审批/申请审批/薪资审批顺位后挪。其他角色不受影响。
-  const baseSteps = isStudent
+  const baseSteps = isScopedViewer
+    ? SCOPED_VIEWER_STEPS
+    : isStudent
     ? STUDENT_STEPS
     : isEmployer
       ? EMPLOYER_STEPS
@@ -927,7 +937,11 @@ export default function WorkStudyManagement() {
         return (
           <>
             <button className={styles.actionLink} onClick={() => setPositionDetail(r)}>查看</button>
-            {canApproveApp && (
+            {/* 对比卡只对「曾/正开放招聘」的岗位有意义:open 可能有在投候选,
+               closed 可能有历史(含被拒)候选可复盘。draft / pending_approval
+               结构性不可能有申请人(apply() 要求 status=open),给入口只会得到
+               空卡 + AI 误导性「宣传一下」建议 —— 故对这两态隐藏。 */}
+            {canApproveApp && (r.status === 'open' || r.status === 'closed') && (
               <button
                 className={styles.actionLink}
                 style={{ marginLeft: 12 }}

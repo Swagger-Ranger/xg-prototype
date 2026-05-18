@@ -511,11 +511,48 @@ public class WorkStudyService {
                 .stream().map(WorkStudyPosition::getId).toList();
     }
 
+    /**
+     * 辅导员 / 班主任 / 院长「了解」视角:把申请结果硬性限定在调用者管辖的学生范围内。
+     * 与 {@link #listApplicationsScopedToEmployers} 同构 —— 防止这三类角色经 AI 工具或
+     * 直接传任意 positionId / studentId 越权拿到管辖范围外的学生 PII。
+     *
+     * @param managedStudentIds 调用方管辖学生集合;null / 空 一律按「空结果」处理
+     */
+    public PageResult<WorkStudyApplication> listApplicationsScopedToManagedStudents(
+            ApplicationQueryRequest query, List<Long> managedStudentIds) {
+        if (managedStudentIds == null || managedStudentIds.isEmpty()) {
+            return emptyApplicationPage(query);
+        }
+        // 调用方若指定了 studentId,必须在管辖集里;否则视为越权,返回空。
+        if (query.getStudentId() != null && !managedStudentIds.contains(query.getStudentId())) {
+            return emptyApplicationPage(query);
+        }
+        return listApplicationsInternal(query, null, managedStudentIds);
+    }
+
+    /**
+     * 解析当前用户管辖的学生 user_id 集合 —— 辅导员(本班/书院双轨)/ 院长(本院)/
+     * 班主任(本班)三条路径求并集,与 LeaveService.classLeaves 同口径,角色叠加时自然合并。
+     */
+    public List<Long> resolveManagedStudentScope(Long userId) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        ids.addAll(studentProfileMapper.findStudentUserIdsByCounselor(userId));
+        ids.addAll(studentProfileMapper.findStudentUserIdsByDean(userId));
+        ids.addAll(studentProfileMapper.findStudentUserIdsByClassMaster(userId));
+        return List.copyOf(ids);
+    }
+
     private PageResult<WorkStudyApplication> listApplicationsInternal(
             ApplicationQueryRequest query, List<Long> restrictPositionIds) {
+        return listApplicationsInternal(query, restrictPositionIds, null);
+    }
+
+    private PageResult<WorkStudyApplication> listApplicationsInternal(
+            ApplicationQueryRequest query, List<Long> restrictPositionIds, List<Long> restrictStudentIds) {
         Page<WorkStudyApplication> page = query.toPage();
         LambdaQueryWrapper<WorkStudyApplication> wrapper = new LambdaQueryWrapper<WorkStudyApplication>()
                 .in(restrictPositionIds != null, WorkStudyApplication::getPositionId, restrictPositionIds)
+                .in(restrictStudentIds != null, WorkStudyApplication::getStudentId, restrictStudentIds)
                 .eq(query.getPositionId() != null, WorkStudyApplication::getPositionId, query.getPositionId())
                 .eq(query.getStudentId() != null, WorkStudyApplication::getStudentId, query.getStudentId())
                 .eq(query.getStatus() != null, WorkStudyApplication::getStatus, query.getStatus())

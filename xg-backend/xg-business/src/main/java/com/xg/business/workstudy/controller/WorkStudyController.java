@@ -28,6 +28,7 @@ import com.xg.business.workstudy.service.WorkStudyRecommendationService;
 import com.xg.business.workstudy.service.WorkStudySalarySettlementService;
 import com.xg.business.workstudy.service.WorkStudySalaryService;
 import com.xg.business.workstudy.service.WorkStudyService;
+import com.xg.business.workstudy.security.WorkStudyManagedScope;
 import com.xg.common.base.PageResult;
 import com.xg.common.base.R;
 import com.xg.common.exception.BizException;
@@ -158,6 +159,12 @@ public class WorkStudyController {
                 && !roles.contains("student_affairs_officer");
         if (isEmployerOnly) {
             return R.ok(workStudyService.listApplicationsScopedToEmployers(query, userId));
+        }
+        // 辅导员 / 班主任 / 院长(且无任何运营/管理角色)只「了解」自己管辖范围内的学生勤工,
+        // 这里硬收口到管辖学生集合,AI 工具 / 直连 API 同样受限。详见 WorkStudyManagedScope。
+        if (WorkStudyManagedScope.isManagedScopeViewer(roles)) {
+            return R.ok(workStudyService.listApplicationsScopedToManagedStudents(
+                    query, workStudyService.resolveManagedStudentScope(userId)));
         }
         return R.ok(workStudyService.listApplications(query));
     }
