@@ -9,7 +9,9 @@ tables:
   - sys_user
   - leave_request
   - workflow_instance
-  - student_alert
+  # student_alert 旧版异常预警已被 care_task 取代（A1 硬切）：从白名单摘除，
+  # LLM/AI 观察员不再对旧表生成 SQL。student_alert.yaml 文件保留，loader 自动 warn-skip。
+  - care_task
   - notification
   - violation_record
   - org_unit

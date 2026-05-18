@@ -1,0 +1,42 @@
+table: care_task
+alias: ct
+# 主动关怀任务（规则命中生成，辅导员处置）。**取代旧 student_alert**：凡涉及
+# 学生异常预警 / 风险 / 关怀 / 待处理 / 超期 的统计分析，一律查本表，不要再查 student_alert。
+description: 学生异常预警与主动关怀任务（新版，规则引擎触发→辅导员接单/处置；含 7 态状态机、处理时限、严重度、转介）。等同"异常预警"分析口径来源。
+indexes:
+  - [tenant_id, assigned_to, status, due_at]
+  - [tenant_id, status, created_at]
+  - [severity, status]
+join_keys:
+  student: { fk: student_id, table: sys_user, "on": id }
+  student_profile: { fk: student_id, table: student_profile, "on": user_id }
+  assignee: { fk: assigned_to, table: sys_user, "on": id }
+columns:
+  - { name: id,               type: bigint,    label: 关怀任务 ID }
+  - { name: student_id,       type: bigint,    label: 学生 user_id }
+  - { name: rule_id,          type: text,      label: 命中规则代号, aliases: [规则, 规则代号], indexed: true }
+  - { name: severity,         type: text,      label: 严重度, aliases: [严重度, 风险等级], indexed: true, enum: [low, medium, high, critical] }
+  - { name: status,           type: text,      label: 状态, aliases: [状态, 处置状态], indexed: true, enum: [pending, accepted, in_progress, resolved, rejected, transferred, overdue] }
+  - { name: assigned_to,      type: bigint,    label: 责任辅导员 user_id, aliases: [辅导员, 负责人] }
+  - { name: due_at,           type: timestamp, label: 处理时限, aliases: [截止, 到期时间, 处理时限] }
+  - { name: accepted_at,      type: timestamp, label: 接单时间 }
+  - { name: reschedule_count, type: int,       label: 改期次数, aliases: [改期次数] }
+  - { name: closed_at,        type: timestamp, label: 关闭时间, aliases: [处置完成时间, 办结时间] }
+  - { name: closed_reason,    type: text,      label: 关闭原因码 }
+  - { name: transferred_to,   type: text,      label: 转介目标部门, enum: [counseling_center, aid_office, academic_affairs, security] }
+  - { name: trigger_count,    type: int,       label: 规则累计命中次数 }
+  - { name: created_at,       type: timestamp, label: 触发时间, aliases: [触发时间, 生成时间, 预警时间] }
+  - { name: updated_at,       type: timestamp, label: 更新时间 }
+  # trigger_data / current_brief_id / accepted_by / closed_by / cooldown_until /
+  # last_triggered_at / rule_version 属内部机制或 JSONB，不暴露给 LLM 分析。
+role_scope:
+  # P0 口径（对齐 CareAdminAccess）：院系领导 / 校级管理员 / 学工部部长 / 超管 看本校全部。
+  dean: ""
+  school_admin: ""
+  student_affairs_director: ""
+  super_admin: ""
+  # 辅导员 / 班主任：只看分派给自己的关怀任务（care_task 行上直接有 assigned_to）。
+  counselor: "ct.assigned_to = :owner_id"
+  class_master: "ct.assigned_to = :owner_id"
+  # 学生：只看自己的（兜底，未列角色 roleScopeFor 返回 "" = 不过滤，必须显式收窄）。
+  student: "ct.student_id = :owner_id"

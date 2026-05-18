@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>朝夕 · 关怀模块 领导汇报</title>
+<style>
+:root{
+  --ac:#5e8fff;--ac-hi:#3b6fe0;--ac-dp:#2a4fb0;--ac-bg:#eef3ff;--ac-ring:#cdddff;
+  --ink:#1b2230;--ink2:#3d4757;--ink3:#6b7686;--ink4:#9aa3b3;
+  --bg:#f4f7fc;--card:#fff;--bd:#e6eaf0;
+  --danger:#cf1322;--danger-bg:#fff2f0;--danger-bd:#ffccc7;
+  --ok:#047857;--ok-bg:#e9f7f1;--warn:#b45309;--warn-bg:#fef6e7;
+  --mono:'SFMono-Regular',ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:#0e1320;color:var(--ink2);overflow:hidden}
+.deck{position:fixed;inset:0}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+  padding:6vh 8vw;background:var(--bg);animation:fade .35s ease}
+.slide.active{display:flex}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.kicker{font-size:14px;font-weight:700;letter-spacing:.18em;color:var(--ac);text-transform:uppercase;margin-bottom:14px}
+h1{font-size:62px;line-height:1.12;color:var(--ink);letter-spacing:-.02em;font-weight:800}
+h2{font-size:40px;line-height:1.18;color:var(--ink);letter-spacing:-.02em;font-weight:780;margin-bottom:6px}
+h3{font-size:22px;color:var(--ink);font-weight:700}
+p.sub{font-size:21px;color:var(--ink3);margin-top:18px;max-width:60ch;line-height:1.6}
+.big{font-size:26px;line-height:1.6;color:var(--ink2);max-width:62ch}
+.big em{font-style:normal;color:var(--ac-hi);font-weight:800}
+.big b{color:var(--ink);font-weight:800}
+ul.pts{margin-top:26px;list-style:none}
+ul.pts li{font-size:22px;color:var(--ink2);padding:11px 0 11px 38px;position:relative;line-height:1.5}
+ul.pts li::before{content:"";position:absolute;left:6px;top:20px;width:12px;height:12px;border-radius:3px;background:var(--ac);transform:rotate(45deg)}
+ul.pts li b{color:var(--ink);font-weight:750}
+ul.pts.red li::before{background:var(--danger)}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:34px}
+.cols.c2{grid-template-columns:repeat(2,1fr)}
+.tile{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:26px 24px;box-shadow:0 6px 22px rgba(20,30,60,.06)}
+.tile .ic{width:46px;height:46px;border-radius:13px;background:var(--ac-bg);border:1px solid var(--ac-ring);display:flex;align-items:center;justify-content:center;font-size:23px;margin-bottom:16px}
+.tile h3{font-size:21px;margin-bottom:8px}
+.tile p{font-size:16px;color:var(--ink3);line-height:1.62}
+.tile .num{font-size:46px;font-weight:850;color:var(--ac-hi);letter-spacing:-.02em;line-height:1}
+.tile .cap{font-size:15px;color:var(--ink4);margin-top:10px}
+.flow{display:flex;align-items:stretch;gap:0;margin-top:40px}
+.flow .step{flex:1;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:20px 18px;text-align:center}
+.flow .step .t{font-size:13px;color:var(--ac);font-weight:800;letter-spacing:.1em}
+.flow .step b{display:block;font-size:19px;color:var(--ink);margin:8px 0 4px;font-weight:750}
+.flow .step span{font-size:14px;color:var(--ink4)}
+.flow .ar{display:flex;align-items:center;color:var(--ac);font-size:26px;padding:0 14px}
+.redbox{margin-top:30px;background:var(--danger-bg);border:1px solid var(--danger-bd);border-left:6px solid var(--danger);border-radius:0 16px 16px 0;padding:24px 28px}
+.redbox .h{color:var(--danger);font-weight:800;font-size:20px;margin-bottom:12px;display:flex;gap:10px;align-items:center}
+.redbox ul{list-style:none}
+.redbox li{font-size:18.5px;color:#7a1018;padding:7px 0 7px 26px;position:relative;line-height:1.5}
+.redbox li::before{content:"●";position:absolute;left:4px;color:var(--danger);font-size:12px;top:11px}
+.redbox li b{color:var(--danger)}
+table.kv{width:100%;border-collapse:collapse;margin-top:26px;font-size:18px}
+table.kv td,table.kv th{border:1px solid var(--bd);padding:13px 18px;text-align:left;background:var(--card)}
+table.kv th{background:#eef2f9;color:var(--ink);font-weight:750;font-size:16px}
+table.kv td:first-child{font-weight:700;color:var(--ink);width:30%}
+.check{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:14px 34px}
+.check div{font-size:19px;color:var(--ink2);padding-left:36px;position:relative;line-height:1.45}
+.check div::before{content:"✓";position:absolute;left:4px;top:0;width:24px;height:24px;background:var(--ok-bg);color:var(--ok);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+.tag{display:inline-block;font-size:14px;font-weight:700;padding:4px 13px;border-radius:30px;background:var(--ac-bg);color:var(--ac-hi);border:1px solid var(--ac-ring)}
+.tag.r{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-bd)}
+.tag.g{background:var(--ok-bg);color:var(--ok);border-color:#b9e3d2}
+/* cover */
+.cover{background:radial-gradient(1200px 600px at 80% -10%,rgba(255,255,255,.18),transparent),linear-gradient(135deg,#2a4fb0 0%,#3b6fe0 45%,#6f96ff 100%);color:#fff}
+.cover .brand{display:flex;align-items:center;gap:14px;font-size:20px;font-weight:800;letter-spacing:.04em}
+.cover .brand .logo{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:22px}
+.cover h1{color:#fff;font-size:74px;margin-top:46px}
+.cover .line{width:78px;height:5px;background:#fff;border-radius:3px;margin:30px 0;opacity:.85}
+.cover p.sub{color:rgba(255,255,255,.94);font-size:24px}
+.cover .foot{position:absolute;left:8vw;bottom:6vh;font-size:15px;color:rgba(255,255,255,.8);display:flex;gap:30px}
+.cover .foot b{color:#fff;display:block;font-size:17px}
+.closing{background:linear-gradient(135deg,#2a4fb0,#3b6fe0 60%,#6f96ff);color:#fff}
+.closing h1{color:#fff;font-size:56px}
+.closing .big{color:rgba(255,255,255,.95)}
+.closing .big em{color:#fff;text-decoration:underline;text-underline-offset:6px}
+/* hud */
+.hud{position:fixed;left:0;right:0;bottom:0;height:5px;background:rgba(255,255,255,.12);z-index:50}
+.hud .bar{height:100%;background:linear-gradient(90deg,#5e8fff,#9cb7ff);width:0;transition:width .3s}
+.pager{position:fixed;right:22px;bottom:18px;font-size:13px;color:var(--ink4);font-family:var(--mono);z-index:50;background:rgba(255,255,255,.7);padding:4px 10px;border-radius:20px;border:1px solid var(--bd)}
+.cover .pager,.closing .pager{color:rgba(255,255,255,.85);background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.25)}
+.hint{position:fixed;left:22px;bottom:16px;font-size:12.5px;color:var(--ink4);z-index:50}
+.cover .hint,.closing .hint{color:rgba(255,255,255,.7)}
+.nav{position:fixed;inset:0;display:flex;z-index:40}
+.nav .z{flex:1;cursor:pointer}
+@media print{
+  body{overflow:visible;background:#fff}
+  .deck{position:static}
+  .slide{display:flex!important;position:relative;inset:auto;min-height:100vh;page-break-after:always;animation:none}
+  .hud,.pager,.hint,.nav{display:none!important}
+}
+@media(max-width:1100px){h1{font-size:46px}.cover h1{font-size:52px}h2{font-size:32px}.cols{grid-template-columns:1fr;gap:14px}.flow{flex-direction:column}.flow .ar{transform:rotate(90deg);padding:8px 0}}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- 1 cover -->
+  <section class="slide cover active">
+    <div class="brand"><span class="logo">朝</span> 朝夕 · 高校学生工作服务平台</div>
+    <h1>关怀模块</h1>
+    <div class="line"></div>
+    <p class="sub">从「被动预警看板」到「主动关怀闭环」——<br>该被关注的学生不漏，辅导员少翻数据多做人，危机有兜底。</p>
+    <div class="foot">
+      <div>汇报对象<b>校 / 院领导</b></div>
+      <div>阶段<b>P0 已落地并验证</b></div>
+      <div>日期<b>2026-05-18</b></div>
+    </div>
+  </section>
+
+  <!-- 2 one-line conclusion -->
+  <section class="slide">
+    <div class="kicker">一页结论</div>
+    <h2>我们把学生关怀从「人找问题」变成「系统把该管的推到面前」</h2>
+    <p class="big" style="margin-top:24px">
+      规则自动把分散的弱信号<b>聚合成有责任人、有时限、可闭环的关怀任务</b>；
+      AI 帮辅导员<em>想清楚怎么谈</em>但不替他做决定；
+      显式求助走<em>独立危机通道</em>，绝不漏接、全程留痕。
+    </p>
+    <div class="cols" style="margin-top:36px">
+      <div class="tile"><div class="num">不漏</div><div class="cap">该被关注的学生由规则主动捞出，不靠人翻数据</div></div>
+      <div class="tile"><div class="num">减负</div><div class="cap">AI 备好「为什么·怎么谈·不宜碰·找谁」，辅导员直接进状态</div></div>
+      <div class="tile"><div class="num">可控</div><div class="cap">关怀工作可量化、危机有审计兜底、规则不改代码可运维</div></div>
+    </div>
+  </section>
+
+  <!-- 3 problem -->
+  <section class="slide">
+    <div class="kicker">为什么要做</div>
+    <h2>过去的痛点</h2>
+    <ul class="pts">
+      <li><b>信号分散：</b>请假、违纪、考勤、勤工、跟进记录各看各的，学生出问题往往是「事后才知道」。</li>
+      <li><b>被动看板：</b>旧「异常预警」只有开/关两态，看到了也不等于有人管、管没管完无从追。</li>
+      <li><b>判断与沟通成本高：</b>辅导员要自己拼数据判断风险、还要想怎么开口谈，负担重、质量参差。</li>
+      <li><b>危机漏接风险：</b>学生显式求助若混在普通事务里，可能被淹没——这是不可接受的。</li>
+    </ul>
+  </section>
+
+  <!-- 4 solution flow -->
+  <section class="slide">
+    <div class="kicker">解决方案</div>
+    <h2>一条闭环：从「看见」到「管完」</h2>
+    <div class="flow">
+      <div class="step"><div class="t">信号</div><b>多源弱信号</b><span>请假/违纪/考勤/勤工/跟进</span></div>
+      <div class="ar">→</div>
+      <div class="step"><div class="t">规则</div><b>自动捞出</b><span>规则命中即生成任务</span></div>
+      <div class="ar">→</div>
+      <div class="step"><div class="t">闭环</div><b>有人·有限期</b><span>7 态状态机+SLA</span></div>
+      <div class="ar">→</div>
+      <div class="step"><div class="t">AI</div><b>怎么谈</b><span>小夕画像辅助</span></div>
+      <div class="ar">→</div>
+      <div class="step"><div class="t">兜底</div><b>危机通道</b><span>独立·留痕·不漏</span></div>
+    </div>
+    <p class="sub" style="margin-top:34px">每一步都对辅导员可见、对领导可量化、对学生隐私可控。</p>
+  </section>
+
+  <!-- 5 value -->
+  <section class="slide">
+    <div class="kicker">核心价值</div>
+    <h2>三方都受益</h2>
+    <div class="cols">
+      <div class="tile">
+        <div class="ic">🎓</div><h3>对学生</h3>
+        <p>该被关注的不会被漏掉；不是「监控式打扰」——学生侧只读知情、不主推不弹窗；隐私分级、查看留痕。</p>
+      </div>
+      <div class="tile">
+        <div class="ic">🧑‍🏫</div><h3>对辅导员</h3>
+        <p>系统把「该管谁」推到工作台首屏，AI 备好「为什么触发·可聊什么·不宜碰·可对接资源」，从找问题变成做工作。</p>
+      </div>
+      <div class="tile">
+        <div class="ic">🏫</div><h3>对学校</h3>
+        <p>关怀工作首次可量化：命中数 / 接单率 / 办结率 / 超期 / 误报率；危机有审计兜底；规则可运维不依赖改代码。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 tech 1 -->
+  <section class="slide">
+    <div class="kicker">主要技术 ①</div>
+    <h2>规则引擎 + 任务闭环</h2>
+    <p class="big">让「看见」必然走到「管完」。</p>
+    <ul class="pts">
+      <li><b>内置规则集（版本化）：</b>产品方维护的 R001–R012，可单条启停、可整体调严重度，<b>不改代码即可运维</b>。</li>
+      <li><b>命中即任务：</b>每条信号带责任人、严重度、SLA 时限、命中证据快照，去重与冷却防刷屏。</li>
+      <li><b>7 态状态机：</b>待处理→接单→处理中→办结，另含拒绝/转介/改期/超期；非法操作系统拦截。</li>
+      <li><b>效果闭环：</b>误报与拒绝直接喂回「规则效果报表」，规则越用越准。</li>
+    </ul>
+  </section>
+
+  <!-- 7 tech 2 -->
+  <section class="slide">
+    <div class="kicker">主要技术 ②</div>
+    <h2>AI 辅助：放大器，不是替代</h2>
+    <div class="cols c2">
+      <div class="tile">
+        <div class="ic">🌙</div><h3>小夕画像</h3>
+        <p>每个关怀任务一键生成：<b>为什么触发 · 可以聊的话题 · 本次不宜触碰 · 可对接资源 · 跟进建议</b>。懒加载、限流、失败可降级——AI 挂了不影响处置。</p>
+      </div>
+      <div class="tile">
+        <div class="ic">💡</div><h3>AI 观察员</h3>
+        <p>工作台首屏把待办关怀聚合成一张卡，按状态给出「受理 / 误报 / 完成 / 发起谈话」一键动作，谈话自动回链到来源任务。</p>
+      </div>
+    </div>
+    <p class="sub" style="margin-top:28px"><span class="tag g">原则</span>&nbsp; 结案、转介、误报判定永远由辅导员做；AI 只降低判断与沟通成本。</p>
+  </section>
+
+  <!-- 8 crisis safety -->
+  <section class="slide">
+    <div class="kicker">主要技术 ③ · 领导最关心的兜底</div>
+    <h2>危机求助快速通道</h2>
+    <p class="big">与普通关怀<b>并行的独立例外通道</b>——处理「学生显式求助 / 需立即人工核实」。</p>
+    <div class="redbox">
+      <div class="h">⚠ 三条安全红线</div>
+      <ul>
+        <li><b>不进规则引擎</b>——危机不排队、不被普通规则稀释，直达责任辅导员。</li>
+        <li><b>不喂大模型</b>——危机内容不进 AI 上下文，绝不让模型转述/编辑，杜绝 AI 误判风险。</li>
+        <li><b>通知不静默失败</b>——首次通知未确认成功一律响亮报错、留人工介入，绝不当「已送达」。</li>
+      </ul>
+    </div>
+    <p class="sub" style="margin-top:22px">默认关闭、可一键启用；每次查看危机详情都写审计，比普通关怀更严。观察员卡片顶部红色警示条，按学生聚合、点「立即核实」直达。</p>
+  </section>
+
+  <!-- 9 governance -->
+  <section class="slide">
+    <div class="kicker">主要技术 ④</div>
+    <h2>权限与合规：治理可控</h2>
+    <table class="kv">
+      <tr><th>维度</th><th>设计</th></tr>
+      <tr><td>角色边界</td><td>辅导员只见/只处置本人学生；院系/学工领导看本校全部；学生只读知情兜底</td></tr>
+      <tr><td>领导下钻</td><td>看个体须填 ≥30 字理由、受配额限制、全程写下钻日志</td></tr>
+      <tr><td>督办不泄露</td><td>领导界面只显示「已督办」，提醒私下发给责任辅导员，不暴露处置细节</td></tr>
+      <tr><td>脱敏展示</td><td>管理摘要脱敏、不点名、界面全中文不暴露内部代号</td></tr>
+    </table>
+  </section>
+
+  <!-- 10 engineering quality -->
+  <section class="slide">
+    <div class="kicker">为什么稳</div>
+    <h2>工程质量保障</h2>
+    <div class="cols">
+      <div class="tile"><div class="ic">🛟</div><h3>AI 可降级</h3><p>AI 增强全部 try-catch 包裹，公有云模型不可用时，全部业务经传统界面完整运行。</p></div>
+      <div class="tile"><div class="ic">🔒</div><h3>租户隔离</h3><p>Schema 级多租户隔离，数据按校自动路由，互不可见。</p></div>
+      <div class="tile"><div class="ic">📮</div><h3>统一触达</h3><p>所有通知走统一编排器，三渠道扇出+去重，业务侧不绕行。</p></div>
+      <div class="tile"><div class="ic">🧩</div><h3>最小改动</h3><p>取代旧预警时保持对外契约不变，把改动锁在数据与文案层，回归风险可控。</p></div>
+      <div class="tile"><div class="ic">⚙️</div><h3>规则可运维</h3><p>启停/调严重度配置化，业务调整不排研发版本。</p></div>
+      <div class="tile"><div class="ic">💡</div><h3>轻量部署</h3><p>单机 docker-compose，1 台 8 核 16G 无 GPU（AI 走公有云 API）。</p></div>
+    </div>
+  </section>
+
+  <!-- 11 status -->
+  <section class="slide">
+    <div class="kicker">当前状态</div>
+    <h2>已落地并端到端验证</h2>
+    <div class="check">
+      <div>关怀任务全链路：规则命中 → 任务 → 7 态处置 → 审计</div>
+      <div>AI 观察员主动关怀卡片：聚合、状态机网关动作</div>
+      <div>小夕画像：生成 / 懒加载 / 限流 / 失败降级</div>
+      <div>权限口径与首屏一致：辅导员只见本人任务</div>
+      <div>谈话回链：发起谈话自动关联来源关怀任务</div>
+      <div>危机通道：警示条按学生聚合、直达核实、独立审计</div>
+      <div>规则效果报表：误报/拒绝反馈闭环</div>
+      <div>管理视图：总量/超期/趋势/下钻+审计配额</div>
+    </div>
+    <p class="sub" style="margin-top:26px"><span class="tag g">验证</span>&nbsp; 受理动作真实生效、谈话回链落库、危机聚合与权限口径均经真实数据核对。</p>
+  </section>
+
+  <!-- 12 roadmap -->
+  <section class="slide">
+    <div class="kicker">演进路线</div>
+    <h2>P0 → P1</h2>
+    <table class="kv">
+      <tr><th>方向</th><th>P0（当前）</th><th>P1+</th></tr>
+      <tr><td>旧预警</td><td>并行保留、已退出导航/观察员</td><td>过渡期后彻底下线</td></tr>
+      <tr><td>管理范围</td><td>领导看本校全部</td><td>本院收窄、跨校隔离</td></tr>
+      <tr><td>认证</td><td>统一账号体系</td><td>对接学校 SSO（CAS/OAuth2）</td></tr>
+      <tr><td>危机通道</td><td>脚手架，决策项待拍板默认关</td><td>分诊增强、决策落地后开启</td></tr>
+      <tr><td>AI</td><td>公有云大模型 API</td><td>视规模评估私有化/多模型</td></tr>
+    </table>
+  </section>
+
+  <!-- 13 closing -->
+  <section class="slide closing">
+    <div class="kicker" style="color:#cdddff">结语</div>
+    <h1>把每一个该被看见的学生<br>真正接住</h1>
+    <p class="big" style="margin-top:26px">
+      关怀模块已让<em>规则替人盯</em>、<em>AI 帮人谈</em>、<em>危机有兜底</em>。
+      下一步：扩大试点、对接 SSO、按决策开启危机通道。
+    </p>
+    <p class="sub" style="margin-top:30px;color:rgba(255,255,255,.85)">汇报完毕 · 敬请指正</p>
+  </section>
+
+</div>
+
+<div class="nav"><div class="z" id="zPrev"></div><div class="z" id="zNext"></div></div>
+<div class="hud"><div class="bar" id="bar"></div></div>
+<div class="pager" id="pager">1 / 13</div>
+<div class="hint">← → / 空格 翻页 · F 全屏 · P 打印为 PDF</div>
+
+<script>
+(function(){
+  var s=[].slice.call(document.querySelectorAll('.slide')),i=0,n=s.length;
+  var bar=document.getElementById('bar'),pg=document.getElementById('pager');
+  function go(x){
+    i=Math.max(0,Math.min(n-1,x));
+    s.forEach(function(el,k){el.classList.toggle('active',k===i)});
+    bar.style.width=((i)/(n-1)*100)+'%';
+    pg.textContent=(i+1)+' / '+n;
+  }
+  function next(){go(i+1)} function prev(){go(i-1)}
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();next()}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();prev()}
+    else if(e.key==='Home'){go(0)} else if(e.key==='End'){go(n-1)}
+    else if(e.key==='f'||e.key==='F'){if(!document.fullscreenElement)document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();else document.exitFullscreen&&document.exitFullscreen()}
+    else if(e.key==='p'||e.key==='P'){window.print()}
+  });
+  document.getElementById('zNext').addEventListener('click',next);
+  document.getElementById('zPrev').addEventListener('click',prev);
+  go(0);
+})();
+</script>
+</body>
+</html>

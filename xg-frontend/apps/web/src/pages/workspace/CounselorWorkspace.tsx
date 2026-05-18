@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getUnreadCount } from '@/api/notification';
 import { getPendingTasks } from '@/api/workflow';
 import { getClassLeaves } from '@/api/leave';
-import { getAlertSummary } from '@/api/alert';
+import { getCareSummary } from '@/api/care';
 import { getClassRoster } from '@/api/counselor';
 import { useAuth } from '@/hooks/useAuth';
 import InsightCard from '@/components/insight/InsightCard';
@@ -46,7 +46,7 @@ function buildCounselorSummary(a: SummaryArgs) {
   if (total === 0 && todayLeaveCount === 0) {
     return (
       <>
-        {opener}今日班级整体平稳，<em className="success">无待办、无预警、无未读</em>。
+        {opener}今日班级整体平稳，<em className="success">无待办、无关怀任务、无未读</em>。
         可以把节奏放在主动走访与学生关怀上，不必切到救火模式。
       </>
     );
@@ -66,7 +66,7 @@ function buildCounselorSummary(a: SummaryArgs) {
       </>
     );
   } else if (openAlertTotal > 0) {
-    focus.push(<>预警暂无紧急项，但仍建议逐条查看后标注处理</>);
+    focus.push(<>关怀任务暂无紧急项，但仍建议逐条查看后处置</>);
   }
 
   const chips: ReactNode[] = [];
@@ -85,7 +85,7 @@ function buildCounselorSummary(a: SummaryArgs) {
   if (openAlertTotal > 0)
     chips.push(
       <>
-        <em className={criticalHighTotal > 0 ? 'danger' : 'warn'}>{openAlertTotal}</em> 位学生触发预警
+        <em className={criticalHighTotal > 0 ? 'danger' : 'warn'}>{openAlertTotal}</em> 条关怀任务待处理
       </>
     );
   if (unreadCount > 0)
@@ -130,8 +130,8 @@ export default function CounselorWorkspace() {
   });
 
   const { data: alertSummary } = useQuery({
-    queryKey: ['alertSummary'],
-    queryFn: getAlertSummary,
+    queryKey: ['careSummary'],
+    queryFn: getCareSummary,
     refetchInterval: 120000,
   });
 
@@ -225,7 +225,7 @@ export default function CounselorWorkspace() {
       label: '需关注学生',
       value: openAlertTotal,
       icon: <AlertOutlined />,
-      href: '/alerts',
+      href: '/care',
       footer: criticalHighTotal > 0 ? `紧急 ${criticalHighTotal}` : '全部正常',
       critical: criticalHighTotal > 0,
       spark: SPARK_PATTERNS[3],
@@ -269,11 +269,11 @@ export default function CounselorWorkspace() {
     briefItems.push({
       icon: <AlertOutlined />,
       tone: criticalHighTotal > 0 ? 'danger' : 'warn',
-      href: '/alerts',
+      href: '/care',
       segments: [
         { text: '' },
         { value: openAlertTotal, tone: criticalHighTotal > 0 ? 'danger' : 'warn' },
-        { text: ' 位学生触发预警' },
+        { text: ' 条关怀任务待处理' },
       ],
       trail: criticalHighTotal > 0 ? `紧急 ${criticalHighTotal}` : undefined,
     });

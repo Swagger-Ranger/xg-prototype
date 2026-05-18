@@ -10,7 +10,6 @@ import {
   LogoutOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
-  AlertOutlined,
   DeploymentUnitOutlined,
   FormOutlined,
   MessageOutlined,
@@ -39,7 +38,7 @@ const navItems = [
   { key: '/care/drill', icon: <SearchOutlined />, label: '学生下钻', permission: null },
   { key: '/work-log', icon: <EditOutlined />, label: '工作日志', permission: 'worklog:manage' },
   { key: '/violation', icon: <ExclamationCircleOutlined />, label: '违纪处分', permission: 'discipline:manage' },
-  { key: '/alerts', icon: <AlertOutlined />, label: '异常预警', permission: 'student:view' },
+  // 「异常预警」已由「关怀工作台」(/care) 取代（student_alert 下线，A1 硬切），不再单列入口。
   { key: '/counselor-talks', icon: <MessageOutlined />, label: '辅导谈话', permission: 'worklog:manage' },
   { key: '/work-study', icon: <span className={styles.navTextIcon}>勤</span>, label: '勤工助学', permission: null },
 ];
@@ -63,13 +62,12 @@ const CARE_ADMIN_KEYS = new Set(['/care/dashboard', '/care/escalation', '/care/d
 // 不用动 sys_role_permission（学生还需要 student:view 看自己档案，把权限
 // 删了反而会破坏其它页面）。
 const HIDDEN_KEYS_BY_ROLE: Record<string, ReadonlySet<string>> = {
-  student: new Set(['/notification', '/student', '/alerts', '/care']),
+  student: new Set(['/notification', '/student', '/care']),
   counselor: new Set([
     '/collection',
     '/checkin',
     '/notification',
     '/work-log',
-    '/alerts',
     '/counselor-talks',
   ]),
   // dean 走 W5 的 /care/dashboard 概览，不进辅导员工作台（W1 §1.3）
@@ -78,7 +76,6 @@ const HIDDEN_KEYS_BY_ROLE: Record<string, ReadonlySet<string>> = {
     '/checkin',
     '/notification',
     '/violation',
-    '/alerts',
     '/care',
   ]),
 };
