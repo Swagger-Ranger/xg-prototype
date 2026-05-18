@@ -12,9 +12,10 @@ export function useAuth() {
 
   const isStudent = user?.role_codes?.includes('student') ?? false;
   const isCounselor = user?.role_codes?.includes('counselor') ?? false;
+  const isClassMaster = user?.role_codes?.includes('class_master') ?? false;
   const isDean = user?.role_codes?.includes('dean') ?? false;
   const isAdmin = user?.role_codes?.includes('school_admin') ?? false;
   const isEmployer = user?.role_codes?.includes('employer') ?? false;
 
-  return { user, hasPermission, hasRole, isStudent, isCounselor, isDean, isAdmin, isEmployer };
+  return { user, hasPermission, hasRole, isStudent, isCounselor, isClassMaster, isDean, isAdmin, isEmployer };
 }
