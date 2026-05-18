@@ -58,8 +58,21 @@ Desktop.ini
 
 # Deploy secrets
 deploy/.env
+deploy/.env.deploy
 deploy/env/
 xg-ai/.env
+
+# Local-build outputs (镜像 tar 包 + 前端 dist；由 build-local.sh 产出，scp 到云上)
+deploy/dist/
+
+# 本地 docker compose up 时 xg-web-builder oneshot 容器写到这里给 nginx bind mount 读
+deploy/web-dist/
+
+# update.sh 部署前自动备份 pg_dump 落点，本地数据不入库
+backups/
+
+# Turborepo 本地缓存
+.turbo/
 
 # Vite local env (per-developer keys, never commit)
 xg-frontend/apps/*/.env.local
