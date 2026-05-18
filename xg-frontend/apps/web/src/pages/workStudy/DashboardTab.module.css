@@ -306,3 +306,67 @@
   border-color: var(--ac-ring);
   color: var(--ac);
 }
+
+/* === Managed-roster (辅导员/班主任/院长 只读了解) ================== */
+
+.rosterCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+}
+
+.rosterCount strong {
+  color: var(--fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.roster {
+  margin-top: 4px;
+  background: var(--bg-1);
+  border: 1px solid var(--bd-2);
+  border-radius: var(--r);
+  box-shadow: var(--sh-xs);
+  overflow: hidden;
+}
+
+.rosterRow {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--bd-2);
+}
+
+.rosterRow:last-child {
+  border-bottom: none;
+}
+
+.rosterName {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+  min-width: 84px;
+}
+
+.rosterMeta {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+
+.rosterSince {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-4);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.rosterEmpty {
+  padding: 40px 18px;
+  text-align: center;
+  color: var(--fg-4);
+  font-size: 12.5px;
+}

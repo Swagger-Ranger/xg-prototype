@@ -250,4 +250,33 @@ docker compose --profile lite up -d --no-build
 docker inspect xg-java --format '{{.Config.Image}}'
 ```
 
+## 本地开发（macOS / Docker Desktop）
+
+云服务器（Linux）上 `/data/logs` 可直接绑定挂载；**macOS 不行** —— Docker Desktop
+只允许从「File Sharing」根（默认 `/Users`、`/Volumes`、`/private`、`/tmp`）做绑定挂载。
+`docker-compose.yml` 的 `${HOST_LOG_DIR:-/data/logs}/...` 与 `./init-db` 一旦解析到
+非共享路径（如 `/data/logs`、或从小写 `/users/...` 目录启动），容器会报
+`mounts denied: ... not shared from the host` 起不来。
+
+**一次性配置**：项目根创建 `deploy/.env`（已 gitignore，机器私有），把日志目录
+指到共享根下的绝对路径，并建好子目录：
+
+```bash
+echo 'HOST_LOG_DIR=/Users/<你>/xg1/deploy/logs' > /Users/<你>/xg1/deploy/.env
+mkdir -p /Users/<你>/xg1/deploy/logs/postgres /Users/<你>/xg1/deploy/logs/java
+```
+
+**启动 / 重建命令**（`-f` 用绝对**大写** `/Users` 路径，避免 `./init-db` 落到小写
+`/users`；`--project-name deploy` 必须保留，否则不复用既有 `deploy_*` 数据卷会"丢数据"）：
+
+```bash
+docker compose -f /Users/<你>/xg1/deploy/docker-compose.yml \
+  --project-directory /Users/<你>/xg1/deploy --project-name deploy \
+  up -d --build xg-java          # 只重建后端；postgres/redis 不动加 --no-deps
+```
+
+> 数据在命名卷 `deploy_pg_data` 上，`up`/`recreate` 不会删卷；只要项目名仍是
+> `deploy`，重建容器不丢库。改了后端代码后用上面命令重建 `xg-java`，
+> `TenantMigrationRunner` 启动会自动补跑新增的 `db/migration/tenant/V*.sql`。
+
 更多详情请查看 `docs/centos7-deployment.md`

@@ -96,6 +96,30 @@ export function listCareTasks(q: CareTaskQuery): Promise<PageResult<CareTaskView
   return api.get('/care/tasks', { params: toParams(q) }).then((res) => res.data);
 }
 
+/**
+ * 工作台首屏「需关注学生」摘要，取代旧 getAlertSummary（student_alert 已下线）。
+ * 形状与旧 AlertSummary 兼容，调用方逻辑无需改动。
+ * assigneeScope:'all' 对管理角色（dean 等）返回本校全部，对辅导员后端强制收窄为本人，
+ * 故同一函数按角色自动给出正确口径。size:1 只取 total，开销极小。
+ */
+export interface CareSummary {
+  open_total: string;
+  by_severity: Partial<Record<CareSeverity, string>>;
+}
+
+export async function getCareSummary(): Promise<CareSummary> {
+  const OPEN: CareStatus[] = ['pending', 'accepted', 'in_progress', 'overdue'];
+  const [all, criticalHigh] = await Promise.all([
+    listCareTasks({ statuses: OPEN, assigneeScope: 'all', size: 1 }),
+    listCareTasks({ statuses: OPEN, severities: ['critical', 'high'], assigneeScope: 'all', size: 1 }),
+  ]);
+  return {
+    open_total: String(all.total ?? 0),
+    // 旧调用方按 critical+high 求和；把合计塞进 critical、high 置 0，求和不变。
+    by_severity: { critical: String(criticalHigh.total ?? 0), high: '0' },
+  };
+}
+
 export function getCareTask(id: number | string): Promise<CareTaskView> {
   return api.get(`/care/tasks/${id}`).then((res) => res.data);
 }

@@ -76,15 +76,16 @@ SYSTEM_PROMPTS = {
         "- refs：为 (expected - submitted) 最大或 deadline 最近的前 3 张表单各生成一个 "
         "{type:\"form\", id:\"<真实 id>\", label:\"<标题·submitted/expected>\"}。id 严禁编造。\n"
         "- action：填 null（前端会在每条 ref 上渲染「催办」按钮）。\n"
-        "## 预警（关键，必须输出）\n"
-        "当 metrics.recent_alerts 数组非空时，**必须**产出至少 1 条 category=\"异常预警\" 的 insight：\n"
-        "- severity：若数组中存在 severity=critical 的预警，整条 insight severity=critical；"
+        "## 主动关怀（关键，必须输出）\n"
+        "当 metrics.recent_alerts 数组非空时，**必须**产出至少 1 条 category=\"主动关怀\" 的 insight"
+        "（recent_alerts 现在是待处理的主动关怀任务，非旧版预警）：\n"
+        "- severity：若数组中存在 severity=critical 的任务，整条 insight severity=critical；"
         "否则有 high/warn → warn；全部 info → info。\n"
-        "- detail：≤80 字概括预警数量、最严重几位学生的姓名和触发规则；不要罗列全部。\n"
+        "- detail：≤80 字概括关怀任务数量、最需优先处置的几位学生的姓名和触发规则；不要罗列全部。\n"
         "- refs：**必须**为 recent_alerts 中的每一条生成一个 ref，{type:\"alert\", id:\"<数组里的真实 id>\", "
         "label:\"<学生名·规则名>\"}。id 必须原样引用 metrics.recent_alerts[i].id，不得编造。\n"
-        "- 再加一条 {type:\"metric\", id:\"recent_alerts\", label:\"近期预警\"} 便于核验。\n"
-        "- action：填 null（预警的一键操作由前端按 alert ref 自动生成：标记处理/误报/发起谈话）。\n"
+        "- 再加一条 {type:\"metric\", id:\"recent_alerts\", label:\"待处理关怀\"} 便于核验。\n"
+        "- action：填 null（关怀的一键操作由前端按 ref 自动生成：受理/误报/发起谈话）。\n"
         "## 数字与学生的区分（必须遵守，避免幻觉）\n"
         "- metrics.checkin_late_last_7d 是**迟到事件总次数**，不是迟到学生人数。\n"
         "  一位学生可能贡献多次迟到。**严禁**据此直接说\"有 N 名学生迟到\"。\n"
@@ -109,8 +110,8 @@ SYSTEM_PROMPTS = {
         "- 优先指出**异常分布**和**环比变化**，而非绝对数量。\n"
         "- severity 分级：info=常规汇报；warn=存在结构性隐患；critical=需要立即启动专项。\n"
         "- 最多产出 5 条，少于 3 条也 OK。\n"
-        "## 预警（当 metrics.recent_alerts 非空时必须输出）\n"
-        "- 产出 1 条 category=\"异常预警\" 的洞察，整院视角聚焦于分布（严重预警人数、涉及辅导员/班级）。\n"
+        "## 主动关怀（当 metrics.recent_alerts 非空时必须输出）\n"
+        "- 产出 1 条 category=\"主动关怀\" 的洞察，整院视角聚焦于分布（严重关怀任务人数、涉及辅导员/班级）。\n"
         "- refs：为 recent_alerts 里最严重的前 3 条生成 {type:\"alert\", id:\"<真实 id>\", label:\"<学生名·规则名>\"}，"
         "id 严禁编造。\n"
         "## 通知/信息收集进度\n"
@@ -141,7 +142,7 @@ OUTPUT_CONTRACT = (
     '  "insights": [\n'
     "    {\n"
     '      "severity": "info" | "warn" | "critical",\n'
-    '      "category": "短标签，如：审批堆积 / 异常预警 / 违纪 / 请假 / 通知催办 / 信息收集 / 签到 / 总览 / 批量审阅",\n'
+    '      "category": "短标签，如：审批堆积 / 主动关怀 / 违纪 / 请假 / 通知催办 / 信息收集 / 签到 / 总览 / 批量审阅",\n'
     '      "title": "≤20 字的一句话概括",\n'
     '      "detail": "≤80 字的事实陈述，必须引用 metrics 里的具体数字",\n'
     '      "suggestion": "≤40 字的下一步动作建议",\n'

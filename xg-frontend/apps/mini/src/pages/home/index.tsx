@@ -11,7 +11,7 @@ import {
 } from '../../api/leave';
 import { getUnreadCount } from '../../api/notification';
 import { listPendingEnriched } from '../../api/workflow';
-import { getAlertSummary } from '../../api/alert';
+import { getCareSummary } from '../../api/care';
 import {
   getLatestInsight,
   parseInsights,
@@ -242,12 +242,12 @@ function buildCounselorBrief(args: {
 
   let summary: string;
   if (total === 0 && todayLeaveCount === 0) {
-    summary = `${opener}今日班级整体平稳，无待办、无预警、无未读。可以把节奏放在主动走访与学生关怀上。`;
+    summary = `${opener}今日班级整体平稳，无待办、无关怀任务、无未读。可以把节奏放在主动走访与学生关怀上。`;
   } else {
     const chips: string[] = [];
     if (pendingCount > 0) chips.push(`待审 ${pendingCount} 条`);
     if (todayLeaveCount > 0) chips.push(`今日 ${todayLeaveCount} 人不在校`);
-    if (openAlertTotal > 0) chips.push(`${openAlertTotal} 位学生触发预警`);
+    if (openAlertTotal > 0) chips.push(`${openAlertTotal} 条关怀任务待处理`);
     if (unreadCount > 0) chips.push(`未读通知 ${unreadCount} 条`);
     summary = `${opener}今日关注：${chips.join('、')}。`;
     if (criticalHighTotal > 0) {
@@ -312,7 +312,7 @@ function buildCounselorBrief(args: {
       tone: criticalHighTotal > 0 ? 'danger' : 'warn',
       segments: [
         { value: openAlertTotal, tone: criticalHighTotal > 0 ? 'danger' : 'warn' },
-        { text: ' 位学生触发预警' },
+        { text: ' 条关怀任务待处理' },
       ],
       trail: criticalHighTotal > 0 ? `紧急 ${criticalHighTotal}` : undefined,
     });
@@ -368,7 +368,7 @@ export default function HomePage() {
           userId ? safe(listPendingEnriched({ page: 1, size: 5, assigneeId: userId }), { data: [], total: 0 }) : Promise.resolve({ data: [], total: 0 }),
           // class leaves 用于今日离校粗略估计：取 status=approved 的近 50 条，过滤起止跨今日
           safe(listClassLeaves({ page: 1, size: 50, status: 'approved' }), { data: [] as LeaveRequest[], total: 0 as number | string }),
-          safe(getAlertSummary(), { open_total: '0', by_severity: {} }),
+          safe(getCareSummary(), { open_total: '0', by_severity: {} }),
         ]);
         const today = todayISO();
         const todayLeaveCount = (classLeavesToday.data ?? []).filter((l) => {

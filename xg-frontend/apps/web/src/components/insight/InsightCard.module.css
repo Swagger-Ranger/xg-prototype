@@ -371,6 +371,12 @@
 .alertRule {
   color: var(--fg-3);
   font-size: 12px;
+  cursor: pointer;
+}
+
+.alertRule:hover {
+  color: var(--ac);
+  text-decoration: underline;
 }
 
 .alertActions {

@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Collapse, Spin, Empty, Button, Modal, Space } from 'antd';
 import { message } from '@/utils/antdApp';
-import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { describeApiError } from '@/utils/api-error';
 import { useAuthStore } from '@/stores/auth.store';
+import { listCrisisSignals } from '@/api/crisis';
 import {
   listCareTasks,
   acceptCareTask,
@@ -54,6 +55,14 @@ export default function CareWorkbenchPage() {
       queryFn: () => listCareTasks({ statuses: s.statuses, sort: s.sort, size: s.size }),
     })),
   });
+
+  // 危机泳道：独立查询，不进 care SECTIONS、不被规则 severity 排序盖过
+  // （设计：crisis 与 R001–R012 并行，最高优先级，单独最上方呈现）。
+  const crisisQ = useQuery({
+    queryKey: ['crisis.list'],
+    queryFn: listCrisisSignals,
+  });
+  const crisisRows = crisisQ.data ?? [];
 
   const invalidateAll = () => qc.invalidateQueries({ queryKey: ['care.tasks'] });
 
@@ -130,6 +139,52 @@ export default function CareWorkbenchPage() {
       <div className={styles.greeting}>
         {realName}，您好。今天有 {todayTotal} 件需要关注的事。
       </div>
+
+      {/* 危机泳道：仅有待核实线索时出现，红色置顶、与下方关怀任务强区隔。
+          点进去看区一处理必须信息 + 区二辅助判断（设计 §4/§5）。 */}
+      {crisisRows.length > 0 && (
+        <div
+          style={{
+            margin: '16px 0',
+            border: '1px solid #ffccc7',
+            borderRadius: 8,
+            background: '#fff2f0',
+            padding: '12px 16px',
+          }}
+        >
+          <div style={{ fontWeight: 600, color: '#cf1322', marginBottom: 8 }}>
+            危机 · 需立即人工核实（{crisisRows.length}）
+          </div>
+          {crisisRows.map((c) => (
+            <div
+              key={c.signal_id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 0',
+                borderTop: '1px solid #ffd8d3',
+              }}
+            >
+              <Space>
+                <span style={{ fontWeight: 600 }}>{c.student_name ?? '未知学生'}</span>
+                {c.class_name && <span style={{ color: '#6b7280' }}>· {c.class_name}</span>}
+                <span style={{ color: '#94a3b8' }}>
+                  {new Date(c.created_at).toLocaleString('zh-CN', { hour12: false })}
+                </span>
+              </Space>
+              <Button
+                type="primary"
+                danger
+                size="small"
+                onClick={() => navigate(`/crisis/${c.signal_id}`)}
+              >
+                查看并处理
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 今日待处理默认展开；超期即使有数也不自动展开（W1 §2.2 避免一进首屏焦虑） */}
       <Collapse defaultActiveKey={['today']} items={items} />

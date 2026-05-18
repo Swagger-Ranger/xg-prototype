@@ -14,6 +14,7 @@ export interface CounselorTalk {
   follow_up: string | null;
   talk_at: string;
   source_alert_id: string | null;
+  source_care_task_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +35,7 @@ export interface CreateCounselorTalkData {
   follow_up?: string;
   talk_at: string;
   source_alert_id?: string;
+  source_care_task_id?: string;
 }
 
 export function listCounselorTalks(

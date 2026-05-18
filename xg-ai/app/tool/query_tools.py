@@ -714,6 +714,19 @@ async def summarize_workstudy_applicants(args: dict[str, Any], ctx: dict) -> str
     )
     data = (body.get("data") or {}).get("data") or []
     if not data:
+        # 区分「岗位还没开放/还在审批 → 结构性不可能有申请」与「已开放但暂无人投」，
+        # 否则 LLM 会对审批中岗位错误地建议「宣传一下/调整要求」。岗位详情拉取失败时
+        # 降级回原通用文案，不阻断工具。
+        status = ""
+        try:
+            pbody = await _get_json(f"/api/v1/work-study/positions/{pid}", {}, ctx)
+            pos = (pbody.get("data") or pbody) if isinstance(pbody, dict) else {}
+            status = (pos or {}).get("status") or ""
+        except Exception:
+            status = ""
+        if status in ("draft", "pending_approval"):
+            slabel = (ws_p.t("POSITION_STATUS_LABEL", lang) or {}).get(status, status)
+            return ws_p.t("SUMMARIZE_NOT_OPEN", lang).format(pid=pid, status_label=slabel)
         return ws_p.t("SUMMARIZE_NO_DATA", lang).format(pid=pid)
 
     pending = [a for a in data if a.get("status") == "pending"]

@@ -12,7 +12,7 @@ import {
   PlusOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getAlertSummary } from '@/api/alert';
+import { getCareSummary } from '@/api/care';
 import { getWorkspaceMetrics } from '@/api/insight';
 import { listMyObserverCards, deleteObserverCard, type ObserverCard as ObserverCardData } from '@/api/aiObserver';
 import { useAuth } from '@/hooks/useAuth';
@@ -67,13 +67,13 @@ export default function DeanWorkspace() {
   });
 
   const { data: alertSummary } = useQuery({
-    queryKey: ['alertSummary'],
-    queryFn: getAlertSummary,
+    queryKey: ['careSummary'],
+    queryFn: getCareSummary,
     refetchInterval: 120000,
   });
 
-  const openTotal =
-    Number(alertSummary?.open_total ?? 0) || Number(metrics?.alerts_open_total ?? 0);
+  // student_alert 已下线，口径统一走 care_task；不再回退旧的 metrics.alerts_open_total。
+  const openTotal = Number(alertSummary?.open_total ?? 0);
   const criticalHigh =
     Number(alertSummary?.by_severity?.critical ?? 0) +
     Number(alertSummary?.by_severity?.high ?? 0);
@@ -104,10 +104,10 @@ export default function DeanWorkspace() {
       spark: SPARK_PATTERNS[2],
     },
     {
-      label: '未解决预警',
+      label: '未解决关怀',
       value: openTotal,
       icon: <AlertOutlined />,
-      href: '/alerts',
+      href: '/care',
       footer: criticalHigh > 0 ? `紧急 ${criticalHigh}` : '全部正常',
       critical: criticalHigh > 0,
       spark: SPARK_PATTERNS[3],
@@ -164,9 +164,9 @@ export default function DeanWorkspace() {
     briefItems.push({
       icon: <AlertOutlined />,
       tone: criticalHigh > 0 ? 'danger' : 'warn',
-      href: '/alerts',
+      href: '/care',
       segments: [
-        { text: '未解决预警 ' },
+        { text: '未解决关怀 ' },
         { value: openTotal, tone: criticalHigh > 0 ? 'danger' : 'warn' },
         { text: ' 条' },
       ],

@@ -12,6 +12,7 @@ import {
   type WorkStudySalary,
 } from '@/api/workStudy';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsWorkStudyScopedViewer } from './scope';
 import { useAIActionStore } from '@/stores/ai-action.store';
 import styles from './DashboardTab.module.css';
 
@@ -44,8 +45,70 @@ interface DashboardTabProps {
 
 export default function DashboardTab({ onJump }: DashboardTabProps = {}) {
   const { isStudent, user } = useAuth();
+  const isScopedViewer = useIsWorkStudyScopedViewer();
+  // 辅导员/班主任/院长：只读「我管辖范围在岗勤工」名单，无图表/AI/审批，不可下钻其他 tab。
+  if (isScopedViewer) return <ManagedRosterDashboard />;
   if (isStudent) return <StudentDashboard userId={user?.id ? String(user.id) : '0'} onJump={onJump} />;
   return <StaffDashboard onJump={onJump} />;
+}
+
+// ============================================================
+// Managed-roster dashboard — 辅导员/班主任/院长 只读了解
+// 数据由后端 WorkStudyManagedScope 按管辖学生集合硬收口，前端只渲染。
+// ============================================================
+
+function ManagedRosterDashboard() {
+  const rosterQ = useQuery({
+    queryKey: ['ws-dashboard-managed-roster'],
+    queryFn: () =>
+      listApplications({
+        page: 1,
+        size: 100,
+        status: 'hired',
+        engagementStatus: 'on_duty',
+        include: 'position',
+      }),
+  });
+
+  const rows = rosterQ.data?.data ?? [];
+  const total = Number(rosterQ.data?.total ?? rows.length);
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.sectionLabel}>
+        <span>我管辖范围 · 在岗勤工</span>
+        <div className={styles.sectionLine} />
+        <span className={styles.rosterCount}>
+          在岗 <strong>{rosterQ.isFetching ? '…' : total}</strong> 人
+        </span>
+      </div>
+
+      <div className={styles.roster}>
+        {rosterQ.isFetching && rows.length === 0 ? (
+          <div className={styles.rosterEmpty}>加载中…</div>
+        ) : rows.length === 0 ? (
+          <div className={styles.rosterEmpty}>当前管辖范围内暂无在岗勤工学生</div>
+        ) : (
+          rows.map((a) => {
+            const unit = a.position_summary?.department_name;
+            const title = a.position_summary?.title ?? `岗位 #${a.position_id}`;
+            return (
+              <div key={a.id} className={styles.rosterRow}>
+                <span className={styles.rosterName}>{a.student_name}</span>
+                <span className={styles.rosterMeta}>
+                  {title}
+                  {unit ? ` · ${unit}` : ''}
+                </span>
+                <span className={styles.rosterSince}>
+                  {a.engaged_at ? `在岗 ${dayjs(a.engaged_at).format('YYYY-MM-DD')}` : '在岗中'}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ============================================================

@@ -168,7 +168,11 @@ public class NotificationOrchestrator {
                             .eq(NotificationPreference::getTemplateCode, tmpl.getCode())
                             .last("LIMIT 1"));
             if (pref != null) {
-                if (Boolean.TRUE.equals(pref.getMuted())) return List.of();
+                if (Boolean.TRUE.equals(pref.getMuted())) {
+                    // must_deliver 模板（如危机通道）不可被偏好静默：强制保留 in_app 必达
+                    // （设计 §4.3）。只对标了 must_deliver 的模板生效，不改全局通知行为。
+                    return Boolean.TRUE.equals(tmpl.getMustDeliver()) ? List.of("in_app") : List.of();
+                }
                 return pref.getChannels();
             }
         }

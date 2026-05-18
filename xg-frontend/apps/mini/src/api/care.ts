@@ -22,3 +22,36 @@ export interface CareActiveSummary {
 export function getCareActiveSummary() {
   return get<CareActiveSummary>('/care/me/active-summary');
 }
+
+/**
+ * 首页「今日简报」教职工口径的关怀摘要，取代旧 getAlertSummary（student_alert 下线）。
+ * 形状与旧 AlertSummary 兼容，调用方无需改逻辑。后端 List 参数按逗号绑定；
+ * assigneeScope:'all' 对管理角色返回本校全部、对辅导员后端强制收窄为本人。
+ */
+export interface CareSummary {
+  open_total: string;
+  by_severity: Partial<Record<'critical' | 'high' | 'medium' | 'low', string>>;
+}
+
+const CARE_OPEN_STATUSES = 'pending,accepted,in_progress,overdue';
+
+export async function getCareSummary(): Promise<CareSummary> {
+  const [all, criticalHigh] = await Promise.all([
+    get<{ total?: number }>('/care/tasks', {
+      statuses: CARE_OPEN_STATUSES,
+      assigneeScope: 'all',
+      size: 1,
+    }),
+    get<{ total?: number }>('/care/tasks', {
+      statuses: CARE_OPEN_STATUSES,
+      severities: 'critical,high',
+      assigneeScope: 'all',
+      size: 1,
+    }),
+  ]);
+  return {
+    open_total: String(all.total ?? 0),
+    // 调用方按 critical+high 求和；合计塞 critical、high 置 0，求和不变。
+    by_severity: { critical: String(criticalHigh.total ?? 0), high: '0' },
+  };
+}

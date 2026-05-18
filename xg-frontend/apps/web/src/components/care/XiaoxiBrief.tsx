@@ -53,7 +53,9 @@ export function XiaoxiBrief({ state, brief, onRefresh, refreshing }: XiaoxiBrief
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Space>
-          <XiaoxiAvatar />
+          <div style={{ width: 24, height: 24, flexShrink: 0 }}>
+            <XiaoxiAvatar />
+          </div>
           <span style={{ fontWeight: 600 }}>小夕怎么看</span>
         </Space>
         <Space>

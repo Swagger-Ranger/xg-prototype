@@ -186,6 +186,33 @@ async def test_summarize_applicants_requires_position_id() -> None:
     assert "position_id" in out
 
 
+@pytest.mark.asyncio
+async def test_summarize_applicants_pending_approval_not_open() -> None:
+    """审批中岗位结构性不可能有申请 → 必须给状态感知文案，不能误导「宣传一下」。"""
+    empty_apps = {"data": {"data": []}}
+    pos_detail = {"data": {"id": 999, "status": "pending_approval"}}
+    with patch.object(qt, "_get_json", AsyncMock(side_effect=[empty_apps, pos_detail])):
+        out = await qt.summarize_workstudy_applicants(
+            {"position_id": 999},
+            {"user_id": "1", "tenant_id": "default", "user_role": "counselor"},
+        )
+    assert "审批中" in out and "尚未开放申请" in out
+    assert "暂无申请" not in out  # 不再走会触发「宣传一下」的通用空态
+
+
+@pytest.mark.asyncio
+async def test_summarize_applicants_open_zero_apps_keeps_generic() -> None:
+    """已开放但暂无人投 → 保留原通用空态（此时「宣传一下」是合理建议）。"""
+    empty_apps = {"data": {"data": []}}
+    pos_detail = {"data": {"id": 999, "status": "open"}}
+    with patch.object(qt, "_get_json", AsyncMock(side_effect=[empty_apps, pos_detail])):
+        out = await qt.summarize_workstudy_applicants(
+            {"position_id": 999},
+            {"user_id": "1", "tenant_id": "default", "user_role": "counselor"},
+        )
+    assert "暂无申请" in out
+
+
 # =====================================================================
 # Wave-2 tools (H)
 # =====================================================================

@@ -11,6 +11,7 @@ export interface LocaleResource {
     workspace: string; leave: string; collection: string; checkin: string;
     notification: string; student: string; workLog: string; violation: string;
     alerts: string; workStudy: string; system: string; knowledge: string;
+    care: string; crisis: string;
   };
   login: {
     quickLoginHint: string;
@@ -42,6 +43,8 @@ const zh: LocaleResource = {
     workStudy: '勤工助学',
     system: '系统管理',
     knowledge: '知识问答',
+    care: '关怀工作台',
+    crisis: '危机核实',
   },
   login: {
     quickLoginHint: '选择账号快速登录（密码均为 {{password}}）',

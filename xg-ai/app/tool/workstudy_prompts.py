@@ -79,6 +79,15 @@ MATCH_RATIO_FORMAT = "覆盖 {pct}%（{h}h{m}m）"
 
 # summarize_workstudy_applicants
 SUMMARIZE_NO_DATA = "岗位 #{pid} 暂无申请。"
+# 岗位还在审批/草稿 → 结构性不可能有申请人(后端 apply() 要求 status=open)。
+# 必须与 SUMMARIZE_NO_DATA 区分，否则 LLM 会对未开放岗位错误建议「宣传一下」。
+SUMMARIZE_NOT_OPEN = (
+    "岗位 #{pid} 当前状态为「{status_label}」，尚未开放申请，"
+    "因此还没有任何候选人。等岗位审批通过、进入招聘后，学生才能投递。"
+)
+POSITION_STATUS_LABEL = {
+    "draft": "草稿", "pending_approval": "审批中", "open": "招聘中", "closed": "已关闭",
+}
 SUMMARIZE_HEADER = (
     "岗位 #{pid} 申请总览：共 {total} 份"
     "（审批中 {pending} / 已录用 {hired} / 已拒绝 {rejected}）。"
@@ -186,6 +195,15 @@ EN: dict[str, object] = {
 
     # summarize
     "SUMMARIZE_NO_DATA": "Position #{pid} has no applications yet.",
+    "SUMMARIZE_NOT_OPEN": (
+        "Position #{pid} is currently \"{status_label}\" and not open for "
+        "applications yet, so there are no candidates. Students can only apply "
+        "once it is approved and recruiting."
+    ),
+    "POSITION_STATUS_LABEL": {
+        "draft": "draft", "pending_approval": "pending approval",
+        "open": "open", "closed": "closed",
+    },
     "SUMMARIZE_HEADER": (
         "Position #{pid} applications: {total} total "
         "(pending {pending} / hired {hired} / rejected {rejected})."

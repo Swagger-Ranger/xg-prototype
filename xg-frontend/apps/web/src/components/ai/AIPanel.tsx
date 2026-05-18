@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   SendOutlined, CheckCircleOutlined, FormOutlined,
-  CalendarOutlined, FileTextOutlined, CheckSquareOutlined, QuestionCircleOutlined,
+  CalendarOutlined, FileTextOutlined, QuestionCircleOutlined,
   CompassOutlined, BulbOutlined, RightOutlined, BookOutlined, PushpinOutlined, CloseOutlined,
   PlusOutlined, ToolOutlined,
 } from '@ant-design/icons';
@@ -14,6 +14,11 @@ import { useAIActionStore } from '@/stores/ai-action.store';
 import { useBatchActionStore } from '@/stores/batch-action.store';
 import { useLocaleStore } from '@/stores/locale.store';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  AI_QUICK_CONFIG,
+  resolveAiRoleGroup,
+  type AiQuickIcon,
+} from '@xg1/shared';
 import BatchActionDrawer from '@/components/batch/BatchActionDrawer';
 import api from '@/api';
 import styles from './AIPanel.module.css';
@@ -158,17 +163,25 @@ const QUICK_ROUTES: { label: string; path: string; permission: string | null }[]
   { label: '工作日志', path: '/work-log', permission: 'worklog:manage' },
   { label: '违纪', path: '/violation', permission: 'discipline:manage' },
   { label: '学生信息库', path: '/student', permission: 'student:view' },
-  { label: '异常预警', path: '/alerts', permission: 'student:view' },
+  { label: '关怀工作台', path: '/care', permission: null },
 ];
 
-const STUDENT_AI_QUESTIONS = [
-  { label: '奖学金', prompt: '奖学金申请条件是什么？' },
-  { label: '校规问答', prompt: '学生请假最多能请几天？' },
-];
+/** 共享配置的语义图标 key → 已导入的 antd 图标。知识问答统一用 QuestionCircle。 */
+const QUICK_ICON: Record<AiQuickIcon, JSX.Element> = {
+  leave: <CalendarOutlined />,
+  list: <FileTextOutlined />,
+  notice: <CompassOutlined />,
+  work: <ToolOutlined />,
+  approve: <CheckCircleOutlined />,
+  insight: <BulbOutlined />,
+  collect: <FormOutlined />,
+  overview: <CompassOutlined />,
+  pulse: <ToolOutlined />,
+  config: <ToolOutlined />,
+};
 
-const STAFF_AI_QUESTIONS = [
-  { label: '校规问答', prompt: '请假规定是什么？' },
-];
+/** 图标底色按渲染顺序轮换，沿用空态原有的四色节奏。 */
+const QUICK_TONES = ['accent', 'cyan', 'green', 'amber'] as const;
 
 /** Quick chips visible only when the user is on /work-study. Each one gives the
  * LLM a specific tool nudge so it picks the right query_tools entry without
@@ -210,6 +223,8 @@ export default function AIPanel() {
   const location = useLocation();
 
   const { user, isStudent, hasPermission } = useAuth();
+  const aiGroup = resolveAiRoleGroup(user?.role_codes);
+  const aiCfg = AI_QUICK_CONFIG[aiGroup];
   const persona = useAssistantPersona();
 
   const dispatchAction = useAIActionStore((s) => s.dispatch);
@@ -1181,115 +1196,72 @@ export default function AIPanel() {
             <div className={styles.quickGroup}>
               <span className={styles.quickGroupLabel}>快捷操作</span>
               <div className={styles.quickGrid}>
-                {isStudent ? (
-                  <>
-                    {/* Leave-apply card: tap header for the generic "I want to take
-                        leave" path (Xiaoxi will then ask the type / time / etc.); tap
-                        a type chip to skip straight to that flavor. Fixes the old
-                        "请明天一天事假" hardcode that always assumed personal leave. */}
-                    <div className={styles.quickCard}>
-                      <button
-                        type="button"
-                        className={styles.quickCardHeader}
-                        onClick={() => handleSend('我想请假')}
-                      >
-                        <span className={`${styles.quickIconWrap} ${styles.accent}`}><CalendarOutlined /></span>
-                        <span className={styles.quickTextGroup}>
-                          <span className={styles.quickText}>请假申请</span>
-                          <span className={styles.quickDesc}>选假别直接开始，或让{persona.name}引导</span>
-                        </span>
-                        <RightOutlined className={styles.quickArrow} />
-                      </button>
-                      <div className={styles.quickChips}>
-                        <button type="button" className={styles.chip} onClick={() => handleSend('我想请事假')}>事假</button>
-                        <button type="button" className={styles.chip} onClick={() => handleSend('我想请病假')}>病假</button>
-                        <button type="button" className={styles.chip} onClick={() => handleSend('我想请公假')}>公假</button>
-                        <button type="button" className={styles.chip} onClick={() => handleSend('我想申请周末离校')}>周末离校</button>
-                      </div>
+                {aiGroup === 'student' && (
+                  /* 学生「请假申请」用这张引导卡(点头部走通用路径让小夕追问假别，
+                     点 chip 直达对应假别)，故下方共享配置里 icon==='leave' 的那条
+                     被过滤掉，避免与卡片重复。其余角色没有这张卡，全列表渲染。 */
+                  <div className={styles.quickCard}>
+                    <button
+                      type="button"
+                      className={styles.quickCardHeader}
+                      onClick={() => handleSend('我想请假')}
+                    >
+                      <span className={`${styles.quickIconWrap} ${styles.accent}`}><CalendarOutlined /></span>
+                      <span className={styles.quickTextGroup}>
+                        <span className={styles.quickText}>请假申请</span>
+                        <span className={styles.quickDesc}>选假别直接开始，或让{persona.name}引导</span>
+                      </span>
+                      <RightOutlined className={styles.quickArrow} />
+                    </button>
+                    <div className={styles.quickChips}>
+                      <button type="button" className={styles.chip} onClick={() => handleSend('我想请事假')}>事假</button>
+                      <button type="button" className={styles.chip} onClick={() => handleSend('我想请病假')}>病假</button>
+                      <button type="button" className={styles.chip} onClick={() => handleSend('我想请公假')}>公假</button>
+                      <button type="button" className={styles.chip} onClick={() => handleSend('我想申请周末离校')}>周末离校</button>
                     </div>
-                    <button className={styles.quickBtn} onClick={() => handleSend('学生请假最多能请几天？')}>
-                      <span className={`${styles.quickIconWrap} ${styles.cyan}`}><QuestionCircleOutlined /></span>
-                      <span className={styles.quickTextGroup}>
-                        <span className={styles.quickText}>请假规定</span>
-                        <span className={styles.quickDesc}>假期天数与审批流程</span>
-                      </span>
-                      <RightOutlined className={styles.quickArrow} />
-                    </button>
-                    <button className={styles.quickBtn} onClick={() => handleSend('我有什么未读通知？')}>
-                      <span className={`${styles.quickIconWrap} ${styles.amber}`}><CompassOutlined /></span>
-                      <span className={styles.quickTextGroup}>
-                        <span className={styles.quickText}>通知查看</span>
-                        <span className={styles.quickDesc}>查看未读通知</span>
-                      </span>
-                      <RightOutlined className={styles.quickArrow} />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button className={styles.quickBtn} onClick={() => handleSend('有哪些待审批的请假？')}>
-                      <span className={`${styles.quickIconWrap} ${styles.accent}`}><CheckCircleOutlined /></span>
-                      <span className={styles.quickTextGroup}>
-                        <span className={styles.quickText}>审批待办</span>
-                        <span className={styles.quickDesc}>查看待审批请假</span>
-                      </span>
-                      <RightOutlined className={styles.quickArrow} />
-                    </button>
-                    <button className={styles.quickBtn} onClick={() => handleSend('帮我创建一个签到活动')}>
-                      <span className={`${styles.quickIconWrap} ${styles.cyan}`}><CheckSquareOutlined /></span>
-                      <span className={styles.quickTextGroup}>
-                        <span className={styles.quickText}>发起签到</span>
-                        <span className={styles.quickDesc}>创建签到活动</span>
-                      </span>
-                      <RightOutlined className={styles.quickArrow} />
-                    </button>
-                    <button className={styles.quickBtn} onClick={() => handleSend('帮我创建一个信息收集')}>
-                      <span className={`${styles.quickIconWrap} ${styles.green}`}><FileTextOutlined /></span>
-                      <span className={styles.quickTextGroup}>
-                        <span className={styles.quickText}>信息收集</span>
-                        <span className={styles.quickDesc}>发起收集任务</span>
-                      </span>
-                      <RightOutlined className={styles.quickArrow} />
-                    </button>
-                  </>
+                  </div>
                 )}
+                {(aiGroup === 'student'
+                  ? aiCfg.quickActions.filter((a) => a.icon !== 'leave')
+                  : aiCfg.quickActions
+                ).map((a, i) => (
+                  <button
+                    key={a.label}
+                    className={styles.quickBtn}
+                    onClick={() => handleSend(a.prompt)}
+                  >
+                    <span className={`${styles.quickIconWrap} ${styles[QUICK_TONES[i % QUICK_TONES.length]]}`}>
+                      {QUICK_ICON[a.icon]}
+                    </span>
+                    <span className={styles.quickTextGroup}>
+                      <span className={styles.quickText}>{a.label}</span>
+                      <span className={styles.quickDesc}>{a.desc}</span>
+                    </span>
+                    <RightOutlined className={styles.quickArrow} />
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className={styles.quickGroup}>
               <span className={styles.quickGroupLabel}>知识问答</span>
               <div className={styles.quickGrid}>
-                <button className={styles.quickBtn} onClick={() => handleSend('学生请假最多能请几天？')}>
-                  <span className={`${styles.quickIconWrap} ${styles.accent}`}><QuestionCircleOutlined /></span>
-                  <span className={styles.quickTextGroup}>
-                    <span className={styles.quickText}>请假规定</span>
-                    <span className={styles.quickDesc}>假期天数与审批流程</span>
-                  </span>
-                  <RightOutlined className={styles.quickArrow} />
-                </button>
-                <button className={styles.quickBtn} onClick={() => handleSend('晚归未归怎么处理？')}>
-                  <span className={`${styles.quickIconWrap} ${styles.cyan}`}><BulbOutlined /></span>
-                  <span className={styles.quickTextGroup}>
-                    <span className={styles.quickText}>考勤处理</span>
-                    <span className={styles.quickDesc}>晚归未归处理流程</span>
-                  </span>
-                  <RightOutlined className={styles.quickArrow} />
-                </button>
-                <button className={styles.quickBtn} onClick={() => handleSend('奖学金申请条件是什么？')}>
-                  <span className={`${styles.quickIconWrap} ${styles.green}`}><BulbOutlined /></span>
-                  <span className={styles.quickTextGroup}>
-                    <span className={styles.quickText}>奖学金政策</span>
-                    <span className={styles.quickDesc}>申请条件与评选流程</span>
-                  </span>
-                  <RightOutlined className={styles.quickArrow} />
-                </button>
-                <button className={styles.quickBtn} onClick={() => handleSend('学生违纪处分有哪些等级？')}>
-                  <span className={`${styles.quickIconWrap} ${styles.amber}`}><QuestionCircleOutlined /></span>
-                  <span className={styles.quickTextGroup}>
-                    <span className={styles.quickText}>校规制度</span>
-                    <span className={styles.quickDesc}>违纪处分与申诉流程</span>
-                  </span>
-                  <RightOutlined className={styles.quickArrow} />
-                </button>
+                {aiCfg.knowledgeQuestions.map((q, i) => (
+                  <button
+                    key={q.label}
+                    className={styles.quickBtn}
+                    onClick={() => handleSend(q.prompt)}
+                  >
+                    <span className={`${styles.quickIconWrap} ${styles[QUICK_TONES[i % QUICK_TONES.length]]}`}>
+                      <QuestionCircleOutlined />
+                    </span>
+                    <span className={styles.quickTextGroup}>
+                      <span className={styles.quickText}>{q.label}</span>
+                      <span className={styles.quickDesc}>{q.desc}</span>
+                    </span>
+                    <RightOutlined className={styles.quickArrow} />
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -1324,7 +1296,7 @@ export default function AIPanel() {
               {r.label}
             </button>
           ))}
-          {(isStudent ? STUDENT_AI_QUESTIONS : STAFF_AI_QUESTIONS).map((q) => (
+          {aiCfg.knowledgeQuestions.map((q) => (
             <button
               key={q.label}
               className={styles.suggestion}

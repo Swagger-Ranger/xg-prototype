@@ -20,6 +20,8 @@ const ROUTE_KEYS: Array<[prefix: string, key: string]> = [
   ['/work-log', 'workLog'],
   ['/violation', 'violation'],
   ['/alerts', 'alerts'],
+  ['/care', 'care'],
+  ['/crisis', 'crisis'],
   ['/work-study', 'workStudy'],
   ['/system', 'system'],
   ['/knowledge', 'knowledge'],
