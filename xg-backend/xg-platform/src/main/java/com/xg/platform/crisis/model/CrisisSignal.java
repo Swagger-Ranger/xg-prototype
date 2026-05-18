@@ -41,6 +41,10 @@ public class CrisisSignal {
     @TableField("rule_version")
     private String ruleVersion;
 
+    /** 命中类别：safety / basic_needs。临床分类桶，给辅导员电话前分诊；非学生原话（设计 §5）。 */
+    @TableField("category")
+    private String category;
+
     /** pending / closed（v1 只这两态）。 */
     private String status;
 

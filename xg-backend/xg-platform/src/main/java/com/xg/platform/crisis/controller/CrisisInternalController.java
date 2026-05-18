@@ -59,7 +59,8 @@ public class CrisisInternalController {
             throw new BizException(GlobalErrorCode.UNAUTHORIZED);
         }
 
-        crisisSignalService.report(studentId, body.messageId(), body.ruleVersion());
+        crisisSignalService.report(studentId, body.messageId(), body.ruleVersion(),
+                body.category());
         return R.ok();
     }
 

@@ -18,6 +18,7 @@ _ENDPOINT = "/internal/crisis/signal"
 async def report(
     message_id: str,
     rule_version: str,
+    category: str,
     authorization: str,
     tenant_id: str,
 ) -> bool:
@@ -33,11 +34,16 @@ async def report(
         async with httpx.AsyncClient(
             base_url=settings.java_base_url, timeout=5.0, trust_env=False
         ) as client:
-            # Java 全局 Jackson SNAKE_CASE：键必须 snake_case（message_id/rule_version），
-            # 否则绑定为 null → Java 端 BAD_REQUEST 400。
+            # Java 全局 Jackson SNAKE_CASE：键必须 snake_case，否则绑定 null → 400。
+            # category 是命中类别（safety/basic_needs），非学生原话——给辅导员做
+            # 电话前分诊（自伤风险 vs 生存困难），不破隐私 §5。
             resp = await client.post(
                 _ENDPOINT,
-                json={"message_id": message_id, "rule_version": rule_version},
+                json={
+                    "message_id": message_id,
+                    "rule_version": rule_version,
+                    "category": category,
+                },
                 headers=headers,
             )
         if resp.status_code == 200:

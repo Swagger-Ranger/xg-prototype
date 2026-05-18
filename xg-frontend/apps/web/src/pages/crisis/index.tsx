@@ -25,6 +25,13 @@ function fmt(s: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? s : d.toLocaleString('zh-CN', { hour12: false });
 }
 
+/** 命中类别 → 人话。临床分类桶，不是学生原话（设计 §5）。 */
+function categoryLabel(c: string | null): string {
+  if (c === 'safety') return '安全危机类（高危表达）';
+  if (c === 'basic_needs') return '基本生存求助';
+  return '未分类';
+}
+
 export default function CrisisDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -91,6 +98,15 @@ export default function CrisisDetailPage() {
       >
         <div style={{ fontWeight: 600, color: '#cf1322', marginBottom: 10 }}>
           危机处理必须信息
+        </div>
+        <div style={{ marginBottom: 12, fontSize: 15 }}>
+          <b>为什么触发：</b>
+          <Tag color={d.category === 'safety' ? 'red' : 'orange'}>
+            {categoryLabel(d.category)}
+          </Tag>
+          <span style={{ color: '#94a3b8' }}>
+            命中类别（分诊用，非学生原话；具体内容请电话/当面向本人核实）
+          </span>
         </div>
         <Descriptions column={2} size="small">
           <Descriptions.Item label="学生">{d.student_name ?? '—'}</Descriptions.Item>

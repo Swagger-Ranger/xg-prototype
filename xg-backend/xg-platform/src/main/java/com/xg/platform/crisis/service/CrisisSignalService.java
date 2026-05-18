@@ -70,7 +70,7 @@ public class CrisisSignalService {
      * <p>身份铁律（设计 §4.1）：{@code studentId} 必须是调用方<b>重校验已认证 token</b>
      * 后解析出的，不是 xg-ai 自报——本方法只接受已解析的 id，校验在内部端点完成。
      */
-    public void report(Long studentId, String messageId, String ruleVersion) {
+    public void report(Long studentId, String messageId, String ruleVersion, String category) {
         if (!enabled) {
             log.debug("crisis channel disabled (xg.crisis.enabled=false), skip report");
             return;
@@ -79,8 +79,9 @@ public class CrisisSignalService {
                 || ruleVersion == null || ruleVersion.isBlank()) {
             throw new BizException(GlobalErrorCode.BAD_REQUEST);
         }
+        // category 是分诊增强、非安全必需：缺失不拦截危机信号（安全优先，宁可少一行分类）。
 
-        CrisisSignal signal = findOrCreate(studentId, messageId, ruleVersion);
+        CrisisSignal signal = findOrCreate(studentId, messageId, ruleVersion, category);
 
         // 已成功通知过 → 幂等返回（再发会被 (source_type,source_id,template_code) 去重吞掉，
         // 此时 orchestrator 的 null 是"去重"语义，不当失败 —— 设计 §4.3）。
@@ -186,7 +187,7 @@ public class CrisisSignalService {
                 asStr(core.get("grade")),
                 asStr(core.get("studentNo")),
                 asStr(core.get("phone")),
-                s.getCreatedAt(), s.getRuleVersion(), s.getStatus(),
+                s.getCreatedAt(), s.getRuleVersion(), s.getCategory(), s.getStatus(),
                 s.getNotifyStatus(), s.getHandledAt(), s.getHandledBy(),
                 crisisQueryMapper.careHistoryCount(tid, s.getStudentId()),
                 crisisQueryMapper.recentCare(tid, s.getStudentId(), RECENT_LIMIT),
@@ -316,7 +317,8 @@ public class CrisisSignalService {
         return o == null ? null : o.toString();
     }
 
-    private CrisisSignal findOrCreate(Long studentId, String messageId, String ruleVersion) {
+    private CrisisSignal findOrCreate(Long studentId, String messageId,
+                                      String ruleVersion, String category) {
         CrisisSignal existing = selectByIdem(messageId, ruleVersion);
         if (existing != null) {
             return existing;
@@ -327,6 +329,7 @@ public class CrisisSignalService {
         s.setStudentId(studentId);
         s.setMessageId(messageId);
         s.setRuleVersion(ruleVersion);
+        s.setCategory(category);
         s.setStatus("pending");
         s.setCreatedAt(OffsetDateTime.now());
         try {

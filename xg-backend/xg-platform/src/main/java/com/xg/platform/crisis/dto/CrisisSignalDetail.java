@@ -29,6 +29,8 @@ public record CrisisSignalDetail(
         String phone,
         OffsetDateTime createdAt,
         String ruleVersion,
+        /** 命中类别 safety/basic_needs；区一据此显示「为什么触发」的分诊层。非原话（§5）。 */
+        String category,
         String status,
         String notifyStatus,
         OffsetDateTime handledAt,

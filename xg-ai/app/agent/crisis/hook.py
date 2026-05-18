@@ -41,7 +41,9 @@ async def maybe_handle_crisis(
         # 每条入站消息生成稳定 message_id（不要求消息持久化，设计 §4.1）
         message_id = uuid.uuid4().hex
         # 旁路回调 best-effort：失败不阻断学生侧支持卡（设计 §0 两件互不依赖）
-        ok = await notify.report(message_id, hit.rule_version, authorization, tenant_id)
+        ok = await notify.report(
+            message_id, hit.rule_version, hit.category, authorization, tenant_id
+        )
         if not ok:
             logger.error(
                 "CRISIS side-channel not confirmed (loud) msg_id=%s —— "

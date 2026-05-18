@@ -63,6 +63,8 @@ export interface CrisisSignalDetail {
   phone: string | null;
   created_at: string;
   rule_version: string | null;
+  /** 命中类别 safety/basic_needs；区一据此显示「为什么触发」分诊层（非原话，§5）。 */
+  category: string | null;
   status: string;
   notify_status: string | null;
   handled_at: string | null;
