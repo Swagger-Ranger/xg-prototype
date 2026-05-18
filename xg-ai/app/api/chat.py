@@ -666,6 +666,15 @@ async def global_chat(
     if lang not in ("zh", "en"):
         lang = "zh"
 
+    # 危机求助快速通道前置钩子（设计 §4.1）：跑在 LLM 之前、不依赖 LLM。
+    # **默认关闭**（settings.crisis_enabled=False）→ 永远 None，正常 chat 零影响。
+    # 命中显式求助 → 旁路回调 Java + 直接返回固定支持卡，短路 LLM。fail-safe。
+    from app.agent.crisis.hook import maybe_handle_crisis
+
+    _crisis_card = await maybe_handle_crisis(req.message, authorization, x_tenant_id)
+    if _crisis_card is not None:
+        return ChatResponse(reply=_crisis_card, conversation_id=conv_id)
+
     # Short-circuit:看 X 假别配置 → 直接 navigate,不进 LLM/RAG。
     # RAG 命中"请假管理办法"等知识库时 LLM 会忍不住答规章,跳转就失败 — 用规则强制路由。
     if (req.user_role in _LEAVE_RULE_VIEWER_ROLES):

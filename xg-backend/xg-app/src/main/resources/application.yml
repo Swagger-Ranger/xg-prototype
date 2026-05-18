@@ -76,6 +76,10 @@ sa-token:
   token-style: uuid
 
 xg:
+  # 危机求助快速通道（P1 例外，并行通道）。默认关闭——D1(法务立项)/D2(心理中心
+  # 词表)/D3(值班可达) 联合 go/no-go 未拍板前不激活（设计 §7/§9, PRD §9.5）。
+  crisis:
+    enabled: false
   rbac:
     # 关闭后退回旧行为：只按 X-Tenant-Id header 决定 schema，不做 session 绑定校验。
     # 上线观测异常时可临时置 false 兜底（RBAC 落地方案 §11 回滚策略）。

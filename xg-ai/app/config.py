@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     java_base_url: str = "http://localhost:8080"
     internal_token: str = "dev-internal-token"
 
+    # 危机求助快速通道（P1 例外）。默认关闭——D1/D2/D3 联合 go/no-go 未拍板
+    # 前不激活；关闭时 chat 前置钩子永远 no-op（设计 §7/§9, PRD §9.5）。
+    crisis_enabled: bool = False
+
     # LLM providers
     qwen_api_key: str = ""
     qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"

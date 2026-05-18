@@ -53,6 +53,10 @@ public class NotificationTemplate {
 
     private Boolean enabled;
 
+    /** 不可静默：true 时即便角色偏好 muted 也强制保留 in_app（设计 §4.3）。只影响标了它的模板。 */
+    @TableField("must_deliver")
+    private Boolean mustDeliver;
+
     private String description;
 
     /** 收件人配置 JSON,例:[{"type":"applicant"},{"type":"applicant_counselor","cc":true}]
