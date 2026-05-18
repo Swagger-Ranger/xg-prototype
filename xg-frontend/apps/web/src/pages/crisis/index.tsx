@@ -75,7 +75,7 @@ export default function CrisisDetailPage() {
   const closed = d.status === 'closed';
 
   return (
-    <div style={{ padding: 24, maxWidth: 860, margin: '0 auto', paddingBottom: 88 }}>
+    <div style={{ maxWidth: 860, margin: '0 auto', paddingBottom: 88 }}>
       {/* 头部 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Space>

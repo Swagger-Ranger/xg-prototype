@@ -25,6 +25,8 @@ const en: LocaleResource = {
     workStudy: 'Work-study',
     system: 'System',
     knowledge: 'Knowledge',
+    care: 'Care',
+    crisis: 'Crisis',
   },
   login: {
     quickLoginHint: 'Pick an account to sign in (password: {{password}})',

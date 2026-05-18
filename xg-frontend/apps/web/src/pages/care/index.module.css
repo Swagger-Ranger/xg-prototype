@@ -1,7 +1,7 @@
+/* 与 leave / notification / workStudy 等标准页一致：只控宽，
+   24px 边距由 AppLayout .content 全局提供，不再本地双重 padding / 居中。 */
 .page {
-  padding: 24px;
-  max-width: 960px;
-  margin: 0 auto;
+  max-width: 1200px;
 }
 
 .header {

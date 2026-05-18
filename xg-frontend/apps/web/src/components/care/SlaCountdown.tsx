@@ -25,7 +25,7 @@ export function SlaCountdown({ dueAt }: { dueAt: string }) {
 
   return (
     <span style={{ color: overdue ? 'var(--ant-color-error, #dc2626)' : undefined }}>
-      {overdue ? `已超期 ${text}` : `SLA 还剩 ${text}`}
+      {overdue ? `已超期 ${text}` : `处理时限还剩 ${text}`}
     </span>
   );
 }

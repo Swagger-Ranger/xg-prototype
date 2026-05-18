@@ -121,7 +121,7 @@ export default function CareTaskDetailPage() {
   const evidence = t.trigger_evidence ?? {};
 
   return (
-    <div style={{ padding: 24, maxWidth: 860, margin: '0 auto', paddingBottom: 88 }}>
+    <div style={{ maxWidth: 860, margin: '0 auto', paddingBottom: 88 }}>
       {/* 1. 头部：返回 + 学生 + 严重度 + SLA */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Space>
