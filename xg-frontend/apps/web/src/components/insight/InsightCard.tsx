@@ -25,7 +25,7 @@ import {
 } from '@/api/insight';
 import { getPendingEnriched } from '@/api/workflow';
 import { getClassRoster } from '@/api/counselor';
-import { acknowledgeAlert, markAlertFalsePositive, type AlertSeverity } from '@/api/alert';
+import { acceptCareTask, rejectCareTask, type CareSeverity } from '@/api/care';
 import { remindForm } from '@/api/collection';
 import { useAIActionStore, type PinnedRef } from '@/stores/ai-action.store';
 import { useBatchAction } from '@/hooks/useBatchAction';
@@ -216,14 +216,16 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
     queryFn: () => getLatestInsight(role, classId),
   });
 
-  // metrics.recent_alerts is the list of open student_alert rows the backend
-  // pinned to the insight. We look up by id so an `alert` ref can render
-  // real context (student name + rule) plus inline actions.
+  // metrics.recent_alerts is the list of open 主动关怀 (care_task) rows the
+  // backend pinned to the insight (student_alert retired — A1 hard-cut). We
+  // look up by id so an `alert` ref (ref type kept as the internal string
+  // "alert" — invisible to users) can render real context (student name +
+  // care rule) plus the inline 受理/误报/发起谈话 actions.
   interface RecentAlertRow {
     id: string;
     student_id: string;
     student_name: string;
-    severity: AlertSeverity;
+    severity: CareSeverity;
     rule_name: string;
   }
   const alertMap = useMemo<Map<string, RecentAlertRow>>(() => {
@@ -238,8 +240,8 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
           id: String(r.id),
           student_id: String(r.student_id ?? ''),
           student_name: String(r.student_name ?? '未知学生'),
-          severity: (r.severity ?? 'medium') as AlertSeverity,
-          rule_name: String(r.rule_name ?? '预警'),
+          severity: (r.severity ?? 'medium') as CareSeverity,
+          rule_name: String(r.rule_name ?? '关怀任务'),
         });
       }
     } catch {
@@ -249,9 +251,13 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
   }, [data?.metrics]);
 
   const alertActionMut = useMutation({
+    // care_task 动作映射：acknowledge → 受理（accept），false_positive → 误报
+    // （reject reason=rule_not_applicable：关闭任务并回写规则效果反馈）。
+    // action 联合保持 acknowledge/false_positive 字面量不变，仅改其语义，
+    // 以免动到下方 loading 判定等无关代码。
     mutationFn: async (input: { id: string; action: 'acknowledge' | 'false_positive' }) => {
-      if (input.action === 'acknowledge') await acknowledgeAlert(input.id);
-      else await markAlertFalsePositive(input.id);
+      if (input.action === 'acknowledge') await acceptCareTask(input.id);
+      else await rejectCareTask(input.id, 'rule_not_applicable');
       return input;
     },
     onSuccess: (input) => {
@@ -259,9 +265,8 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
         ...prev,
         [input.id]: input.action === 'acknowledge' ? 'acknowledged' : 'false_positive',
       }));
-      message.success(input.action === 'acknowledge' ? '已标记关注' : '已标记误报');
-      qc.invalidateQueries({ queryKey: ['alertSummary'] });
-      qc.invalidateQueries({ queryKey: ['alerts'] });
+      message.success(input.action === 'acknowledge' ? '已受理' : '已标记误报');
+      qc.invalidateQueries({ queryKey: ['careSummary'] });
     },
     onError: (e: unknown) => message.warning(describeApiError(e, '操作失败，请稍后再试')),
   });
@@ -654,7 +659,7 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
                           <span className={styles.alertActions}>
                             {handled ? (
                               <span className={styles.alertDone}>
-                                <CheckCircleOutlined /> {handled === 'acknowledged' ? '已关注' : '已标误报'}
+                                <CheckCircleOutlined /> {handled === 'acknowledged' ? '已受理' : '已标误报'}
                               </span>
                             ) : (
                               <>
@@ -664,7 +669,7 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
                                   loading={pending && alertActionMut.variables?.action === 'acknowledge'}
                                   onClick={() => alertActionMut.mutate({ id: row.id, action: 'acknowledge' })}
                                 >
-                                  关注
+                                  受理
                                 </Button>
                                 <Button
                                   size="small"
@@ -681,7 +686,7 @@ export default function InsightCard({ role, title = 'AI 观察员', classId = nu
                                   onClick={() => {
                                     const params = new URLSearchParams({
                                       studentId: row.student_id,
-                                      alertId: row.id,
+                                      careTaskId: row.id,
                                       context: row.rule_name,
                                     });
                                     navigate(`/counselor-talks?${params.toString()}`);

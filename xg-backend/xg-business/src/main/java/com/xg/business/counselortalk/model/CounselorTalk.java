@@ -36,4 +36,8 @@ public class CounselorTalk extends BaseEntity {
 
     @TableField("source_alert_id")
     private Long sourceAlertId;
+
+    /** AI 观察员「主动关怀」卡片「发起谈话」回链的 care_task.id（单向）。 */
+    @TableField("source_care_task_id")
+    private Long sourceCareTaskId;
 }

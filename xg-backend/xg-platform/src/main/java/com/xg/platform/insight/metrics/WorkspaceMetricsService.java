@@ -43,11 +43,13 @@ public class WorkspaceMetricsService {
                         "JOIN " + schema + ".sys_user_role r ON u.id = r.user_id " +
                         "WHERE r.role_id = 2 AND u.status = 'active'"));
 
+        // student_alert 退役 → 院系视角的预警分布同样切到 care_task。
         m.put("alerts_by_severity", groupCount(
-                "SELECT severity, COUNT(*) FROM " + schema + ".student_alert " +
-                        "WHERE status = 'open' GROUP BY severity"));
+                "SELECT severity, COUNT(*) FROM " + schema + ".care_task " +
+                        "WHERE status IN ('pending','accepted','in_progress','overdue') GROUP BY severity"));
         m.put("alerts_open_total", countOrZero(
-                "SELECT COUNT(*) FROM " + schema + ".student_alert WHERE status = 'open'"));
+                "SELECT COUNT(*) FROM " + schema + ".care_task " +
+                        "WHERE status IN ('pending','accepted','in_progress','overdue')"));
         m.put("recent_alerts", recentAlerts(schema, null, 8));
 
         m.put("leave_pending", countOrZero(
@@ -180,12 +182,15 @@ public class WorkspaceMetricsService {
                         "WHERE status = 'approved' AND cancel_time IS NULL " +
                         "  AND end_time < NOW() AND student_id IN (" + idList + ")"));
 
+        // student_alert 退役 → 口径切到 care_task；open = 未关闭的关怀状态。
         m.put("alerts_open", countOrZero(
-                "SELECT COUNT(*) FROM " + schema + ".student_alert " +
-                        "WHERE status = 'open' AND student_id IN (" + idList + ")"));
+                "SELECT COUNT(*) FROM " + schema + ".care_task " +
+                        "WHERE status IN ('pending','accepted','in_progress','overdue') " +
+                        "  AND student_id IN (" + idList + ")"));
         m.put("alerts_critical", countOrZero(
-                "SELECT COUNT(*) FROM " + schema + ".student_alert " +
-                        "WHERE status = 'open' AND severity = 'critical' AND student_id IN (" + idList + ")"));
+                "SELECT COUNT(*) FROM " + schema + ".care_task " +
+                        "WHERE status IN ('pending','accepted','in_progress','overdue') " +
+                        "  AND severity = 'critical' AND student_id IN (" + idList + ")"));
         m.put("recent_alerts", recentAlerts(schema, idList, 8));
 
         m.put("violations_last_30d", countOrZero(
@@ -283,22 +288,31 @@ public class WorkspaceMetricsService {
         }
     }
 
+    /**
+     * Open 主动关怀 (care_task) rows for the insight card. Sources care_task — NOT
+     * the retired student_alert (project-wide A1 hard-cut). The returned map keys
+     * (id/student_id/severity/rule_name/created_at/student_name/status) are kept
+     * identical to the old shape so the sidecar reflection and the frontend
+     * alertMap parse unchanged; rule_name is the care rule's Chinese name pulled
+     * from trigger_data (CareRuleEngine writes trigger_data.rule_name).
+     */
     private List<Map<String, Object>> recentAlerts(String schema, String studentFilter, int limit) {
         String filterClause = studentFilter == null || studentFilter.isBlank()
                 ? ""
-                : " AND sa.student_id IN (" + studentFilter + ")";
-        String sql = "SELECT sa.id, sa.student_id, sa.severity, sa.rule_name, sa.created_at, " +
-                "u.real_name AS student_name, sa.status " +
-                "FROM " + schema + ".student_alert sa " +
-                "JOIN " + schema + ".sys_user u ON u.id = sa.student_id " +
-                "WHERE sa.status = 'open'" + filterClause + " " +
-                "ORDER BY CASE sa.severity " +
+                : " AND ct.student_id IN (" + studentFilter + ")";
+        String sql = "SELECT ct.id, ct.student_id, ct.severity, " +
+                "COALESCE(NULLIF(ct.trigger_data->>'rule_name',''), '关怀任务') AS rule_name, " +
+                "ct.created_at, u.real_name AS student_name, ct.status " +
+                "FROM " + schema + ".care_task ct " +
+                "JOIN " + schema + ".sys_user u ON u.id = ct.student_id " +
+                "WHERE ct.status IN ('pending','accepted','in_progress','overdue')" + filterClause + " " +
+                "ORDER BY CASE ct.severity " +
                 "  WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, " +
-                "sa.created_at DESC LIMIT ?";
+                "ct.created_at DESC LIMIT ?";
         try {
             return jdbc.queryForList(sql, limit);
         } catch (Exception e) {
-            log.warn("recent alerts query failed: {}", e.getMessage());
+            log.warn("recent care tasks query failed: {}", e.getMessage());
             return List.of();
         }
     }

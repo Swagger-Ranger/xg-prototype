@@ -35,4 +35,7 @@ public class CounselorTalkCreateRequest {
 
     /** Optional — when set, the alert is auto-acknowledged and linked back. */
     private Long sourceAlertId;
+
+    /** Optional — care_task.id this talk was initiated from (forward link only). */
+    private Long sourceCareTaskId;
 }

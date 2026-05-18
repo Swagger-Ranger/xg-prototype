@@ -52,6 +52,8 @@ export default function CounselorTalkManagement() {
   const [form] = Form.useForm();
   const [alertContext, setAlertContext] = useState<string | null>(null);
   const [sourceAlertId, setSourceAlertId] = useState<string | null>(null);
+  // care_task 来源（AI 观察员「主动关怀」卡片「发起谈话」带入，与 sourceAlertId 平行）
+  const [sourceCareTaskId, setSourceCareTaskId] = useState<string | null>(null);
 
   const queryParams = {
     page,
@@ -78,6 +80,7 @@ export default function CounselorTalkManagement() {
       setCreateOpen(false);
       setAlertContext(null);
       setSourceAlertId(null);
+      setSourceCareTaskId(null);
       form.resetFields();
       queryClient.invalidateQueries({ queryKey: ['counselorTalks'] });
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
@@ -91,6 +94,7 @@ export default function CounselorTalkManagement() {
     const studentId = searchParams.get('studentId');
     const studentName = searchParams.get('studentName');
     const alertId = searchParams.get('alertId');
+    const careTaskId = searchParams.get('careTaskId');
     const context = searchParams.get('context');
     if (studentId) {
       form.setFieldsValue({
@@ -100,10 +104,11 @@ export default function CounselorTalkManagement() {
       });
       if (context) setAlertContext(context);
       if (alertId) setSourceAlertId(alertId);
+      if (careTaskId) setSourceCareTaskId(careTaskId);
       setCreateOpen(true);
       // clear params so revisit doesn't re-open
       const next = new URLSearchParams(searchParams);
-      ['studentId', 'studentName', 'alertId', 'context'].forEach((k) => next.delete(k));
+      ['studentId', 'studentName', 'alertId', 'careTaskId', 'context'].forEach((k) => next.delete(k));
       setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,6 +124,7 @@ export default function CounselorTalkManagement() {
         follow_up: values.follow_up || undefined,
         talk_at: (values.talk_at as Dayjs).toISOString(),
         source_alert_id: sourceAlertId ?? undefined,
+        source_care_task_id: sourceCareTaskId ?? undefined,
       });
     });
   };
@@ -148,6 +154,7 @@ export default function CounselorTalkManagement() {
         <span style={{ color: 'var(--fg-2)' }}>
           {v}
           {r.source_alert_id && <span className={styles.alertBadge}>由告警发起</span>}
+          {r.source_care_task_id && <span className={styles.alertBadge}>由关怀任务发起</span>}
         </span>
       ),
     },
@@ -177,6 +184,7 @@ export default function CounselorTalkManagement() {
             form.setFieldsValue({ talk_at: dayjs() });
             setAlertContext(null);
             setSourceAlertId(null);
+            setSourceCareTaskId(null);
             setCreateOpen(true);
           }}
         >
@@ -233,6 +241,7 @@ export default function CounselorTalkManagement() {
           setCreateOpen(false);
           setAlertContext(null);
           setSourceAlertId(null);
+          setSourceCareTaskId(null);
           form.resetFields();
         }}
         okText="保存"
@@ -312,6 +321,9 @@ export default function CounselorTalkManagement() {
             )}
             {detail.source_alert_id && (
               <Field label="来源告警" value={<span className={styles.alertBadge}>#{detail.source_alert_id}</span>} />
+            )}
+            {detail.source_care_task_id && (
+              <Field label="来源关怀任务" value={<span className={styles.alertBadge}>#{detail.source_care_task_id}</span>} />
             )}
             <Field label="记录于" value={dayjs(detail.created_at).format('YYYY-MM-DD HH:mm:ss')} />
           </div>

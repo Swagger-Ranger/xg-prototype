@@ -39,6 +39,7 @@ public class CounselorTalkService {
         talk.setFollowUp(req.getFollowUp());
         talk.setTalkAt(req.getTalkAt());
         talk.setSourceAlertId(req.getSourceAlertId());
+        talk.setSourceCareTaskId(req.getSourceCareTaskId());
         counselorTalkMapper.insert(talk);
 
         Map<String, Object> eventData = new LinkedHashMap<>();
@@ -48,6 +49,9 @@ public class CounselorTalkService {
         eventData.put("counselor_name", counselorName);
         if (talk.getSourceAlertId() != null) {
             eventData.put("source_alert_id", talk.getSourceAlertId());
+        }
+        if (talk.getSourceCareTaskId() != null) {
+            eventData.put("source_care_task_id", talk.getSourceCareTaskId());
         }
         eventPublisher.publish(talk.getStudentId(), StudentEventType.COUNSELOR_TALK_RECORDED,
                 "counselor_talk", eventData, talk.getTalkAt());
