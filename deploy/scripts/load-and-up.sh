@@ -37,8 +37,11 @@ export COMPOSE_FILE="${DEPLOY_DIR}/docker-compose.yml:${DEPLOY_DIR}/docker-compo
 [ -f "${ENV_FILE}" ]              || { err ".env 不存在: ${ENV_FILE}"; exit 1; }
 [ -f "${DIST_DIR}/MANIFEST.txt" ] || { err "dist/MANIFEST.txt 不存在，先跑 sync-to-cloud"; exit 1; }
 
-env_tag=$(grep '^IMAGE_TAG=' "${ENV_FILE}" | head -1 | cut -d= -f2 | tr -d '"' | tr -d "'")
-manifest_tag=$(grep '^IMAGE_TAG=' "${DIST_DIR}/MANIFEST.txt" | cut -d= -f2)
+# 注: set -o pipefail 下,grep 没匹配到时整个 pipeline 退出码非 0,会被 set -e
+# 直接干掉脚本(且没任何输出)。这里"读不到就当空字符串",下方逻辑会兜底追加,
+# 所以用 || true 让 grep 不匹配不致命。
+env_tag=$(grep '^IMAGE_TAG=' "${ENV_FILE}" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"' | tr -d "'" || true)
+manifest_tag=$(grep '^IMAGE_TAG=' "${DIST_DIR}/MANIFEST.txt" 2>/dev/null | cut -d= -f2 || true)
 
 if [ -z "${manifest_tag}" ]; then
     err "MANIFEST.txt 中读不到 IMAGE_TAG,本地产物异常,请重跑 build-local.sh"
